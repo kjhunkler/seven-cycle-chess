@@ -114,3 +114,7 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 
 .battle-shell .production-cycle{grid-template-columns:auto auto auto;flex-shrink:0;margin:8px 52px 8px 12px}
 #production-countdown{font-size:11px;color:var(--mut);white-space:nowrap}
+.fruit-button,.queued-fruit{position:relative}
+.production-badge.production-buff,.production-badge.production-debuff{position:absolute;top:1px;right:1px;width:16px;height:18px;border-radius:8px;background:var(--card);font-size:15px;font-weight:900;line-height:1;color:#7ae6aa;pointer-events:none}
+.production-badge.production-debuff{color:#ff8997}
+.production-badge::before,.production-badge::after{content:none}

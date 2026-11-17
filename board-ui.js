@@ -4,6 +4,18 @@
   if (!board) return;
   // Presentation helpers belong here, independent of each edition's simulation.
   const strengthLabel = value => Number(value.toFixed(2));
+  const productionEffect = type => {
+    const cycle = typeof productionCycle === 'undefined' ? null : productionCycle;
+    if (type == null || !cycle) return null;
+    const multiplier = productionMultiplier(cycle, type);
+    if (multiplier === 1) return null;
+    const buff = multiplier > 1;
+    return {percent: `${buff ? '+' : '−'}${Math.abs(Math.round((multiplier - 1) * 100))}%`, kind: buff ? 'buff' : 'debuff', arrow: buff ? '↑' : '↓', label: `${T[type][1]} ${buff ? '+' : ''}${Math.round((multiplier - 1) * 100)}% production speed`};
+  };
+  const productionBadge = type => {
+    const effect = productionEffect(type);
+    return effect ? `<span class="production-badge production-${effect.kind}" role="img" aria-label="${effect.label}" title="${effect.label}">${effect.arrow}</span>` : '';
+  };
   const player = () => typeof localPlayer === 'undefined' ? 1 : localPlayer;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const storage = { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch {} } };
@@ -142,6 +154,9 @@
       }
       if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="10" opacity=".25" pointer-events="none">🛡️</text>`;
       if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=n.castle?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*Math.sin(now/100):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
+        const productionType=n.castle?n.q[0]:n.ut;
+        const effect=!n.shop&&n.owner&&!(n.cd>0)?productionEffect(productionType):null;
+        if(effect)h+=`<g class="node-production node-production-${effect.kind}" pointer-events="none" role="img" aria-label="${effect.label}"><title>${effect.label}</title><rect x="${n.x-r-1}" y="${n.y-r-2}" width="8" height="3.5" rx="1.5" fill="var(--card)"/><text x="${n.x-r+3}" y="${n.y-r+.5}" text-anchor="middle" font-size="2.4" font-weight="800" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}">${effect.arrow}${effect.percent}</text></g>`;
         const progress=n.cd>0?1-n.cd/CONFIG.cooldown:n.castle?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
         if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text></g>`;
@@ -167,12 +182,12 @@
     refreshWheel();
     shell.classList.toggle('battle-ended',!!over);
   };
-  const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
+  const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}${action==='q'?productionBadge(i):''}<span>${escape(T[i][1])}</span></button>`;
   panel=function(){
     const me=player(), c=N['P'+me];
     const status=over?'':c.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=c.disabled?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
+    let h=c.disabled?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}${productionBadge(i)}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
