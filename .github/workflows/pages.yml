@@ -28,7 +28,7 @@ jobs:
       - name: Stage game
         run: |
           mkdir site
-          cp index.html site/
+          cp index.html orchard.html signal.html editions.css manifest.webmanifest sw.js icon-192.png icon-512.png site/
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

@@ -1,0 +1,23 @@
+body.orchard{color-scheme:light;--bg:#f6edda;--fg:#293420;--mut:#576147;--edge:#89946d;--neu:#ded4a8;--p1:#639752;--p2:#ba5742;--card:#fff8e8;--bd:#d9c6a2;background:radial-gradient(ellipse at 60% 0%,#fff9de,transparent 60%),repeating-linear-gradient(125deg,#f4e9ce,#f4e9ce 27px,#efdfbd 28px,#efdfbd 29px);font-family:system-ui,sans-serif}
+body.signal{color-scheme:dark;--bg:#071222;--fg:#e1f8ff;--mut:#a0bcd1;--edge:#3f6680;--neu:#243850;--p1:#008395;--p2:#ec7489;--card:#0d2035;--bd:#365978;background:radial-gradient(ellipse at top,#172b50,transparent 65%),#081321;font-family:system-ui,sans-serif}
+.orchard main,.signal main{max-width:620px;padding-inline:clamp(8px,3vw,20px)}
+header{margin:12px 0}
+header h1{font-size:clamp(2.3rem,9vw,4rem);line-height:1;margin:0}
+.orchard h1{font-family:Georgia,serif;font-weight:normal}
+.signal h1,.signal .brand{font-family:ui-monospace,monospace;letter-spacing:.12em;text-transform:uppercase}
+.brand,.subtitle{margin:0;color:var(--mut)}
+.brand{font-size:.78rem;font-weight:800}
+.subtitle{margin-top:6px}
+#msg{min-height:1.45em}
+svg{height:min(98vw,58svh);max-height:none;box-sizing:border-box;border:1px solid var(--bd);border-radius:14px}
+.orchard svg{background:radial-gradient(ellipse at center,#fff8d9,#ead5a6)}
+.signal svg{background:linear-gradient(90deg,#70bfff19 1px,transparent 1px),linear-gradient(#70bfff19 1px,transparent 1px),#071423;background-size:20px 20px}
+.signal .card,.signal button,.signal .editions a,.signal svg{border-radius:4px}
+.editions a:focus-visible,button:focus-visible,summary:focus-visible{outline:2px solid var(--p1);outline-offset:2px}
+.card{padding:12px}
+button{min-height:44px;min-width:44px}
+.row{gap:5px}
+.row b{flex-basis:100%}
+.guide summary{cursor:pointer;min-height:44px;display:list-item;line-height:44px;font-weight:700}
+.guide dl{display:grid;grid-template-columns:auto 1fr;gap:8px 12px}
+.guide dd{margin:0}
