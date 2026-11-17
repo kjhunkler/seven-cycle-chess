@@ -55,8 +55,11 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'the last defender keeps its fruit selected');
     vm.runInContext('N.P1.stock=[2,1,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];for(let i=0;i<30;i++)depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 0, 'selected fruit is fully spent');
-    assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle switches to the next stocked fruit');
-    assert.equal(vm.runInContext('N.P1.routes.length', context), 0, 'switching fruit clears all routes');
+    assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'castle keeps the selected fruit');
+    assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'routes remain when the selected fruit runs out');
+    vm.runInContext('N.C1.owner=1;N.C1.ut=1;N.P1.stock=[2,3,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];depart(N.P1,.1)', context);
+    assert.equal(vm.runInContext('G[0].type', context), 1, 'castle falls back to the strongest compatible fruit on a blocked lane');
+    assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'fallback dispatch keeps the route arrow');
     vm.runInContext('routeCommand({kind:"stop",node:"P1"});N.P1.stock[0]=5;G=[];depart(N.P1,1)', context);
     assert.equal(vm.runInContext('G.length', context), 0, 'stop clears future departures');
     vm.runInContext('N.C1.owner=1;N.C1.cd=3;N.C1.pend=2;sel="C1";act("cancel")', context);
