@@ -83,7 +83,7 @@ function routeCommand(data){
     const n=N[id];if(over||!n||n.cd>0||n.owner!==myPlayer())return;
     select(id);wheelNode=id;
     if(drag)drag.held=true;
-    typeWheel.innerHTML=`<span>${n.castle?'Select troop':'Transform'}</span>`;
+    typeWheel.innerHTML='';
     T.forEach(([emoji,name],i)=>{
       const b=document.createElement('button'),a=2*Math.PI*i/T.length-Math.PI/2;
       b.style.left=102+75*Math.cos(a)+'px';b.style.top=102+75*Math.sin(a)+'px';
@@ -96,8 +96,11 @@ function routeCommand(data){
         else {select(id);act('p'+i);}
       }closeWheel();pl=0;};typeWheel.append(b);
     });
-    typeWheel.style.left=Math.max(4,Math.min(innerWidth-212,x-104))+'px';
-    typeWheel.style.top=Math.max(4,Math.min(innerHeight-212,y-104))+'px';typeWheel.hidden=false;pl=0;
+    const marker=map.querySelector(`[data-id="${id}"] circle:nth-child(2)`)||map.querySelector(`[data-id="${id}"] circle`);
+    const rect=marker?.getBoundingClientRect(),cx=rect?rect.left+rect.width/2:x,cy=rect?rect.top+rect.height/2:y;
+    const room=Math.max(0,Math.min(cx,innerWidth-cx,cy,innerHeight-cy)-8),scale=Math.max(.55,Math.min(1,room/102));
+    typeWheel.style.setProperty('--wheel-hole',`${Math.max(22,(rect?.width||0)/2+8)}px`);
+    typeWheel.style.left=cx+'px';typeWheel.style.top=cy+'px';typeWheel.style.transform=`translate(-50%,-50%) scale(${scale})`;typeWheel.hidden=false;pl=0;
   };
   const point=(x,y)=>{const p=new DOMPoint(x,y).matrixTransform(map.getScreenCTM().inverse());if(myPlayer()===2)p.y=100-p.y;return p;};
   const snap=(id,x,y)=>{
@@ -136,7 +139,7 @@ function routeCommand(data){
   map.addEventListener('pointerup',e=>{
     if(drag?.id!==e.pointerId)return;e.preventDefault();clearTimeout(holdTimer);
     const d=drag;
-    if(d.held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(b&&typeWheel.contains(b))b.click();else closeWheel();}
+    if(d.held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(b&&typeWheel.contains(b))b.click();}
     else if(d.moved){d.to=routeTarget(d.from,e.clientX,e.clientY);if(d.to)send(d.from,d.to);}
     else {const selected=sel===d.from;routeCommand({kind:'stop',node:d.from});select(d.from);if(selected&&!d.wasOpen)openWheel(d.from,e.clientX,e.clientY);}
     drag=null;pl=0;
