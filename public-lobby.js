@@ -1,9 +1,9 @@
 const publicLobby = (() => {
-  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v2";
+  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v3";
   const id = crypto.randomUUID();
   const presence = root + "/presence", address = root + "/inbox/";
   const friends = new Map(), rooms = new Map(), inbox = [];
-  let client, ready, opening, lastSeen = 0, keys, publicKey;
+  let client, ready, opening, lastSeen = 0, lastName, keys, publicKey;
   const valid = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
   const b64 = value => btoa(String.fromCharCode(...new Uint8Array(value)));
   const decode = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
@@ -53,7 +53,7 @@ const publicLobby = (() => {
     if (!ready) throw new Error("Connecting to the public signaling service.");
     const now = Date.now();
     if (action === "poll") {
-      if (now-lastSeen >= 4000) {await publish(presence,{name,key:publicKey});lastSeen=now}
+      if (now-lastSeen >= 4000 || name!==lastName) {await publish(presence,{name,key:publicKey});lastSeen=now;lastName=name}
       for (const [key,friend] of friends) if (now-friend.seen > 15_000) friends.delete(key);
       for (const [key,room] of rooms) if (now-room.seen > 600_000) rooms.delete(key);
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],

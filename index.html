@@ -27,12 +27,20 @@ small{color:var(--mut)}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 </style><link rel="stylesheet" href="./board-ui.css"></head><body><main>
-<nav class="editions" aria-label="Game edition"><a href="./" aria-current="page">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html">Signal</a><a href="./online.html">Online</a></nav><h1>Fruit Wars</h1>
+<nav class="editions" aria-label="Game edition"><a href="./" aria-current="page">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html">Signal</a><a href="#friends-panel">Friends</a></nav><h1>Fruit Wars</h1>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
 <div class="card"><small>Cycle: 🍎→🍊→🍌→🥑→🫐→🍇→🥥→🍎. Each fruit crushes the next one, beats the second, ties the third and fourth, loses to the fifth, and is crushed by the sixth. So 1 🍎 beats 2 🍊, and 1 🥥 beats 2 🍎. Drag between connected nodes to send troops. Tap to select, or hold an owned outpost to change its type. Rings show the selected fruit’s matchup against the largest defending stack: green + is strong, red − is weak, and gray = is even. Outposts only accept units of their own type. You only see your outposts and their neighbors.</small></div>
-</main>
+<details id="friends-panel" class="card"><summary id="friend-summary">Friends</summary><section class="card" id="lobby" aria-label="Online lobby">
+  <form class="row"><label for="display-name">Display name</label>
+    <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
+    <button>Save name</button>
+  </form>
+  <p role="status">Connecting to friends…</p>
+  <strong>Friends online</strong><ul id="friends"></ul>
+  <div id="invitations"></div>
+</section></details></main>
 <script>
 const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
@@ -52,7 +60,7 @@ function init(){
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
-const strengthLabel=value=>Number(value.toFixed(2));
+
 const vis=()=>{const s=new Set();for(const n of Object.values(N))if(n.owner===1){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
@@ -87,7 +95,7 @@ function depart(source,dt){
 }
 function arrive(g){
   const n=N[g.to];
-  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+g.n);return}
+  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+Math.ceil(g.n));return}
   let a=g.n;
   while(a>0){
     const d=big(n);if(d<0)break;
@@ -96,7 +104,7 @@ function arrive(g){
   }
   if(a>0){
     if(n.castle){over=g.owner;return}
-    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=a;n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
+    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=Math.ceil(a);n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
     if(g.owner!==1&&sel===n.id)sel=null;
   }
 }
@@ -186,7 +194,7 @@ function render(){
       if(mark)h+=`<text x="${n.x+r+2}" y="${n.y-r}" text-anchor="middle" font-size="5" font-weight="bold" fill="${color}">${mark}</text>`;
     }
     h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="${n.castle?6:5.4}" fill="var(--fg)">${face}</text>`;
-    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${strengthLabel(tot(n))}${n.castle&&n.owner===1?" 🏰":""}</text>`;
+    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${n.stock.reduce((count,strength)=>count+Math.ceil(strength),0)}${n.castle&&n.owner===1?" 🏰":""}</text>`;
     h+="</g>";
   }
   if(drag?.moved){
@@ -208,7 +216,7 @@ function panel(){
   let h=`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
   if(sel){
     const n=N[sel];
-    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${strengthLabel(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
+    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
     if(!n.castle)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   $("panel").innerHTML=h;
@@ -265,6 +273,7 @@ document.addEventListener("pointerdown",event=>{
   if(!typeWheel.contains(event.target))closeWheel();
 },true);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWheel()});
+document.querySelector('a[href="#friends-panel"]').addEventListener("click",()=>{$("friends-panel").open=true});
 map.addEventListener("contextmenu",event=>event.preventDefault());
 map.addEventListener("pointerdown",e=>{
   const node=e.target.closest("[data-id]");
@@ -304,4 +313,4 @@ map.addEventListener("pointerup",e=>{
 map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./board-ui.js"></script></body></html>
+</script><script src="./board-ui.js"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
