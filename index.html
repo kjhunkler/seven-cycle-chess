@@ -66,7 +66,7 @@ const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
-let botConfig={map:1,speed:1,shops:true,productionRotation:true};
+let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:false,transformationWave:false,transformationTime:10};
 const extraMaps={
   1:{nodes:{},edges:[]},
   2:{nodes:{D1:[18,34],D2:[82,34],E1:[28,64],E2:[72,64]},edges:[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
@@ -74,6 +74,7 @@ const extraMaps={
   4:{nodes:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]},edges:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]]}
 };
 function init(){
+  transformationClock=0;
   N={};
   CONFIG.timeScale=botConfig.speed;
   const positions=botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes};
@@ -106,7 +107,7 @@ function shopCapacity(target,includeOrders=true){
 function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
-  return target.owner!==owner||target.castle||target.ut===type;
+  return target.owner!==owner||queuedCastle(target)||target.ut===type;
 }
 function dispatch(source,to,type,count){
   const target=N[to];
@@ -151,11 +152,12 @@ function arrive(g){
 }
 function step(dt){
   if(over)return;
+  transformationClock+=dt;
   for(const n of Object.values(N)){
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(n.castle){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]++}}}
-    else if(n.cd>0){n.cd-=dt;if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
+    if(queuedCastle(n)){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]++}}}
+    else if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
     else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]++}}
   }
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
@@ -171,7 +173,7 @@ function step(dt){
 }
 function ai(){
   for(const owner of [2,3,4]){
-  const castle=N[`P${owner}`];if(!castle||castle.disabled)continue;botShopTurn(owner);const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
+  const castle=N[`P${owner}`];if(!castle||castle.disabled)continue;botShopTurn(owner);const q=castle.q;while(!noQueueMode()&&q.length<3)q.push(Math.random()*7|0);
   const mine=Object.values(N).filter(n=>n.owner===owner&&big(n)>=0).sort(()=>Math.random()-.5).slice(0,2);
   for(const n of mine){
     const ty=big(n),c=n.stock[ty],amt=n.castle?c-2:c;
@@ -214,9 +216,9 @@ function act(a){
   if(a==="restart")return init();
   if(a==="qc")N.P1.q=[];
   else if(a==="half")half=!half;
-  else if(a[0]==="q"){if(N.P1.q.length<20)N.P1.q.push(+a[1])}
+  else if(a[0]==="q"){if(!noQueueMode()&&N.P1.q.length<20)N.P1.q.push(+a[1])}
   else if(a[0]==="s")sendType=+a[1];
-  else if(a[0]==="p"){const n=N[sel],i=+a[1];if(n&&n.owner===1&&!n.castle&&i!==(n.pend??n.ut)){n.pend=i;n.cd=CONFIG.cooldown;n.tm=0}}
+  else if(a[0]==="p"){const n=N[sel],i=+a[1];if(n&&n.owner===1&&!queuedCastle(n)&&!n.shop&&i!==(n.pend??n.ut)){beginTransformation(n,i)}}
 }
 function render(){
   const V=vis();let h="";
@@ -257,7 +259,7 @@ function render(){
 function panel(){
   $("msg").innerHTML=over?(over===1?"🏆 You captured the enemy castle. ":"💀 Your castle fell. ")+`<button data-act="restart">Play again</button>`:msg;
   const c=N.P1;
-  let h=`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
+  let h=noQueueMode()?'':`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
   if(sel){
     const n=N[sel];
     h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;

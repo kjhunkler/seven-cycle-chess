@@ -45,9 +45,9 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     if (page === 'index.html') {
       const dialog = context.document.body.children.find(element => element.className === 'battle-settings-dialog');
-      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: true}, productionRotation: {checked: true}};
+      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: false}, noQueue: {checked: false}};
       dialog.querySelector = selector => selector === 'form' ? {elements: fields} : new Element();
-      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && N.S1H.shop==="shield"', context), true, 'original map at standard speed with shops');
+      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && !N.S1H && !botConfig.noQueue && !productionCycle', context), true, 'original map at standard speed with all options off');
       vm.runInContext('globalThis.originalBoard=N', context);
       dialog.listeners.get('change')();
       assert.equal(vm.runInContext('N===originalBoard && CONFIG.timeScale===1.5', context), true, 'speed applies without resetting');
@@ -79,7 +79,7 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext('N=savedShopState.N;G=savedShopState.G',context);
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
     vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
     assert.match(get('panel').innerHTML, /Queue/);
     assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
@@ -127,7 +127,7 @@ for (const page of ['index.html', 'match.html']) {
     frames.shift()(200);
     if (page === 'index.html') assert.match(get('production-countdown').textContent, /Next in \d+s/);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
     else vm.runInContext('init()', context);
     vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.q.length', context), 1, 'still producing after 3 real seconds');

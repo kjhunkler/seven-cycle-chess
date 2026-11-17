@@ -43,9 +43,9 @@
   shell.append(board);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=noQueue]').checked=!!botConfig.noQueue;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
@@ -55,9 +55,11 @@
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation}=settingsDialog.querySelector('form').elements;
-      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked};
-      const reset=restart||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,speed,shops,productionRotation,noQueue,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
+      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,noQueue:!!noQueue?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
+      if(!Number.isFinite(next.transformationTime)||next.transformationTime<1||next.transformationTime>120)return;
+      if(transformationTime)transformationTime.disabled=!next.transformationWave;
+      const reset=restart||next.transformationWave!==!!botConfig.transformationWave||next.transformationTime!==(botConfig.transformationTime??10)||next.noQueue!==!!botConfig.noQueue||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
       if(reset){
         act('restart');
@@ -153,11 +155,11 @@
         if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
       }
       if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="10" opacity=".25" pointer-events="none">🛡️</text>`;
-      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=n.castle?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*Math.sin(now/100):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
-        const productionType=n.castle?n.q[0]:n.ut;
+      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=queuedCastle(n)?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*(transformationConfig().transformationWave?Math.cos(2*Math.PI*transformationProgress(n)):Math.sin(now/100)):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
+        const productionType=queuedCastle(n)?n.q[0]:n.ut;
         const effect=!n.shop&&n.owner&&!(n.cd>0)?productionEffect(productionType):null;
         if(effect)h+=`<g class="node-production node-production-${effect.kind}" pointer-events="none" role="img" aria-label="${effect.label}"><title>${effect.label}</title><rect x="${n.x-r-1}" y="${n.y-r-2}" width="8" height="3.5" rx="1.5" fill="var(--card)"/><text x="${n.x-r+3}" y="${n.y-r+.5}" text-anchor="middle" font-size="2.4" font-weight="800" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}">${effect.arrow}${effect.percent}</text></g>`;
-        const progress=n.cd>0?1-n.cd/CONFIG.cooldown:n.castle?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
+        const progress=n.cd>0?transformationProgress(n):queuedCastle(n)?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
         if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text></g>`;
         if(n.shields>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+3.1}" fill="none" stroke="#55d9ff" stroke-width="1.5" class="shield-ring"/><text x="${n.x-r-1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#63e4ff" stroke="var(--card)" stroke-width=".7" paint-order="stroke">🛡️${n.shields>1?`×${n.shields}`:''}</text>`;
@@ -187,8 +189,9 @@
     const me=player(), c=N['P'+me];
     const status=over?'':c.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=c.disabled?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}${productionBadge(i)}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
+    let h=c.disabled||noQueueMode()?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}${productionBadge(i)}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
+    document.getElementById('panel').hidden=noQueueMode()&&!h;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
   document.getElementById('msg').setAttribute('aria-live','polite');
@@ -197,12 +200,12 @@
     const node=window.boardNodes()[typeWheel.dataset.node];
     if(!node||node.owner!==player()){closeWheel();return;}
     typeWheel.querySelectorAll('button[data-type]').forEach(button=>{
-      const i=Number(button.dataset.type),selected=node.castle?node.selectedType===i:(node.pend??node.ut)===i;
-      button.disabled=node.castle&&node.stock[i]<=CONFIG.strengthEpsilon;
+      const i=Number(button.dataset.type),selected=queuedCastle(node)?node.selectedType===i:(node.pend??node.ut)===i;
+      button.disabled=queuedCastle(node)&&node.stock[i]<=CONFIG.strengthEpsilon;
       button.setAttribute('aria-pressed',String(selected));
-      button.setAttribute('aria-label',node.castle?`${T[i][1]}, ${strengthLabel(node.stock[i])} available`:`Produce ${T[i][1]}`);
+      button.setAttribute('aria-label',queuedCastle(node)?`${T[i][1]}, ${strengthLabel(node.stock[i])} available`:`Produce ${T[i][1]}`);
       button.classList.toggle('on',selected);
-      button.innerHTML=icon(i)+(node.castle?`<small>${strengthLabel(node.stock[i])}</small>`:'');
+      button.innerHTML=icon(i)+(queuedCastle(node)?`<small>${strengthLabel(node.stock[i])}</small>`:'');
     });
   };
   window.refreshTypeWheel=refreshWheel;

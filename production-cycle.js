@@ -1,3 +1,25 @@
+// Simulation time is authoritative; wave boundaries follow game speed and pause with play.
+let transformationClock=0;
+function transformationConfig(){return typeof botConfig!=='undefined'?botConfig:lobbyConfig}
+function transformationPeriod(){return transformationConfig().transformationTime??10}
+function beginTransformation(node,type){
+ node.pend=type;node.tm=0;
+ if(transformationConfig().transformationWave){
+  const period=transformationPeriod();
+  node.transformAt=(Math.floor((transformationClock+1e-8)/period)+1)*period;
+  node.cd=node.transformAt-transformationClock;
+ }else{node.transformAt=null;node.cd=CONFIG.cooldown}
+}
+function advanceTransformation(node,dt){
+ node.cd=node.transformAt!=null?Math.max(0,node.transformAt-transformationClock):Math.max(0,node.cd-dt);
+ if(node.cd<1e-8)node.cd=0;
+}
+function transformationProgress(node){
+ const duration=transformationConfig().transformationWave?transformationPeriod():CONFIG.cooldown;
+ return Math.max(0,Math.min(1,1-node.cd/duration));
+}
+function noQueueMode(){return !!(typeof botConfig!=='undefined'?botConfig.noQueue:typeof lobbyConfig!=='undefined'&&lobbyConfig.noQueue)}
+function queuedCastle(node){return !!node.castle&&!noQueueMode()}
 const PRODUCTION_CYCLE_MS = 45000;
 const PRODUCTION_BUFF = 1.25;
 const PRODUCTION_DEBUFF = 0.75;

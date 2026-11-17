@@ -26,7 +26,7 @@ function eliminateCastle(castle,winner){
     n.adj=n.adj.filter(id=>id!==castle.id);
     n.routes=(n.routes||[]).filter(id=>id!==castle.id);
     n.routeIndex=0;
-    n.orders=n.orders.filter(order=>{if(order.to!==castle.id)return true;n.stock[n.castle?order.type:n.ut]+=order.count;return false});
+    n.orders=n.orders.filter(order=>{if(order.to!==castle.id)return true;n.stock[queuedCastle(n)?order.type:n.ut]+=order.count;return false});
     if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>id!==castle.id);
   }
   castle.disabled=true;castle.owner=0;castle.q=[];castle.orders=[];castle.routes=[];castle.adj=[];castle.pend=null;castle.cd=0;castle.tm=0;castle.shields=0;castle.boost=0;
@@ -45,6 +45,7 @@ function eliminateCastle(castle,winner){
   msg=N['P'+myPlayer()]?.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':'A castle fell. Its fruit joined the captor. Keep playing.';
 }
 function castleFruit(n){
+  if(noQueueMode())return n.ut;
   const selected=n.selectedType;
   if(selected==null){
     const strongest=big(n);
@@ -77,7 +78,7 @@ function applyRouteCommand(owner,data){
   const n=Object.hasOwn(N,data.node)?N[data.node]:null;
   if(over||!n||n.owner!==owner)return true;
   if(data.kind==='select-troop'){
-    if(n.castle&&Number.isInteger(data.type)&&data.type>=0&&data.type<T.length&&n.stock[data.type]>CONFIG.strengthEpsilon){n.selectedType=data.type;if(owner===myPlayer())sendType=data.type;}
+    if(queuedCastle(n)&&Number.isInteger(data.type)&&data.type>=0&&data.type<T.length&&n.stock[data.type]>CONFIG.strengthEpsilon){n.selectedType=data.type;if(owner===myPlayer())sendType=data.type;}
     return true;
   }
   if(data.kind==='route'&&n.adj.includes(data.to)){
@@ -85,7 +86,7 @@ function applyRouteCommand(owner,data){
     n.routes??=[];if(!n.routes.includes(data.to))n.routes.push(data.to);
   }
   if(data.kind==='stop'){n.routes=[];n.routeIndex=0;}
-  if(data.kind==='cancel'){n.pend=null;n.cd=0;}
+  if(data.kind==='cancel'){n.pend=null;n.cd=0;n.transformAt=null;}
   return true;
 }
 function routeCommand(data){
@@ -108,7 +109,7 @@ function routeCommand(data){
         N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];
       }
     }
-    for(const n of Object.values(N))if(n.castle)refreshCastleFruit(n);
+    for(const n of Object.values(N))if(n.castle){if(noQueueMode()){n.ut=Math.max(0,big(n));n.q=[]}refreshCastleFruit(n);}
     closeWheel();
     msg='Drag from your castle or an outpost to create a route. Tap to stop; hold to choose or transform.';
   };
@@ -128,7 +129,7 @@ function routeCommand(data){
     if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
-        const type=n.castle?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
+        const type=queuedCastle(n)?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
         const count=Math.min(1,n.stock[type],tot(n)-1,N[to].shop?shopCapacity(N[to]):Infinity);
         if(count<=CONFIG.strengthEpsilon)continue;
@@ -145,6 +146,7 @@ function routeCommand(data){
   send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to});};
   const baseAct=act;
   act=function(a){
+    if(noQueueMode()&&(a[0]==='q'||a.startsWith('dropq')))return;
     if(a==='cancel'){routeCommand({kind:'cancel',node:sel});return;}
     if(a.startsWith('dropq')){
       const index=Number(a.slice(5));
@@ -164,12 +166,12 @@ function routeCommand(data){
     T.forEach(([emoji,name],i)=>{
       const b=document.createElement('button'),a=2*Math.PI*i/T.length-Math.PI/2;
       b.style.left=102+75*Math.cos(a)+'px';b.style.top=102+75*Math.sin(a)+'px';
-      b.textContent=emoji;b.dataset.type=i;b.setAttribute('aria-label',n.castle?`${name}, ${Math.ceil(n.stock[i])} available`:'Produce '+name);
-      b.setAttribute('aria-pressed',String(n.castle?n.selectedType===i:(n.pend??n.ut)===i));
-      b.disabled=n.castle&&n.stock[i]<=CONFIG.strengthEpsilon;
-      if((n.castle?n.selectedType===i:(n.pend??n.ut)===i))b.className='on';
+      b.textContent=emoji;b.dataset.type=i;b.setAttribute('aria-label',queuedCastle(n)?`${name}, ${Math.ceil(n.stock[i])} available`:'Produce '+name);
+      b.setAttribute('aria-pressed',String(queuedCastle(n)?n.selectedType===i:(n.pend??n.ut)===i));
+      b.disabled=queuedCastle(n)&&n.stock[i]<=CONFIG.strengthEpsilon;
+      if((queuedCastle(n)?n.selectedType===i:(n.pend??n.ut)===i))b.className='on';
       b.onclick=()=>{if(N[id].owner===myPlayer()){
-        if(n.castle)routeCommand({kind:'select-troop',node:id,type:i});
+        if(queuedCastle(n))routeCommand({kind:'select-troop',node:id,type:i});
         else {select(id);act('p'+i);}
       }closeWheel();pl=0;};typeWheel.append(b);
     });
