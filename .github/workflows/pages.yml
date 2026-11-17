@@ -26,9 +26,12 @@ jobs:
         with:
           enablement: true
       - name: Stage game
+        env:
+          FRUIT_WARS_LOBBY: ${{ vars.FRUIT_WARS_LOBBY }}
         run: |
           mkdir site
-          cp index.html orchard.html signal.html editions.css manifest.webmanifest sw.js icon-192.png icon-512.png site/
+          cp index.html orchard.html signal.html online.html editions.css manifest.webmanifest sw.js icon-192.png icon-512.png lobby.js site/
+          node -e 'require("node:fs").writeFileSync("site/lobby-config.js", "window.FRUIT_WARS_LOBBY = " + JSON.stringify(process.env.FRUIT_WARS_LOBBY || "") + ";\n")'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
