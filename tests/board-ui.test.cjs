@@ -19,7 +19,7 @@ class Element {
   querySelector() { return new Element(); }
   querySelectorAll() { return []; }
 }
-for (const page of ['index.html', 'orchard.html', 'signal.html', 'match.html']) {
+for (const page of ['index.html', 'match.html']) {
   test(`${page}: shared UI initializes, advances production, and dispatches troops`, () => {
     const elements = new Map();
     const get = id => { if (!elements.has(id)) elements.set(id, new Element()); return elements.get(id); };
@@ -37,15 +37,31 @@ for (const page of ['index.html', 'orchard.html', 'signal.html', 'match.html']) 
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
       if (match[1].trim()) vm.runInContext(match[1], context, { filename: page });
     }
+    vm.runInContext(fs.readFileSync(path.join(root, 'controls.js'), 'utf8'), context, { filename: 'controls.js' });
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
-    assert.match(get('panel').innerHTML, /Grow your army/);
+    assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {})', context);
     vm.runInContext('act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
-    assert.match(get('panel').innerHTML, /COMMAND CENTER/);
+    assert.match(get('panel').innerHTML, /Queue/);
     assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
     vm.runInContext('sendType=0; send("P1","C1"); step(.1); render(); panel();', context);
     assert.ok(vm.runInContext('G.some(g => g.from === "P1" && g.to === "C1")', context));
+
+    vm.runInContext('N.P1.stock=[7,0,0,0,0,0,0]; G=[]; N.P1.departure=0; send("P1","C2"); for(let i=0;i<30;i++)depart(N.P1,.1)', context);
+    assert.equal(vm.runInContext('tot(N.P1)', context), 1, 'routes preserve one defender');
+    assert.equal(vm.runInContext('G.filter(g=>g.to==="C1").length', context), 3);
+    assert.equal(vm.runInContext('G.filter(g=>g.to==="C2").length', context), 3);
+    vm.runInContext('routeCommand({kind:"stop",node:"P1"});N.P1.stock[0]=5;G=[];depart(N.P1,1)', context);
+    assert.equal(vm.runInContext('G.length', context), 0, 'stop clears future departures');
+    vm.runInContext('N.C1.owner=1;N.C1.cd=3;N.C1.pend=2;sel="C1";act("cancel")', context);
+    assert.equal(vm.runInContext('N.C1.pend', context), null);
+    if(page==='match.html'){
+      vm.runInContext('applyCommand(2,{kind:"route",node:"P1",to:"C1"})',context);
+      assert.equal(vm.runInContext('N.P1.routes.length',context),0,'remote cannot command opponent');
+      vm.runInContext('matchGame.start(1,()=>{})',context);
+      assert.equal(vm.runInContext('JSON.stringify(N.P1.stock)===JSON.stringify(N.P2.stock)&&N.A1.ut===N.C1.ut',context),true,'symmetric starting armies');
+    }
     assert.ok(frames.length > 0);
     frames.shift()(200);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
@@ -57,7 +73,7 @@ for (const page of ['index.html', 'orchard.html', 'signal.html', 'match.html']) 
     assert.equal(vm.runInContext('N.P1.q.length', context), 0, 'production completes after 4 real seconds');
     if (page === 'match.html') {
       vm.runInContext('matchGame.start(2, () => {}); render(); panel();', context);
-      assert.match(get('panel').innerHTML, /Grow your army/);
+      assert.match(get('panel').innerHTML, /Queue/);
     }
   });
 }

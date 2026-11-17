@@ -7,7 +7,7 @@
   const player = () => typeof localPlayer === 'undefined' ? 1 : localPlayer;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const storage = { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch {} } };
-  let motion = storage.get('fw-motion') !== 'off', haptics = storage.get('fw-haptics') === 'on';
+  let motion = storage.get('fw-motion') !== 'off', haptics = storage.get('fw-haptics') !== 'off';
   const animated = () => motion && !reduced.matches;
   const vibrate = pattern => { if (haptics && typeof navigator.vibrate === 'function' && !document.hidden) { try { navigator.vibrate(pattern); } catch {} } };
   const fruitPaths = [
@@ -25,14 +25,14 @@
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
-  shell.innerHTML = '<div class="battle-top"><div><span class="eyebrow">TACTICAL BATTLEFIELD</span><strong>Every fruit has a fighting chance.</strong></div><span class="live-pill"><i></i> LIVE</span></div><div class="battle-stats" aria-label="Battle status"></div>';
+  shell.innerHTML = '';
   board.before(shell); shell.append(board);
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
   const footer = document.createElement('div');
   footer.className = 'battle-footer';
-  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span><i class="key-dot enemy"></i> Rival</span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Select · Connect · Conquer</span>';
+  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span><i class="key-dot enemy"></i> Rival</span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Tap to stop</span>';
   shell.append(footer);
   const settings = document.createElement('div'); settings.className = 'feedback-settings';
   settings.innerHTML = '<span>Make your move.</span><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button>';
@@ -63,12 +63,14 @@
   document.addEventListener('click',e=>{if(e.target.closest('[data-act]'))vibrate(8)});
   board.addEventListener('keydown',e=>{
     const node=e.target.closest('[data-id]');if(!node)return;
-    if(e.key==='Enter'||e.key===' '){e.preventDefault();const id=node.dataset.id;if(sel&&sel!==id&&N[sel].adj.includes(id))send(sel,id);else pick(id);pl=0;}
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();const id=node.dataset.id;if(sel&&sel!==id&&N[sel].adj.includes(id))send(sel,id);else {const selected=sel===id;routeCommand({kind:'stop',node:id});pick(id);if(selected){const r=node.getBoundingClientRect();openWheel(id,r.x+r.width/2,r.y+r.height/2);}}pl=0;}
     if(e.key==='Escape'){sel=null;closeWheel();pl=0;}
     if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(e.key)){e.preventDefault();const nodes=[...board.querySelectorAll('[data-id]')],at=nodes.indexOf(node),delta=['ArrowLeft','ArrowUp'].includes(e.key)?-1:1;nodes[(at+delta+nodes.length)%nodes.length].focus();}
   });
+  window.boardNodes=()=>N;
   render=function(){
     const V=vis(), now=performance.now(), me=player();
+    const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,y:me===2?100-n.y:n.y}]));
     footer.querySelector('.ally').style.background=me===1?'var(--p1)':'var(--p2)';
     footer.querySelector('.enemy').style.background=me===1?'var(--p2)':'var(--p1)';
     const snapshot=Object.fromEntries(Object.values(N).map(n=>[n.id,{owner:n.owner,visible:V.has(n.id)}]));
@@ -94,15 +96,18 @@
       }else h+=`<text x="${n.x}" y="${n.y+1.3}" text-anchor="middle" font-size="4" fill="var(--mut)">?</text>`;
       h+=`<circle cx="${n.x}" cy="${n.y}" r="7.4" fill="transparent"/></g>`;
     }
-    if(drag?.moved){const a=N[drag.from],end=new DOMPoint(drag.x,drag.y).matrixTransform(board.getScreenCTM().inverse());h+=`<path pointer-events="none" d="M${a.x} ${a.y}L${end.x} ${end.y}" stroke="var(--p1)" stroke-width=".8" stroke-dasharray="2 1"/><circle pointer-events="none" cx="${end.x}" cy="${end.y}" r="2" fill="none" stroke="var(--p1)" stroke-width=".5"/>`;}
+    for(const a of Object.values(N)){
+      if(a.owner!==me)continue;
+      const routes=[...(a.routes||[])];if(drag?.from===a.id&&drag.to&&!routes.includes(drag.to))routes.push(drag.to);
+      for(const to of routes){const b=N[to],angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
+        h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${me===1?'var(--p1)':'var(--p2)'}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+      }
+    }
     for(const g of G){if(g.owner!==me&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],x=a.x+(b.x-a.x)*g.t,y=a.y+(b.y-a.y)*g.t,t=Math.max(0,g.t-.065);h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${g.owner===1?'var(--p1)':'var(--p2)'}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${g.owner===1?'var(--p1)':'var(--p2)'}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
     effects=effects.filter(e=>now-e.start<800);
     if(animated())for(const e of effects){const t=(now-e.start)/800;h+=`<g pointer-events="none" opacity="${1-t}"><circle cx="${e.x}" cy="${e.y}" r="${5+t*8}" fill="none" stroke="${e.color}" stroke-width="${.8*(1-t)}"/>`;for(let j=0;j<8;j++){const a=j*Math.PI/4;h+=`<circle cx="${e.x+Math.cos(a)*(5+t*10)}" cy="${e.y+Math.sin(a)*(5+t*10)}" r="${.65*(1-t)}" fill="${e.color}"/>`;}h+='</g>';}
     const focused=board.contains(document.activeElement)?document.activeElement.dataset.id:null;
     board.innerHTML=h;if(focused)board.querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
-    const mine=Object.values(N).filter(n=>n.owner===me),visible=Object.values(N).filter(n=>V.has(n.id));
-    const stats=`<span><b>${mine.length}</b> territories</span><span><b>${strengthLabel(mine.reduce((s,n)=>s+tot(n),0))}</b> troops</span><span><b>${visible.length} / ${Object.keys(N).length}</b> revealed</span>`;
-    const statsEl=shell.querySelector('.battle-stats');if(statsEl.innerHTML!==stats)statsEl.innerHTML=stats;
     shell.classList.toggle('battle-ended',!!over);
   };
   const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
@@ -110,11 +115,8 @@
     const me=player(), c=N['P'+me];
     const status=over?`<strong>${over===me?'Victory. The orchard is yours.':'Your castle has fallen.'}</strong> ${typeof online==='undefined'?'<button data-act="restart">Play again ↗</button>':''}`:escape(msg||'Choose your next move. Drag between connected outposts to send troops.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=`<div class="panel-heading"><div><span class="eyebrow">REINFORCEMENTS</span><h2>Grow your army</h2></div><span class="queue-count">${c.q.length} / 20 queued</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div><div class="queue-strip"><span>${c.q.length?c.q.map(i=>icon(i,'queue-icon')).join(''):'Your next move starts here. Queue a fruit.'}</span><button data-act="qc" aria-label="Clear production queue">Clear</button></div>`;
-    if(sel){const n=N[sel];h+=`<div class="selection-panel"><div class="panel-heading"><div><span class="eyebrow">COMMAND CENTER</span><h2>${n.castle?'Your castle':'Outpost '+n.id}</h2></div><button data-act="half" aria-pressed="${half}">Send ${half?'half':'all'} ↗</button></div><div class="stock-row">${n.stock.map((k,i)=>k?`<button data-act="s${i}" class="stock-button ${sendType===i?'on':''}" aria-label="Send ${escape(T[i][1])}, ${strengthLabel(k)} troops" aria-pressed="${sendType===i}">${icon(i)}<b>${strengthLabel(k)}</b></button>`:'').join('')||'<small>No troops ready. Production is on its way.</small>'}</div>`;
-      if(!n.castle)h+=`<p class="production-label">${n.cd>0?'Changing production…':'Produce at this outpost'}</p><div class="fruit-palette">${T.map((_,i)=>button(i,'p',(n.pend??n.ut)===i,'Produce')).join('')}</div>`;
-      h+='<small class="command-hint">Drag to a linked outpost, or focus it and press Enter to send.</small></div>';
-    }else h+='<div class="selection-empty"><span>◎</span><div><b>Your kingdom starts with one castle.</b><small>Select your castle to command your troops.</small></div></div>';
+    let h=`<div class="queue-title"><b>Queue</b><span>${c.q.length} / 20</span><button data-act="qc" aria-label="Clear production queue">Clear</button></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div><div class="queue-strip"><span>${c.q.length?c.q.map(i=>icon(i,'queue-icon')).join(''):'Tap a fruit to queue'}</span></div>`;
+    if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
   document.getElementById('msg').setAttribute('aria-live','polite');

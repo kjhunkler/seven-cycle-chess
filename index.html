@@ -26,26 +26,26 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=9"></head><body><main>
-<nav class="editions" aria-label="Game edition"><a href="./" aria-current="page">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html">Signal</a><a href="#friends-panel">Friends</a></nav><h1>Fruit Wars</h1>
+</style><link rel="stylesheet" href="./board-ui.css?v=11"></head><body><main>
+<h1>Fruit Wars</h1>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
-<div class="card"><small>Cycle: 🍎→🍊→🍌→🥑→🫐→🍇→🥥→🍎. Each fruit crushes the next one, beats the second, ties the third and fourth, loses to the fifth, and is crushed by the sixth. So 1 🍎 beats 2 🍊, and 1 🥥 beats 2 🍎. Drag between connected nodes to send troops. Tap to select, or hold an owned outpost to change its type. Rings show the selected fruit’s matchup against the largest defending stack: green + is strong, red − is weak, and gray = is even. Outposts only accept units of their own type. You only see your outposts and their neighbors.</small></div>
-<details id="friends-panel" class="card"><summary id="friend-summary">Friends</summary><section class="card" id="lobby" aria-label="Online lobby">
+
+<details id="friends-panel" class="card"><summary id="friend-summary">Your name</summary><section class="card" id="lobby" aria-label="Online lobby">
   <form class="row"><label for="display-name">Display name</label>
     <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
     <button>Save name</button>
   </form>
-  <p role="status">Connecting to friends…</p>
-  <strong>Friends online</strong><ul id="friends"></ul>
+  <p role="status">Connecting to players…</p>
+  <strong>Online players</strong><ul id="friends"></ul>
   <div id="invitations"></div>
 </section></details></main>
 <script>
 const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
-const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[66,50],B4:[88,50],C1:[28,75],C2:[50,75],C3:[72,75]};
-const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
+const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
+const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
 function init(){
@@ -269,48 +269,6 @@ function openWheel(id,x,y){
   typeWheel.hidden=false;
   pl=0;
 }
-document.addEventListener("pointerdown",event=>{
-  if(!typeWheel.contains(event.target))closeWheel();
-},true);
-document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWheel()});
-document.querySelector('a[href="#friends-panel"]').addEventListener("click",()=>{$("friends-panel").open=true});
-map.addEventListener("contextmenu",event=>event.preventDefault());
-map.addEventListener("pointerdown",e=>{
-  const node=e.target.closest("[data-id]");
-  if(over||drag||!node||e.button!==0)return;
-  drag={id:e.pointerId,from:node.dataset.id,startX:e.clientX,startY:e.clientY,moved:false};
-  map.setPointerCapture(e.pointerId);
-  holdTimer=setTimeout(()=>{
-    if(drag?.id===e.pointerId&&!drag.moved)openWheel(drag.from,drag.startX,drag.startY);
-  },CONFIG.holdMs);
-});
-map.addEventListener("pointermove",e=>{
-  if(drag?.id!==e.pointerId||drag.held||N[drag.from].owner!==1)return;
-  if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6){
-    drag.moved=true;
-    clearTimeout(holdTimer);
-  }
-  if(drag.moved){
-    select(drag.from);
-    drag.x=e.clientX;
-    drag.y=e.clientY;
-    pl=0;
-  }
-});
-map.addEventListener("pointerup",e=>{
-  if(drag?.id!==e.pointerId)return;
-  clearTimeout(holdTimer);
-  if(drag.held){drag=null;return}
-  const target=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-id]")?.dataset.id;
-  if(drag.moved){
-    if(target)send(drag.from,target);
-  }else if(target===drag.from){
-    pick(target);
-  }
-  drag=null;
-  pl=0;
-});
-map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./board-ui.js?v=9"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=11"></script><script src="./board-ui.js?v=11"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

@@ -9,6 +9,7 @@ const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
 localStorage.setItem("fruit-wars-profile", token);
 nameInput.value = savedName;
 localStorage.setItem("fruit-wars-name",savedName);
+document.querySelector("#friend-summary").textContent = savedName;
 let name = savedName, room = "", peer = null, channel = null, iceServers = [], timeout;
 let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
 let outgoing = Promise.resolve();
@@ -23,7 +24,9 @@ function rename(value) {
   if (typeof value !== "string" || !value.trim()) return;
   name = value.trim().slice(0,32);
   nameInput.value = name;
+  document.querySelector("#friend-summary").textContent = name;
   localStorage.setItem("fruit-wars-name",name);
+  if(frame)frame.contentDocument.querySelector("#match-profile-name").textContent=name;
 }
 function showMatch() {
   if (frame) return;
@@ -35,6 +38,7 @@ function showMatch() {
   frame.onload = () => {
     status(statusText.textContent);
     frame.contentDocument.querySelector("#match-name").value = name;
+    frame.contentDocument.querySelector("#match-profile-name").textContent = name;
     launchGame();
   };
   frame.src = page.href;
@@ -96,7 +100,7 @@ function addAction(label, action) {
   return button;
 }
 
-function send(data) {
+function sendGame(data) {
   const connection = data.kind==="state" ? stateChannel : channel;
   if (connection?.readyState==="open" && (data.kind!=="state" || connection.bufferedAmount<32_000)) {
     connection.send(JSON.stringify(data));
@@ -164,7 +168,7 @@ function attach(dataChannel) {
   channel.onopen = () => {
     clearTimeout(timeout);
     clearTimeout(relayTimer);
-    startMatch(send);
+    startMatch(sendGame);
     status("Match connected.");
   };
   channel.onmessage = event => {
@@ -237,7 +241,7 @@ async function poll() {
   try {
     const data = await request("poll");
     iceServers = data.iceServers;
-    document.querySelector("#friend-summary").textContent = "Friends · " + data.friends.length + " online";
+    document.querySelector("#friend-summary").textContent = name + " · " + data.friends.length + " online";
     const signature = JSON.stringify([data.friends, Boolean(room)]);
     if (roster.dataset.signature !== signature) {
       roster.dataset.signature = signature;
@@ -258,7 +262,7 @@ async function poll() {
       }
       if (!data.friends.length) {
         const empty = document.createElement("li");
-        empty.textContent = "No other friends online.";
+        empty.textContent = "No other players online.";
         roster.append(empty);
       }
     }
