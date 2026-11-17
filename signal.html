@@ -27,7 +27,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./editions.css"><link rel="stylesheet" href="./board-ui.css"></head><body class="signal"><main>
+</style><link rel="stylesheet" href="./editions.css"><link rel="stylesheet" href="./board-ui.css?v=9"></head><body class="signal"><main>
 <nav class="editions" aria-label="Game edition"><a href="./">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html" aria-current="page">Signal</a><a href="#friends-panel">Friends</a></nav><header><p class="brand">Fruit Wars</p><h1>Signal</h1><p class="subtitle">Control the network. Capture the opposing relay.</p></header>
 <div id="msg" aria-live="polite"></div>
 <svg id="map" aria-label="Battlefield" viewBox="-4 -4 108 112"></svg>
@@ -322,4 +322,4 @@ map.addEventListener("pointerup",e=>{
 map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./board-ui.js"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./board-ui.js?v=9"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

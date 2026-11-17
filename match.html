@@ -29,7 +29,7 @@ button{min-height:44px}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=9"></head><body><main>
 <header class="row"><h1>Fruit Wars Match</h1><button id="leave-match">Leave match</button></header><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
@@ -361,4 +361,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./board-ui.js"></script></body></html>
+</script><script src="./board-ui.js?v=9"></script></body></html>
