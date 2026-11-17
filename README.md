@@ -13,6 +13,8 @@ Open http://localhost:8000/ in two separate browser profiles or a normal and a p
 
 The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions and ICE candidates are encrypted between browsers. When TURN is configured, WebRTC can connect directly or through Cloudflare. If WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
 
+Active matches send heartbeats every three seconds. After nine seconds without incoming traffic, a watchdog attempts recovery; public-lobby matches can switch an established WebRTC connection to the encrypted broker relay without resetting the game. Recovery has a 45-second grace period, and waking a suspended tab grants a fresh window. Private-lobby matches wait for their existing connection to recover. This does not provide host migration or resume after a page refresh; the inviter must keep their game tab open.
+
 ## Enabling TURN on GitHub Pages
 
 1. Deploy the updated `smack-town-arena-turn` Worker from the [SmackTown repository](https://github.com/kjhunkler/SmackTown) using `npx wrangler deploy` in an authorized Cloudflare session. The Worker uses its existing `TURN_TOKEN_ID` variable and `TURN_API_TOKEN` secret.

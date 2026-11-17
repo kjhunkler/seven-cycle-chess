@@ -1,5 +1,5 @@
 const publicLobby = (() => {
-  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v3";
+  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v4";
   const id = crypto.randomUUID();
   const presence = root + "/presence", address = root + "/inbox/";
   const friends = new Map(), rooms = new Map(), inbox = [];
@@ -14,7 +14,7 @@ const publicLobby = (() => {
     return crypto.subtle.deriveKey({name:"ECDH",public:remote},keys.privateKey,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
   }
   async function receive(route, payload) {
-    if (payload.length > 48_000) return;
+    if (payload.length > 192_000) return;
     const data = JSON.parse(payload.toString());
     if (!valid(data.id) || data.id === id) return;
     if (route === presence) {
@@ -23,8 +23,9 @@ const publicLobby = (() => {
     }
     if (!valid(data.room)) return;
     if (data.kind === "invite" && typeof data.name === "string" && data.key && !rooms.has(data.room)) {
-      rooms.set(data.room,{id:data.id,key:await shared(data.key),seen:Date.now()});
-      inbox.push({kind:"invite",room:data.room,name:data.name.slice(0,32)});
+      if(rooms.size>=100||inbox.length>=100)return;
+      rooms.set(data.room,{id:data.id,key:await shared(data.key),seen:Date.now(),accepted:false});
+      inbox.push({kind:"invite",room:data.room,name:data.name.slice(0,32),from:data.id,expiresAt:Date.now()+30000});
       return;
     }
     const room = rooms.get(data.room);
@@ -32,6 +33,7 @@ const publicLobby = (() => {
     const raw = await crypto.subtle.decrypt(cipher(decode(data.iv),data.room),room.key,decode(data.payload));
     room.seen = Date.now();
     const event = JSON.parse(new TextDecoder().decode(raw));
+    if(event.kind==="accept")room.accepted=true;
     if (event.kind === "game") receiveRelayGame(data.room,event.game);
     if (["accept","signal","candidate","relay","leave"].includes(event.kind)) inbox.push({...event,room:data.room});
     if (event.kind === "leave") rooms.delete(data.room);
@@ -55,7 +57,7 @@ const publicLobby = (() => {
     if (action === "poll") {
       if (now-lastSeen >= 4000 || name!==lastName) {await publish(presence,{name,key:publicKey});lastSeen=now;lastName=name}
       for (const [key,friend] of friends) if (now-friend.seen > 15_000) friends.delete(key);
-      for (const [key,room] of rooms) if (now-room.seen > 600_000) rooms.delete(key);
+      for (const [key,room] of rooms) if (!room.accepted&&now-room.seen > 30_000) {rooms.delete(key);inbox.push({kind:"expired",room:key})}
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],
         friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0)};
     }
@@ -63,12 +65,14 @@ const publicLobby = (() => {
       const friend = friends.get(fields.to);
       if (!friend) throw new Error("Friend is offline.");
       const room = crypto.randomUUID();
-      rooms.set(room,{id:fields.to,key:await shared(friend.key),seen:now});
+      rooms.set(room,{id:fields.to,key:await shared(friend.key),seen:now,accepted:false});
       await publish(address+fields.to,{kind:"invite",room,name,key:publicKey},1);
       return {room};
     }
     const room = rooms.get(fields.room);
     if (!room) throw new Error("Invitation expired.");
+    if(action==="accept")room.accepted=true;
+    room.seen=now;
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const message = encode(JSON.stringify({kind:action,name,description:fields.description,candidate:fields.candidate,game:fields.game}));
     const payload = await crypto.subtle.encrypt(cipher(iv,fields.room),room.key,message);

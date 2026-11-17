@@ -13,14 +13,9 @@ document.querySelector("#profile-name").textContent = savedName;
 localStorage.setItem("fruit-wars-name",savedName);
 function labelProfile(summary,label){if(!summary)return;summary.title=label;summary.setAttribute("aria-label",label+" profile");}
 labelProfile(document.querySelector("#friend-summary"),savedName+" · player profile and friends");
-let name = savedName, room = "", peer = null, channel = null, iceServers = [], timeout;
-let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
-const pendingInvites = new Map();
-let outgoing = Promise.resolve();
-let relay = false, relayTimer, lastRelayFrame = 0;
-let turnServers = [], turnCacheUntil = 0, turnRequest;
-let remoteCandidates = [];
-
+let name=savedName, player=1, frame, editionURL, session=false, leaving=false, inviting=false;
+let iceServers=[], lastFriends=[], incoming=[], turnServers=[],turnCacheUntil=0,turnRequest;
+const links=new Map(),pendingInvites=new Map();
 function loadTurnServers() {
   if (!turnEndpoint || Date.now() < turnCacheUntil) return Promise.resolve(turnServers);
   turnRequest ??= fetch(turnEndpoint, { cache: "no-store", signal: AbortSignal.timeout(2500) })
@@ -47,351 +42,206 @@ function loadTurnServers() {
   return turnRequest;
 }
 
-function status(message) {
-  statusText.textContent = message;
-  const display = frame?.contentDocument?.querySelector("#match-status");
-  if (display) display.textContent = message;
+function game(){return frame?.contentWindow?.matchGame}
+function status(message){statusText.textContent=message;const display=frame?.contentDocument?.querySelector("#match-status");if(display)display.textContent=message}
+function rename(value){
+  if(typeof value!=="string"||!value.trim())return;
+  name=value.trim().slice(0,32);nameInput.value=name;localStorage.setItem("fruit-wars-name",name);
+  document.querySelector("#profile-name").textContent=name;labelProfile(document.querySelector("#friend-summary"),name+" · player profile and friends");
+  if(frame?.contentDocument){const field=frame.contentDocument.querySelector("#match-name");if(field)field.value=name}
+  updateMembers();
 }
-function rename(value) {
-  if (typeof value !== "string" || !value.trim()) return;
-  name = value.trim().slice(0,32);
-  nameInput.value = name;
-  document.querySelector("#profile-name").textContent = name;
-  labelProfile(document.querySelector("#friend-summary"),name+" · player profile and friends");
-  localStorage.setItem("fruit-wars-name",name);
-  if(frame)labelProfile(frame.contentDocument.querySelector("#match-profile-name"),name+" · player profile");
+async function request(action,fields={}){
+  if(!endpoint)return publicLobby(action,name,fields);
+  const response=await fetch(endpoint,{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({action,name,...fields}),signal:AbortSignal.timeout(7000)});
+  const data=await response.json();if(!response.ok)throw new Error(data.error);return data;
 }
-function showMatch() {
-  if (frame) return;
-  editionURL = location.href;
-  const page = new URL("./match.html",editionURL);
-  frame = document.createElement("iframe");
-  frame.title = "Fruit Wars multiplayer match";
-  frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100;background:var(--bg)";
-  frame.onload = () => {
-    status(statusText.textContent);
-    frame.contentDocument.querySelector("#match-name").value = name;
-    labelProfile(frame.contentDocument.querySelector("#match-profile-name"),name+" · player profile");
-    launchGame();
-  };
-  frame.src = page.href;
-  document.querySelector("main").inert = true;
-  document.body.append(frame);
-  history.pushState({fruitWarsMatch:true},"",page.href);
+function availableFriends(){return lastFriends.filter(f=>![...links.values()].some(l=>l.id===f.id))}
+function updateMembers(){
+  if(!game()||!frame.dataset.started)return;
+  if(player===1)game().setMembers([{seat:1,name,connected:true},...[...links.values()].map(l=>({seat:l.seat,name:l.name,connected:l.connected&&!l.left}))]);
+  game().setFriends(availableFriends());
 }
-function launchGame() {
-  if (!frame || frame.dataset.started || !matchStart || !frame.contentWindow.matchGame) return;
-  frame.dataset.started="true";
-  frame.contentWindow.matchGame.start(player,matchStart);
+function launchGame(){
+  if(!game()||!session||!player)return;
+  if(!frame.dataset.started){frame.dataset.started="true";game().start(player,transmit,player===1?[1,...[...links.values()].map(l=>l.seat)]:[1,player])}
+  updateMembers();
+  for(const [link,data]of incoming.splice(0))if(links.get(link.room)===link)game().receive(data,player===1?link.seat:1);
 }
-function startMatch(transmit) {
-  showMatch();
-  matchStart = transmit;
-  if (frame.dataset.started && frame.contentWindow.matchGame) frame.contentWindow.matchGame.start(player,transmit);
-  else launchGame();
-  receiveAt = Date.now();
-  clearInterval(heartbeat);
-  heartbeat = setInterval(() => {
-    if (Date.now()-receiveAt > 20_000) reset("Your friend stopped responding.");
-    else transmit({kind:"heartbeat"});
-  },3000);
+function showMatch(){
+  if(frame)return;
+  editionURL=location.href;const page=new URL("./match.html",editionURL);frame=document.createElement("iframe");frame.title="Fruit Wars multiplayer match";
+  frame.style.cssText="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100;background:var(--bg)";
+  frame.onload=()=>{status(statusText.textContent);frame.contentDocument.querySelector("#match-name").value=name;launchGame()};frame.src=page.href;
+  document.querySelector("main").inert=true;document.body.append(frame);history.pushState({fruitWarsMatch:true},"",page.href);
 }
-function receiveGame(data) {
-  if (!matchStart || !data || typeof data!=="object") return;
-  receiveAt = Date.now();
-  if (data.kind!=="heartbeat") frame?.contentWindow.matchGame?.receive(data);
+function addAction(label,action){const button=document.createElement("button");button.type="button";button.textContent=label;button.onclick=async()=>{button.disabled=true;try{await action()}catch(error){status(error.message)}finally{button.disabled=false}};return button}
+function renderInvitations(){
+  const host=document.querySelector("#invite-toasts");host.replaceChildren();
+  for(const invite of pendingInvites.values()){
+    const toast=document.createElement("div");toast.className="invite-toast";toast.setAttribute("role","alert");toast.append(document.createTextNode(invite.name+" invited you. "));
+    toast.append(addAction("Accept",()=>acceptInvite(invite)),addAction("Decline",async()=>{pendingInvites.delete(invite.room);renderInvitations();await request("leave",{room:invite.room})}));host.append(toast);
+  }
 }
+function renderRoster(friends){
+  lastFriends=friends;roster.replaceChildren();
+  for(const friend of friends){const row=document.createElement("li");row.append(document.createTextNode(friend.name+" "));
+    const invite=[...pendingInvites.values()].find(i=>i.from===friend.id);
+    const button=invite?addAction("Accept",()=>acceptInvite(invite)):addAction("Invite",()=>invitePlayer(friend.id));
+    button.disabled=session&&(player!==1||links.size>=3||game()?.started||[...links.values()].some(l=>l.id===friend.id));row.append(button);roster.append(row);
+  }
+  if(!friends.length){const row=document.createElement("li");row.textContent="No other players online.";roster.append(row)}
+  game()?.setFriends(availableFriends());
+}
+function makeLink(room,seat,id,name){const link={room,seat,id,name,created:Date.now(),seen:Date.now(),connected:false,accepted:false,relay:false,pc:null,channel:null,state:null,candidates:[],outgoing:Promise.resolve(),lastState:0};links.set(room,link);return link}
+async function invitePlayer(id){
+  if(inviting||player!==1||links.size>=3||game()?.started)return;
+  const friend=lastFriends.find(f=>f.id===id);if(!friend||[...links.values()].some(l=>l.id===id))return;
+  inviting=true;
+  try{
+    const seat=[2,3,4].find(p=>![...links.values()].some(l=>l.seat===p));
+    const result=await request("invite",{to:id});makeLink(result.room,seat,id,friend.name);session=true;showMatch();launchGame();updateMembers();status("Invitation sent to "+friend.name+".");
+  }finally{inviting=false}
+}
+async function acceptInvite(invite){
+  if(session||inviting)return;inviting=true;
+  try{
+    await request("accept",{room:invite.room});
+    player=0;session=true;const link=makeLink(invite.room,1,invite.from,invite.name);link.accepted=true;
+    for(const other of pendingInvites.values())if(other.room!==invite.room)void request("leave",{room:other.room}).catch(()=>{});
+    pendingInvites.clear();renderInvitations();showMatch();status("Connecting to the host…");await connect(link,false);
+  }finally{inviting=false}
+}
+function closePeer(link){const pc=link.pc;link.pc=null;if(link.channel){link.channel.onclose=null;link.channel.onopen=null}link.channel=link.state=null;pc?.close()}
+function removeLink(link,message){
+  if(!links.has(link.room))return;clearTimeout(link.timer);closePeer(link);links.delete(link.room);incoming=incoming.filter(([l])=>l!==link);
+  if(player===1){updateMembers();status(message)}else reset(message,false);
+}
+function reset(message,notify=true){
+  leaving=true;
+  for(const link of links.values()){clearTimeout(link.timer);closePeer(link);if(notify)void request("leave",{room:link.room}).catch(()=>{})}
+  links.clear();incoming=[];session=false;player=1;
+  if(frame){frame.onload=null;frame.remove();frame=null;document.querySelector("main").inert=false;if(history.state?.fruitWarsMatch)history.replaceState(null,"",editionURL)}
+  pendingInvites.clear();renderInvitations();lobby.closest("details").open=true;status(message);leaving=false;
+}
+function sendLink(link,data){
+  if(!link.accepted||link.left)return;
+  if(!link.relay){const channel=data.kind==="state"?link.state:link.channel;if(channel?.readyState==="open"){if(data.kind!=="state"||channel.bufferedAmount<32000)channel.send(JSON.stringify(data));return}}
+  if(!link.relay)return;
+  if(data.kind==="state"){
+    if(performance.now()-link.lastState<120||link.statePending)return;link.lastState=performance.now();link.statePending=true;
+    request("game",{room:link.room,game:data}).catch(()=>{}).finally(()=>{link.statePending=false});
+  }else{
+    // Keep controls ordered, but never replay expired commands after a long outage.
+    const expires=Date.now()+10000;
+    link.outgoing=link.outgoing.then(()=>links.get(link.room)===link&&Date.now()<expires?request("game",{room:link.room,game:data}):undefined).catch(()=>{});
+  }
+}
+function transmit(data,target){
+  for(const link of links.values())if(player!==1||target===undefined||link.seat===target)sendLink(link,data);
+}
+function linkOpened(link){
+  if(links.get(link.room)!==link)return;
+  const reconnect=!link.connected;link.connected=true;link.seen=Date.now();
+  if(player===1){sendLink(link,{kind:"welcome",seat:link.seat});updateMembers();if(reconnect)game()?.rebind(transmit)}
+  status("Match connected. Host can invite up to three friends before starting.");
+}
+function receiveRelayGame(room,data){const link=links.get(room);if(link?.accepted){if(!link.relay)startRelay(link);receiveGame(link,data)}}
+function receiveGame(link,data){
+  if(!data||typeof data!=="object"||links.get(link.room)!==link||link.left)return;
+  link.seen=Date.now();
+  if(data.kind==="welcome"&&player!==1){
+    if(![2,3,4].includes(data.seat)||player&&player!==data.seat)return;
+    player=data.seat;link.connected=true;launchGame();sendLink(link,{kind:"welcome-ack"});return;
+  }
+  if(data.kind==="welcome-ack"&&player===1){link.welcomed=true;game()?.rebind(transmit);return}
+  if(!link.connected){link.connected=true;updateMembers();if(player===1){sendLink(link,{kind:"welcome",seat:link.seat});game()?.rebind(transmit)}}
+  if(data.kind==="heartbeat")return;
+  if(!player||!game()||!frame.dataset.started){if(incoming.length<100)incoming.push([link,data]);return}
+  game().receive(data,player===1?link.seat:1);
+}
+function startRelay(link){if(links.get(link.room)!==link||link.relay)return;clearTimeout(link.timer);closePeer(link);link.relay=true;linkOpened(link)}
+async function fallback(link){
+  if(links.get(link.room)!==link||link.relay)return;
+  try{await request("relay",{room:link.room});startRelay(link)}catch{status("Reconnecting to the relay…")}
+}
+function attach(link,channel){
+  if(channel.label==="state")link.state=channel;else link.channel=channel;
+  channel.onopen=()=>{if(channel.label!=="state"){clearTimeout(link.timer);linkOpened(link)}};
+  channel.onmessage=event=>{try{receiveGame(link,JSON.parse(event.data))}catch{status("Ignored an invalid match message.")}};
+  channel.onclose=()=>{if(!leaving&&links.get(link.room)===link)void fallback(link)};
+}
+async function connect(link,host){
+  try{
+    const turn=await loadTurnServers();if(links.get(link.room)!==link||link.relay)return;
+    const pc=new RTCPeerConnection({iceServers:[...iceServers,...turn]});link.pc=pc;
+    // Every candidate is sent; no dependency on timing of SDP publication.
+    pc.onicecandidate=({candidate})=>{if(candidate&&link.pc===pc)void request("candidate",{room:link.room,candidate:candidate.toJSON()}).catch(()=>{})};
+    pc.onconnectionstatechange=()=>{if(link.pc===pc&&pc.connectionState==="failed")void fallback(link)};
+    if(host){attach(link,pc.createDataChannel("match"));attach(link,pc.createDataChannel("state",{ordered:false,maxRetransmits:0}))}
+    else pc.ondatachannel=event=>attach(link,event.channel);
+    link.timer=setTimeout(()=>void fallback(link),turn.length?15000:8500);
+    if(host){await pc.setLocalDescription();if(link.pc===pc)await request("signal",{room:link.room,description:pc.localDescription})}
+    for(const description of (link.descriptions||[]))await receiveSignal(link,description);link.descriptions=[];
+  }catch{void fallback(link)}
+}
+async function receiveSignal(link,description){
+  const pc=link.pc;if(!pc){(link.descriptions??=[]).push(description);return}
+  if(link.relay)return;
+  try{
+    await pc.setRemoteDescription(description);
+    for(const candidate of link.candidates.splice(0))await pc.addIceCandidate(candidate).catch(()=>{});
+    if(description.type==="offer"){await pc.setLocalDescription();if(link.pc===pc)await request("signal",{room:link.room,description:pc.localDescription})}
+  }catch{void fallback(link)}
+}
+async function handleEvent(event){
+  if(event.kind==="invite"){
+    if(session){void request("leave",{room:event.room}).catch(()=>{});return}
+    pendingInvites.set(event.room,{...event,expiresAt:event.expiresAt||Date.now()+30000});renderInvitations();lobby.closest("details").open=true;return;
+  }
+  if(event.kind==="leave"||event.kind==="expired"){pendingInvites.delete(event.room);renderInvitations()}
+  const link=links.get(event.room);if(!link)return;
+  if(event.kind==="accept"&&!link.accepted){link.accepted=true;link.seen=Date.now();void connect(link,true)}
+  else if(event.kind==="signal")await receiveSignal(link,event.description);
+  else if(event.kind==="candidate"&&event.candidate){if(link.pc?.remoteDescription)await link.pc.addIceCandidate(event.candidate).catch(()=>{});else if(link.candidates.length<128)link.candidates.push(event.candidate)}
+  else if(event.kind==="relay")startRelay(link);
+  else if(event.kind==="game")receiveRelayGame(link.room,event.game);
+  else if(event.kind==="leave"||event.kind==="expired"){
+    if(player===1&&game()?.started){link.left=true;link.connected=false;closePeer(link);updateMembers();status(link.name+" left. A bot now controls their fruit.")}
+    else removeLink(link,"A player left or declined the match.");
+  }
+}
+async function poll(){
+  try{
+    const data=await request("poll");iceServers=data.iceServers||[];
+    for(const event of data.events)await handleEvent(event);
+    const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
+    renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
+    if(!session)status("You’re online.");
+  }catch{status(session?"Lobby unavailable. Retrying; your match is retained.":"Lobby is unreachable. Retrying…")}
+  finally{setTimeout(poll,endpoint&&session?180:900)}
+}
+setInterval(()=>{
+  const now=Date.now();
+  for(const link of links.values()){
+    if(link.left)continue;
+    if(!link.accepted&&now-link.created>30000){void request("leave",{room:link.room}).catch(()=>{});removeLink(link,"An invitation expired.");continue}
+    if(link.accepted){
+      sendLink(link,{kind:"heartbeat"});
+      if(now-link.seen>12000&&!link.relay)void fallback(link);
+      if(now-link.seen>20000&&link.connected){link.connected=false;updateMembers();status(player===1?link.name+" disconnected. A bot controls their fruit until they reconnect.":"Host disconnected. Waiting to resume; you can leave from your profile.")}
+      if(player===1&&!link.welcomed)sendLink(link,{kind:"welcome",seat:link.seat});
+    }
+  }
+},3000);
 addEventListener("message",event=>{
-  if (event.origin!==location.origin || event.source!==frame?.contentWindow) return;
-  if (event.data?.kind==="leave-match") reset("You left the match.");
-  if (event.data?.kind==="rename") {rename(event.data.name);status("Name saved.");}
+  if(event.origin!==location.origin||event.source!==frame?.contentWindow)return;
+  if(event.data?.kind==="leave-match")reset("You left the match.");
+  if(event.data?.kind==="rename"){rename(event.data.name);status("Name saved.")}
+  if(event.data?.kind==="invite-player")void invitePlayer(event.data.to).catch(error=>status(error.message));
+  if(event.data?.kind==="remove-player"&&player===1&&!game()?.started){const link=[...links.values()].find(l=>l.seat===event.data.seat);if(link){void request("leave",{room:link.room}).catch(()=>{});removeLink(link,"Player removed from setup.")}}
 });
-addEventListener("popstate",()=>{ if(frame) reset("You left the match."); });
-
-async function request(action, fields = {}) {
-  if (!endpoint) return publicLobby(action, name, fields);
-  const response = await fetch(endpoint, {
-    method: "POST",
-    headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
-    body: JSON.stringify({ action, name, ...fields }),
-    signal: AbortSignal.timeout(7000)
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error);
-  return data;
-}
-
-async function acceptInvite(invite) {
-  if (room) return;
-  await request("accept", { room: invite.room });
-  pendingInvites.delete(invite.key);
-  reserve(invite.room);
-  await connect(false);
-  renderInvitations();
-  renderRoster(lastFriends);
-}
-let lastFriends=[];
-function renderInvitations() {
-  const host = document.querySelector("#invite-toasts");
-  host.replaceChildren();
-  for (const invite of pendingInvites.values()) {
-    const toast = document.createElement("div");
-    toast.className = "invite-toast";
-    toast.setAttribute("role", "alert");
-    toast.append(document.createTextNode(invite.name + " invited you. "));
-    toast.append(addAction("Accept", () => acceptInvite(invite)), addAction("Decline", async () => {
-      await request("leave", { room: invite.room });
-      pendingInvites.delete(invite.key);
-      renderInvitations();
-      renderRoster(lastFriends);
-    }));
-    host.append(toast);
-  }
-}
-function renderRoster(friends) {
-  lastFriends=friends;
-  const signature = JSON.stringify([friends, [...pendingInvites.keys()].sort(), Boolean(room)]);
-  if (roster.dataset.signature === signature) return;
-  roster.dataset.signature = signature;
-  roster.replaceChildren();
-  for (const friend of friends) {
-    const item = document.createElement("li");
-    item.append(document.createTextNode(friend.name + " "));
-    const invitation = [...pendingInvites.values()].find(invite => invite.name === friend.name);
-    const action = invitation ? addAction("Accept", () => acceptInvite(invitation)) : addAction("Invite", async () => {
-      if (room) return;
-      void loadTurnServers();
-      status("Sending invitation…");
-      const result = await request("invite", { to: friend.id });
-      reserve(result.room);
-      status("Invitation sent to " + friend.name + ".");
-    });
-    action.disabled = Boolean(room);
-    item.append(action);
-    roster.append(item);
-  }
-  if (!friends.length) {
-    const empty = document.createElement("li");
-    empty.textContent = "No other players online.";
-    roster.append(empty);
-  }
-}
-
-function addAction(label, action) {
-  const button = document.createElement("button");
-  button.type = "button";
-  button.textContent = label;
-  button.onclick = async () => {
-    button.disabled = true;
-    try { await action(); } catch (error) { status(error.message); }
-    button.disabled = false;
-  };
-  return button;
-}
-
-function sendGame(data) {
-  const connection = data.kind==="state" ? stateChannel : channel;
-  if (connection?.readyState==="open" && (data.kind!=="state" || connection.bufferedAmount<32_000)) {
-    connection.send(JSON.stringify(data));
-  }
-}
-
-function closePeer() {
-  if (channel) {
-    channel.onclose = null;
-    channel.onopen = null;
-  }
-  const connection = peer;
-  peer = channel = stateChannel = null;
-  remoteCandidates = [];
-  connection?.close();
-}
-
-function receiveRelayGame(activeRoom, game) {
-  if (relay && room === activeRoom) receiveGame(game);
-}
-
-function startRelay() {
-  if (!room || relay) return;
-  clearTimeout(timeout);
-  clearTimeout(relayTimer);
-  closePeer();
-  relay = true;
-  lastRelayFrame = 0;
-  startMatch(game => {
-    const now = performance.now();
-    if (game.kind === "state") {
-      if (now - lastRelayFrame < 105) return;
-      lastRelayFrame = now;
-    }
-    const activeRoom = room;
-    const publish = () => room===activeRoom && request("game",{room:activeRoom,game});
-    if (game.kind==="state") Promise.resolve(publish()).catch(()=>{});
-    else outgoing=outgoing.then(publish).catch(()=>{});
-  });
-  status("Match connected through the relay.");
-}
-
-function reset(message, notify = true) {
-  const previous = room;
-  room = "";
-  clearTimeout(timeout);
-  clearTimeout(relayTimer);
-  closePeer();
-  relay = false;
-  clearInterval(heartbeat);
-  matchStart = null;
-  if (frame) {
-    frame.onload = null;
-    frame.remove();
-    frame = null;
-    document.querySelector("main").inert = false;
-    if (history.state?.fruitWarsMatch) history.replaceState(null,"",editionURL);
-  }
-  lobby.closest("details").open = true;
-  if (notify && previous) request("leave", { room: previous }).catch(() => {});
-  status(message);
-}
-
-function attach(dataChannel) {
-  channel = dataChannel;
-  channel.onopen = () => {
-    clearTimeout(timeout);
-    clearTimeout(relayTimer);
-    startMatch(sendGame);
-    status("Match connected.");
-  };
-  channel.onmessage = event => {
-    try { receiveGame(JSON.parse(event.data)); } catch { reset("The match connection closed."); }
-  };
-  channel.onclose = () => reset("Your friend disconnected.");
-}
-
-async function connect(host) {
-  const connectingRoom = room;
-  player = host ? 1 : 2;
-  showMatch();
-  status("Connecting to your friend…");
-  const turn = await loadTurnServers();
-  if (room !== connectingRoom) return;
-  if (!endpoint && host) {
-    relayTimer = setTimeout(async () => {
-      if (!room || channel?.readyState === "open") return;
-      const activeRoom = room;
-      closePeer();
-      try {
-        await request("relay", { room: activeRoom });
-        if (room === activeRoom) startRelay();
-      } catch {
-        if (room === activeRoom) reset("The relay is unavailable. Please try another invitation.");
-      }
-    }, turnEndpoint ? 15_000 : 8500);
-  }
-  const connection = new RTCPeerConnection({ iceServers: [...iceServers, ...turn] });
-  peer = connection;
-  function attachState(state) {
-    stateChannel=state;
-    state.onmessage=event=>{
-      try { receiveGame(JSON.parse(event.data)); } catch {}
-    };
-  }
-  if (host) {
-    attach(peer.createDataChannel("match"));
-    attachState(peer.createDataChannel("state",{ordered:false,maxRetransmits:0}));
-  } else {
-    peer.ondatachannel=event=>event.channel.label==="state"?attachState(event.channel):attach(event.channel);
-  }
-  peer.onconnectionstatechange = () => {
-    if (endpoint && peer === connection && connection.connectionState === "failed") reset("Could not connect to your friend.");
-  };
-}
-
-async function publishDescription() {
-  const connection = peer;
-  const activeRoom = room;
-  let descriptionSent;
-  if (turnEndpoint) {
-    connection.onicecandidate = ({ candidate }) => {
-      if (!candidate || !descriptionSent) return;
-      descriptionSent.then(() => {
-        if (peer === connection) return request("candidate", { room: activeRoom, candidate: candidate.toJSON() });
-      }).catch(() => {});
-    };
-  }
-  await connection.setLocalDescription();
-  if (connection.iceGatheringState !== "complete") {
-    await new Promise(resolve => {
-      const done = () => {
-        clearTimeout(deadline);
-        connection.removeEventListener("icegatheringstatechange", changed);
-        resolve();
-      };
-      const changed = () => { if (connection.iceGatheringState === "complete") done(); };
-      const deadline = setTimeout(done, 4000);
-      connection.addEventListener("icegatheringstatechange", changed);
-    });
-  }
-  if (peer === connection) {
-    descriptionSent = request("signal", { room: activeRoom, description: connection.localDescription });
-    await descriptionSent;
-  }
-}
-
-function reserve(id) {
-  room = id;
-  clearTimeout(timeout);
-  timeout = setTimeout(() => reset("The invitation or connection timed out. Try sending a new invite."), 35_000);
-}
-
-async function poll() {
-  try {
-    const data = await request("poll");
-    iceServers = data.iceServers;
-    labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
-    for (const event of data.events) {
-      if (event.kind === "invite" && !room) {
-        const invite={key:event.room,room:event.room,name:event.name};
-        pendingInvites.set(invite.key,invite);
-        renderInvitations();
-        lobby.closest("details").open = true;
-      }
-      if (event.room !== room) continue;
-      if (event.kind === "relay" && !endpoint && player === 2) {
-        startRelay();
-      } else if (event.kind === "accept" && !peer && !relay) {
-        reserve(room);
-        await connect(true);
-        if (peer) await publishDescription();
-      } else if (event.kind === "signal" && peer) {
-        const connection = peer;
-        await connection.setRemoteDescription(event.description);
-        if (peer !== connection) continue;
-        for (const candidate of remoteCandidates.splice(0)) {
-          await connection.addIceCandidate(candidate).catch(() => {});
-        }
-        if (peer === connection && event.description.type === "offer") await publishDescription();
-      } else if (event.kind === "candidate" && !endpoint && peer && event.candidate) {
-        if (peer.remoteDescription) await peer.addIceCandidate(event.candidate).catch(() => {});
-        else if (remoteCandidates.length < 64) remoteCandidates.push(event.candidate);
-      } else if (event.kind === "leave") {
-        reset("Your friend left or declined the match.", false);
-      }
-    }
-    renderRoster(data.friends);
-    if (!room && ["Connecting to the lobby…","Lobby is unreachable. Retrying…"].includes(statusText.textContent)) status("You’re online.");
-  } catch {
-    if (!room) status("Lobby is unreachable. Retrying…");
-  } finally {
-    setTimeout(poll, 900);
-  }
-}
-
-form.onsubmit = event => {
-  event.preventDefault();
-  rename(nameInput.value);
-  form.hidden = true;
-  status("Name saved.");
-};
-document.querySelector("#edit-profile-name").onclick=()=>{form.hidden=!form.hidden;if(!form.hidden)nameInput.focus();};
-status("Connecting to the lobby…");
-poll();
+addEventListener("popstate",()=>{if(frame)reset("You left the match.")});
+form.onsubmit=event=>{event.preventDefault();rename(nameInput.value);form.hidden=true;status("Name saved.")};
+document.querySelector("#edit-profile-name").onclick=()=>{form.hidden=!form.hidden;if(!form.hidden)nameInput.focus()};
+status("Connecting to the lobby…");poll();
