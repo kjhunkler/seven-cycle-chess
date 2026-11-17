@@ -11,7 +11,9 @@ Run the following in separate terminals from the repository root:
 
 Open http://localhost:8000/online.html in two separate browser profiles or a normal and a private window. Each browser stores its own free, name-only profile. Everyone currently in the lobby appears in the online friends list.
 
-## Publishing
+The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions are encrypted between browsers. The broker is shared and has no availability guarantee.
+
+## Publishing with a private signaling service
 
 Run `node lobby-server.mjs` on a Node host that exposes HTTPS and honors the `PORT` environment variable. Set `LOBBY_ORIGIN` to the public Pages origin if it differs from the default. Set the GitHub Actions repository variable `FRUIT_WARS_LOBBY` to the hosted HTTPS endpoint including `/lobby`, then dispatch the Pages workflow.
 

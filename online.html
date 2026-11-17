@@ -33,7 +33,7 @@ button{min-height:44px}
     <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
     <button>Go online</button>
   </form>
-  <p role="status">Enter your name to join the lobby. Everyone online is a friend.</p>
+  <p role="status">Enter your name to join the lobby. Everyone online is a friend. Your display name is shared in the public lobby.</p>
   <h2>Friends online</h2><ul id="friends"></ul>
   <div id="invitations"></div><button id="leave" disabled>Leave match</button>
 </section>
@@ -311,4 +311,4 @@ map.addEventListener("pointerup",e=>{
 map.addEventListener("lostpointercapture",()=>{drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./lobby-config.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

@@ -14,6 +14,7 @@ let timer, player = 1;
 function status(message) { statusText.textContent = message; }
 
 async function request(action, fields = {}) {
+  if (!endpoint) return publicLobby(action, name, fields);
   const response = await fetch(endpoint, {
     method: "POST",
     headers: { Authorization: "Bearer " + token, "Content-Type": "application/json" },
@@ -163,7 +164,7 @@ async function poll() {
         reset("Your friend left or declined the match.", false);
       }
     }
-    if (!room && statusText.textContent === "Connecting to the lobby…") status("You’re online.");
+    if (!room && ["Connecting to the lobby…","Lobby is unreachable. Retrying…"].includes(statusText.textContent)) status("You’re online.");
   } catch {
     if (!room) status("Lobby is unreachable. Retrying…");
   } finally {
@@ -173,7 +174,7 @@ async function poll() {
 
 form.onsubmit = event => {
   event.preventDefault();
-  if (!endpoint || name) return;
+  if (name) return;
   name = nameInput.value.trim();
   if (!name) return;
   localStorage.setItem("fruit-wars-name", name);
@@ -183,7 +184,3 @@ form.onsubmit = event => {
   poll();
 };
 lobby.querySelector("#leave").onclick = () => reset("You left the match.");
-if (!endpoint) {
-  status("The online lobby still needs a signaling server.");
-  form.querySelector("button").disabled = true;
-}
