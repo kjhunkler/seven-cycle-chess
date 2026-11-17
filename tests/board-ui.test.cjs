@@ -48,10 +48,15 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext('sendType=0; send("P1","C1"); step(.1); render(); panel();', context);
     assert.ok(vm.runInContext('G.some(g => g.from === "P1" && g.to === "C1")', context));
 
-    vm.runInContext('N.P1.stock=[7,0,0,0,0,0,0]; G=[]; N.P1.departure=0; send("P1","C2"); for(let i=0;i<30;i++)depart(N.P1,.1)', context);
+    vm.runInContext('N.P1.stock=[7,0,0,0,0,0,0];N.P1.selectedType=0;G=[];N.P1.departure=0;send("P1","C2");for(let i=0;i<30;i++)depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('tot(N.P1)', context), 1, 'routes preserve one defender');
     assert.equal(vm.runInContext('G.filter(g=>g.to==="C1").length', context), 3);
     assert.equal(vm.runInContext('G.filter(g=>g.to==="C2").length', context), 3);
+    assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'the last defender keeps its fruit selected');
+    vm.runInContext('N.P1.stock=[2,1,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];for(let i=0;i<30;i++)depart(N.P1,.1)', context);
+    assert.equal(vm.runInContext('N.P1.stock[0]', context), 0, 'selected fruit is fully spent');
+    assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle switches to the next stocked fruit');
+    assert.equal(vm.runInContext('N.P1.routes.length', context), 0, 'switching fruit clears all routes');
     vm.runInContext('routeCommand({kind:"stop",node:"P1"});N.P1.stock[0]=5;G=[];depart(N.P1,1)', context);
     assert.equal(vm.runInContext('G.length', context), 0, 'stop clears future departures');
     vm.runInContext('N.C1.owner=1;N.C1.cd=3;N.C1.pend=2;sel="C1";act("cancel")', context);
