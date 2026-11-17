@@ -26,12 +26,12 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css"></head><body><main>
 <nav class="editions" aria-label="Game edition"><a href="./" aria-current="page">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html">Signal</a><a href="./online.html">Online</a></nav><h1>Fruit Wars</h1>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
-<div class="card"><small>Cycle: 🍎→🍊→🍌→🥑→🫐→🍇→🥥→🍎 (plum shown as 🍇). Each fruit crushes the next one, beats the second, ties the third and fourth, loses to the fifth, and is crushed by the sixth. So 1 🍎 beats 2 🍊, and 1 🥥 beats 2 🍎. Drag between connected nodes to send troops. Tap to select, or hold an owned outpost to change its type. Rings show the selected fruit’s matchup against the largest defending stack: green + is strong, red − is weak, and gray = is even. Outposts only accept units of their own type. You only see your outposts and their neighbors.</small></div>
+<div class="card"><small>Cycle: 🍎→🍊→🍌→🥑→🫐→🍇→🥥→🍎. Each fruit crushes the next one, beats the second, ties the third and fourth, loses to the fifth, and is crushed by the sixth. So 1 🍎 beats 2 🍊, and 1 🥥 beats 2 🍎. Drag between connected nodes to send troops. Tap to select, or hold an owned outpost to change its type. Rings show the selected fruit’s matchup against the largest defending stack: green + is strong, red − is weak, and gray = is even. Outposts only accept units of their own type. You only see your outposts and their neighbors.</small></div>
 </main>
 <script>
 const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
@@ -304,4 +304,4 @@ map.addEventListener("pointerup",e=>{
 map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script></body></html>
+</script><script src="./board-ui.js"></script></body></html>
