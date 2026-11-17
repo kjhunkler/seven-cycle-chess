@@ -43,7 +43,7 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {})', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
     vm.runInContext('act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
     assert.match(get('panel').innerHTML, /Queue/);
     assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
@@ -75,7 +75,7 @@ for (const page of ['index.html', 'match.html']) {
     assert.ok(frames.length > 0);
     frames.shift()(200);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {})', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
     else vm.runInContext('init()', context);
     vm.runInContext('act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.q.length', context), 1, 'still producing after 3 real seconds');

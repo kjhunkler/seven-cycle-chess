@@ -215,13 +215,14 @@ function snapshot(){
   return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over,gameStarted};
 }
 function sendLobby(){peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,started:gameStarted})}
-function updateLobbyUI(){const f=$("variant-form");if(!$("variant-dialog").open&&!gameStarted)$("variant-dialog").showModal();f.elements.map.value=String(lobbyConfig.map);f.elements.speed.value=String(lobbyConfig.speed);f.elements.shops.checked=lobbyConfig.shops;$("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";f.querySelector(".variant-status").textContent=`${lobbyReady.filter(Boolean).length} of 2 players ready${gameStarted?" · Starting…":""}`}
+function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
+function updateLobbyUI(){const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;$("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";f.querySelector(".variant-status").textContent=`${lobbyReady.filter(Boolean).length} of 2 players ready${gameStarted?" · Starting…":""}`}
 function beginMatch(){if(gameStarted||!lobbyReady.every(Boolean))return;gameStarted=true;CONFIG.timeScale=Number(lobbyConfig.speed);init();gameStarted=true;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";if(localPlayer===1)sendLobby()}
-$("variant-form").addEventListener("change",()=>{if(gameStarted)return;lobbyConfig={map:Number($("variant-form").elements.map.value),speed:Number($("variant-form").elements.speed.value),shops:$("variant-form").elements.shops.checked};lobbyReady[localPlayer-1]=false;if(localPlayer===1)lobbyReady[1]=false;sendLobby();updateLobbyUI()});
+$("variant-form").addEventListener("change",()=>{if(gameStarted)return;lobbyConfig={map:Number(variantField("map").value),speed:Number(variantField("speed").value),shops:variantField("shops").checked};lobbyReady[localPlayer-1]=false;if(localPlayer===1)lobbyReady[1]=false;sendLobby();updateLobbyUI()});
 $("ready-button").onclick=()=>{if(gameStarted)return;lobbyReady[localPlayer-1]=!lobbyReady[localPlayer-1];sendLobby();updateLobbyUI();if(localPlayer===1&&lobbyReady.every(Boolean))beginMatch()};
 window.matchGame={
   start(player,send){
-    localPlayer=player;peerSend=send;online=true;nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;gameStarted=false;lobbyReady=[false,false];lobbyConfig={map:2,speed:.5,shops:false};CONFIG.timeScale=.5;
+    localPlayer=player;peerSend=send;online=true;nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;gameStarted=false;lobbyReady=[false,false];lobbyConfig={map:2,speed:.5,shops:false};CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
   stop(){online=false;clearTimeout(holdTimer);closeWheel();drag=null;$("match").hidden=true},
