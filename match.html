@@ -162,6 +162,10 @@ function applyCommand(owner,data){
   if(!online||over||!data||typeof data!=="object")return;
   const castle=N["P"+owner];
   if(data.kind==="clear"){castle.q=[];return}
+  if(data.kind==="dequeue"){
+    if(Number.isInteger(data.index)&&data.index>=0&&data.index<castle.q.length)castle.q.splice(data.index,1);
+    return;
+  }
   if(applyRouteCommand(owner,data))return;
   const type=data.type;
   if(!Number.isInteger(type)||type<0||type>=T.length)return;
@@ -185,7 +189,7 @@ function snapshot(){
     if(n.owner===2)return [id,n];
     return [id,{ ...n, owner:visible.has(id)?n.owner:0,
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
-      pend:null,cd:0,tm:0,q:[],orders:[],routes:[] }];
+      pend:null,cd:0,tm:0,q:[],orders:[],routes:[],selectedType:null }];
   }));
   return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over};
 }
@@ -321,4 +325,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=11"></script><script src="./board-ui.js?v=11"></script></body></html>
+</script><script src="./controls.js?v=12"></script><script src="./board-ui.js?v=12"></script></body></html>

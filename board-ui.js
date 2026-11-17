@@ -35,8 +35,8 @@
   footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span><i class="key-dot enemy"></i> Rival</span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Tap to stop</span>';
   shell.append(footer);
   const settings = document.createElement('div'); settings.className = 'feedback-settings';
-  settings.innerHTML = '<span>Make your move.</span><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button>';
-  shell.after(settings);
+  settings.innerHTML = '<button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button>';
+  (document.querySelector('#match-profile')||document.querySelector('#lobby')||document.querySelector('#friends-panel'))?.append(settings);
   const updateSettings = () => {
     document.documentElement.dataset.motion = animated() ? 'on' : 'off';
     const m=document.getElementById('motion-toggle'), h=document.getElementById('haptic-toggle');
@@ -84,8 +84,10 @@
       const label=v?`${n.castle?'Castle':'Outpost'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${strengthLabel(tot(n))} troops${n.castle?'':', '+T[n.ut][1]}`:`${n.id}, unexplored`;
       h+=`<g data-id="${n.id}" class="board-node" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+.7}" fill="var(--card)" stroke="${col}" stroke-width=".35"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="${v?1:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
-      if(sel&&N[sel].adj.includes(n.id)&&canEnter(n,me,sendType)){
-        let color='var(--mut)',mark='';if(v&&n.owner!==me&&k>=0&&N[sel].stock[sendType]>0){const d=mult(sendType,k)-mult(k,sendType);color=d>0?'#71bc91':d<0?'#ee8792':'var(--mut)';mark=d>0?'+':d<0?'−':'=';}
+      const routeType=sel&&N[sel].castle?N[sel].selectedType:sendType;
+      if(sel&&N[sel].adj.includes(n.id)&&routeType!=null&&canEnter(n,me,routeType)){
+        const type=routeType;
+        let color='var(--mut)',mark='';if(v&&n.owner!==me&&k>=0&&N[sel].stock[type]>0){const d=mult(type,k)-mult(k,type);color=d>0?'#71bc91':d<0?'#ee8792':'var(--mut)';mark=d>0?'+':d<0?'−':'=';}
         h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.7}" fill="none" stroke="${color}" stroke-width=".55" stroke-dasharray="1 1"/>`;
         if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
       }
@@ -113,14 +115,14 @@
   const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
   panel=function(){
     const me=player(), c=N['P'+me];
-    const status=over?`<strong>${over===me?'Victory. The orchard is yours.':'Your castle has fallen.'}</strong> ${typeof online==='undefined'?'<button data-act="restart">Play again ↗</button>':''}`:escape(msg||'Choose your next move. Drag between connected outposts to send troops.');
+    const status=over?`<strong>${over===me?'Victory. The orchard is yours.':'Your castle has fallen.'}</strong> ${typeof online==='undefined'?'<button data-act="restart">Play again ↗</button>':''}`:escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=`<div class="queue-title"><b>Queue</b><span>${c.q.length} / 20</span><button data-act="qc" aria-label="Clear production queue">Clear</button></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div><div class="queue-strip"><span>${c.q.length?c.q.map(i=>icon(i,'queue-icon')).join(''):'Tap a fruit to queue'}</span></div>`;
+    let h=`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
   document.getElementById('msg').setAttribute('aria-live','polite');
   const oldWheel=openWheel;
-  openWheel=function(...args){oldWheel(...args);if(!typeWheel.hidden){typeWheel.querySelectorAll('button').forEach((b,i)=>{b.innerHTML=icon(i)});vibrate(18)}};
+  openWheel=function(...args){oldWheel(...args);if(!typeWheel.hidden){const node=window.boardNodes()[args[0]];typeWheel.querySelectorAll('button').forEach((b,i)=>{b.innerHTML=icon(i)+(node?.castle?`<small>${strengthLabel(node.stock[i])}</small>`:'')});vibrate(18)}};
   render();panel();
 })();
