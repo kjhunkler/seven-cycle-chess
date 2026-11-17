@@ -30,7 +30,7 @@ button{min-height:44px}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=18"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=19"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Both players can change these settings. The match starts when both are ready.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for both players…</p><button type="button" id="ready-button">Ready</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
@@ -367,4 +367,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=17"></script><script src="./board-ui.js?v=17"></script></body></html>
+</script><script src="./controls.js?v=19"></script><script src="./board-ui.js?v=19"></script></body></html>

@@ -1,5 +1,21 @@
 /* Persistent routes are simulated by the host and included in normal snapshots. */
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
+function castleFruit(n){
+  const selected=n.selectedType;
+  if(selected==null){
+    const strongest=big(n);
+    return n.stock[strongest]>CONFIG.strengthEpsilon?strongest:null;
+  }
+  for(let offset=0;offset<T.length;offset++){
+    const type=(selected+offset)%T.length;
+    if(n.stock[type]>CONFIG.strengthEpsilon)return type;
+  }
+  return null;
+}
+function refreshCastleFruit(n){
+  n.selectedType=castleFruit(n);
+  if(sel===n.id&&n.owner===myPlayer()&&n.selectedType!=null)sendType=n.selectedType;
+}
 function applyRouteCommand(owner,data){
   if(!['route','stop','cancel','select-troop'].includes(data.kind))return false;
   const n=Object.hasOwn(N,data.node)?N[data.node]:null;
@@ -9,10 +25,9 @@ function applyRouteCommand(owner,data){
     return true;
   }
   if(data.kind==='route'&&n.adj.includes(data.to)){
-    if(n.castle&&n.selectedType==null){
-      const highest=n.stock.reduce((best,count,i)=>count>n.stock[best]?i:best,0);
-      if(n.stock[highest]<=CONFIG.strengthEpsilon)return true;
-      n.selectedType=highest;if(owner===myPlayer())sendType=highest;
+    if(n.castle){
+      refreshCastleFruit(n);
+      if(n.selectedType==null)return true;
     }
     n.routes??=[];if(!n.routes.includes(data.to))n.routes.push(data.to);
   }
@@ -27,12 +42,14 @@ function routeCommand(data){
   const baseInit=init;
   init=function(){
     baseInit();
-    for(const n of Object.values(N)){n.routes=[];n.routeIndex=0;if(n.castle)n.selectedType=big(n)>=0?big(n):null;}
+    for(const n of Object.values(N)){n.routes=[];n.routeIndex=0;}
     if(typeof localPlayer!=='undefined'){
       for(const [a,b] of [['P1','P2'],['C1','A1'],['C2','A2'],['C3','A3'],['B1','B4'],['B2','B3']]){
         N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];
       }
     }
+    for(const n of Object.values(N))if(n.castle)refreshCastleFruit(n);
+    closeWheel();
     msg='Drag from your castle or an outpost to create a route. Tap to stop; hold to choose or transform.';
   };
   const baseArrive=arrive;
@@ -51,6 +68,7 @@ function routeCommand(data){
     return best;
   };
   depart=function(n,dt){
+    if(n.castle)refreshCastleFruit(n);
     if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
@@ -63,6 +81,7 @@ function routeCommand(data){
       }
     }
     baseDepart(n,dt);
+    if(n.castle)refreshCastleFruit(n);
   };
   const baseSelect=select;
   select=function(id){baseSelect(id);if(N[id]?.castle&&N[id].selectedType!=null)sendType=N[id].selectedType;};

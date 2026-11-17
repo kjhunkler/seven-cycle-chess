@@ -8,11 +8,11 @@ const root = path.join(__dirname, '..');
 // A minimal DOM for exercising real game startup and frames without network/lobby side effects.
 // Browser checks cover layout, pointer hit testing, and actual DOM rendering.
 class Element {
-  constructor() { this.dataset = {}; this.style = {}; this.innerHTML = ''; this.children = []; this.hidden = false; this.classList = { toggle() {} }; }
+  constructor() { this.listeners = new Map(); this.dataset = {}; this.style = {}; this.innerHTML = ''; this.children = []; this.hidden = false; this.classList = { toggle() {} }; }
   setAttribute() {}
   showModal() { this.open = true; }
-  close() { this.open = false; }
-  addEventListener() {}
+  close() { this.open = false; this.listeners.get("close")?.(); }
+  addEventListener(type, listener) { this.listeners.set(type, listener); }
   before() {}
   after() {}
   append(...children) { this.children.push(...children); }
@@ -42,6 +42,24 @@ for (const page of ['index.html', 'match.html']) {
     }
     vm.runInContext(fs.readFileSync(path.join(root, 'controls.js'), 'utf8'), context, { filename: 'controls.js' });
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
+    if (page === 'index.html') {
+      const dialog = context.document.body.children.find(element => element.className === 'battle-settings-dialog');
+      const fields = {map: {value: '2'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: true}};
+      dialog.querySelector = selector => selector === 'form' ? {elements: fields} : new Element();
+      vm.runInContext('globalThis.originalBoard=N', context);
+      dialog.close();
+      assert.equal(vm.runInContext('N===originalBoard && CONFIG.timeScale===1.5', context), true, 'speed applies without resetting');
+      fields.map.value = '4';
+      fields.shops.checked = true;
+      fields.productionRotation.checked = false;
+      dialog.close();
+      assert.equal(vm.runInContext('N!==originalBoard && N.P3.owner===3 && N.P4.owner===4 && N.S4H.shop==="shield" && productionCycle===null', context), true, 'board-changing settings rebuild the match');
+      fields.map.value = '2';
+      fields.speed.value = '0.5';
+      fields.shops.checked = false;
+      fields.productionRotation.checked = true;
+      dialog.close();
+    }
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
@@ -58,7 +76,7 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'the last defender keeps its fruit selected');
     vm.runInContext('N.P1.stock=[2,1,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];for(let i=0;i<30;i++)depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 0, 'selected fruit is fully spent');
-    assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'castle keeps the selected fruit');
+    assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle selects the next available fruit');
     assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'routes remain when the selected fruit runs out');
     vm.runInContext('N.C1.owner=1;N.C1.ut=1;N.P1.stock=[2,3,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('G[0].type', context), 1, 'castle falls back to the strongest compatible fruit on a blocked lane');

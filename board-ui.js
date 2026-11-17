@@ -19,9 +19,9 @@
     '<path d="M12 6C1 1 0 21 11 22 23 23 23 4 15 5Z" fill="#b28be4"/><path d="M12 6c0-4 3-5 6-4-1 3-3 4-6 4" fill="#8fcba4"/><path d="M7 10c-1 2-1 4 0 6"/>',
     '<circle cx="12" cy="12" r="10" fill="#a67954"/><ellipse cx="12" cy="10" rx="8" ry="7" fill="#fff0cf"/><ellipse cx="12" cy="10" rx="4" ry="3" fill="#d9ba8b" stroke="none"/>'
   ];
+  const ownerColor = owner => ['var(--neu)','var(--p1)','var(--p2)','#a56bd4','#df9b3e'][owner];
   const art = i => `<g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g>`;
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;
-  const castle = '<path d="M3 21V9h4V3h4v5h2V3h4v6h4v12H3Z" fill="#f6eacb" stroke="#a99d82" stroke-width="1.1"/><path d="M10 21v-6a2 2 0 0 1 4 0v6" fill="#6d7483"/><path d="M5 11h3m8 0h3" stroke="#a99d82"/>';
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
@@ -37,11 +37,21 @@
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
   const footer = document.createElement('div');
   footer.className = 'battle-footer';
-  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span><i class="key-dot enemy"></i> Rival</span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Tap to stop</span>';
+  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Tap to stop</span>';
   shell.append(footer);
   if(typeof online==='undefined'){
-    settingsDialog.querySelector('.settings-restart').onclick=()=>{const f=settingsDialog.querySelector('form');botConfig={map:Number(f.elements.map.value),speed:Number(f.elements.speed.value),shops:f.elements.shops.checked,productionRotation:f.elements.productionRotation.checked};settingsDialog.close?.();act('restart');};
-    settingsDialog.querySelectorAll('select,input').forEach(control=>control.addEventListener('change',()=>{const f=settingsDialog.querySelector('form');botConfig={map:Number(f.elements.map.value),speed:Number(f.elements.speed.value),shops:f.elements.shops.checked,productionRotation:f.elements.productionRotation.checked};}));
+    const applySettings=(restart=false)=>{
+      const {map,speed,shops,productionRotation}=settingsDialog.querySelector('form').elements;
+      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked};
+      const reset=restart||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      botConfig=next;
+      if(reset){
+        act('restart');
+        previousNodes=null;
+      }else CONFIG.timeScale=next.speed;
+    };
+    settingsDialog.querySelector('.settings-restart').onclick=()=>{applySettings(true);settingsDialog.close();};
+    settingsDialog.addEventListener('close',()=>applySettings());
   }else settingsDialog.querySelector('.battle-settings-form').innerHTML='<h2>Battle settings</h2><p>Settings are chosen before an online match begins.</p><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><button value="close">Close</button>';
   const endgame=document.createElement('dialog');endgame.className='endgame-dialog';
   endgame.innerHTML='<p class="endgame-message"></p><div class="endgame-actions"><button type="button" class="endgame-retry">Play again</button><button type="button" class="endgame-close">Close</button></div>';
@@ -92,10 +102,13 @@
   render=function(){
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,y:me===2?100-n.y:n.y}]));
-    footer.querySelector('.ally').style.background=me===1?'var(--p1)':'var(--p2)';
-    footer.querySelector('.enemy').style.background=me===1?'var(--p2)':'var(--p1)';
+    footer.querySelector('.ally').style.background=ownerColor(me);
+    const rivals=Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))).filter(owner=>owner!==me);
+    const rivalKeys=footer.querySelector('.rival-keys');
+    const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> Rival${rivals.length>1?' '+(i+1):''}</span>`).join('');
+    if(rivalKeys.innerHTML!==legend)rivalKeys.innerHTML=legend;
     const snapshot=Object.fromEntries(Object.values(N).map(n=>[n.id,{owner:n.owner,visible:V.has(n.id)}]));
-    if(previousNodes)for(const n of Object.values(N)){const old=previousNodes[n.id];if(old&&old.owner!==n.owner&&old.visible&&V.has(n.id)){burst(n,n.owner===me?'var(--p1)':'var(--p2)');vibrate(n.owner===me?[22,40,35]:[45,35,45]);}}
+    if(previousNodes)for(const n of Object.values(N)){const old=previousNodes[n.id];if(old&&old.owner!==n.owner&&old.visible&&V.has(n.id)){burst(n,ownerColor(n.owner));vibrate(n.owner===me?[22,40,35]:[45,35,45]);}}
     previousNodes=snapshot;
     if(over!==previousWinner){if(over)vibrate(over===me?[35,60,35,60,90]:[100,60,100]);previousWinner=over;}
     if(over!==modalWinner){
@@ -109,7 +122,7 @@
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>',countLabels='';
     for(const a of Object.values(N))if(!a.shop)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.shop&&!a.castle)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
     for(const n of Object.values(N)){
-      const v=V.has(n.id),r=n.shop?3.5:n.castle?6.5:5.2,k=big(n),selected=sel===n.id,col=!v||!n.owner?'var(--neu)':n.owner===1?'var(--p1)':n.owner===2?'var(--p2)':n.owner===3?'#a56bd4':'#df9b3e';
+      const v=V.has(n.id),r=n.shop?3.5:n.castle?6.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
       const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':n.castle?'Castle':'Outpost'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
       h+=`<g data-id="${n.id}" class="board-node ${n.shake>0||typeof shakeNodes!=='undefined'&&shakeNodes[n.id]>now?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+.7}" fill="var(--card)" stroke="${col}" stroke-width=".35"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="${v?1:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
@@ -122,7 +135,7 @@
         if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
       }
       if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="10" opacity=".25" pointer-events="none">🛡️</text>`;
-      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*Math.sin(now/100):1;h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${n.castle?castle:art(k>=0?k:n.ut)}</g>`;}
+      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=n.castle?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*Math.sin(now/100):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
         const progress=n.cd>0?1-n.cd/CONFIG.cooldown:n.castle?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
         if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text></g>`;
@@ -139,7 +152,7 @@
       }
     }
     if(drag?.moved&&N[drag.from]?.shop&&drag.to){const a=N[drag.from],b=N[drag.to],mx=(a.x+b.x)/2+(b.y-a.y)*.16,my=(a.y+b.y)/2-(b.x-a.x)*.16;h+=`<path d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${a.shop==='shield'?'#63e4ff':'#ffd34e'}" stroke-width="1.3" stroke-dasharray="2 1" class="ability-arc" pointer-events="none"/>`;}
-    for(const g of G){if(g.owner!==me&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],x=a.x+(b.x-a.x)*g.t,y=a.y+(b.y-a.y)*g.t,t=Math.max(0,g.t-.065),color=g.owner===1?'var(--p1)':g.owner===2?'var(--p2)':g.owner===3?'#a56bd4':'#df9b3e';h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${color}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
+    for(const g of G){if(g.owner!==me&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],x=a.x+(b.x-a.x)*g.t,y=a.y+(b.y-a.y)*g.t,t=Math.max(0,g.t-.065),color=ownerColor(g.owner);h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${color}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
     effects=effects.filter(e=>now-e.start<800);
     if(animated())for(const e of effects){const t=(now-e.start)/800;h+=`<g pointer-events="none" opacity="${1-t}"><circle cx="${e.x}" cy="${e.y}" r="${5+t*8}" fill="none" stroke="${e.color}" stroke-width="${.8*(1-t)}"/>`;for(let j=0;j<8;j++){const a=j*Math.PI/4;h+=`<circle cx="${e.x+Math.cos(a)*(5+t*10)}" cy="${e.y+Math.sin(a)*(5+t*10)}" r="${.65*(1-t)}" fill="${e.color}"/>`;}h+='</g>';}
     h+=countLabels;
