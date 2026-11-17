@@ -2,6 +2,8 @@
 (() => {
   const board = document.getElementById('map');
   if (!board) return;
+  // Presentation helpers belong here, independent of each edition's simulation.
+  const strengthLabel = value => Number(value.toFixed(2));
   const player = () => typeof localPlayer === 'undefined' ? 1 : localPlayer;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const storage = { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch {} } };
