@@ -30,3 +30,5 @@ All four editions load `board-ui.css` and `board-ui.js`, a shared presentation l
 Preview the worktree with `npx --yes http-server . -a 127.0.0.1 -p 8037 -c-1`.
 
 Gameplay runs at half speed across solo and multiplayer: castle production takes 4s, outpost production 6s, type changes 10s, and travel 4s. UI input and multiplayer synchronization keep their normal cadence. Desktop boards expand with the viewport up to a 1800px page width.
+
+Multiplayer matches open with a shared setup dialog. Either player can choose the expanded two-player map, a three-player map, a large four-player map, game speed, and Shop Nodes; both players must ready up before the match starts. The three- and four-player maps fill open seats with bots. Shop Nodes charge from ten incoming fruit, then can apply a one-hit shield or a seven-second triple-production boost to an owned node. Each shop ability has a ten-second game-time cooldown.

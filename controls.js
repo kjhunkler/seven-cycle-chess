@@ -38,21 +38,23 @@ function routeCommand(data){
   const baseArrive=arrive;
   arrive=function(g){const owner=N[g.to].owner;baseArrive(g);if(N[g.to].owner!==owner){N[g.to].routes=[];N[g.to].routeIndex=0;}};
   const baseDepart=depart;
-  const refreshCastleType=n=>{
-    if(!n.castle||n.selectedType==null||n.stock[n.selectedType]>CONFIG.strengthEpsilon)return;
-    let next=null;
-    for(let offset=1;offset<=T.length;offset++){
-      const i=((n.selectedType??-1)+offset)%T.length;
-      if(n.stock[i]>CONFIG.strengthEpsilon){next=i;break;}
+  const routeTroop=(n,to)=>{
+    const target=N[to],selected=n.selectedType;
+    if(selected!=null&&n.stock[selected]>CONFIG.strengthEpsilon&&canEnter(target,n.owner,selected))return selected;
+    let best=-1,bestMatch=-Infinity,bestStock=-Infinity;
+    for(let i=0;i<T.length;i++){
+      const stock=n.stock[i];
+      if(stock<=CONFIG.strengthEpsilon||!canEnter(target,n.owner,i))continue;
+      const match=target.owner&&!target.castle?mult(i,target.ut):0;
+      if(match>bestMatch||match===bestMatch&&stock>bestStock){best=i;bestMatch=match;bestStock=stock;}
     }
-    n.selectedType=next;if(next!=null&&n.owner===myPlayer())sendType=next;n.routes=[];n.routeIndex=0;
+    return best;
   };
   depart=function(n,dt){
-    refreshCastleType(n);
     if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
-        const type=n.castle?n.selectedType:n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
+        const type=n.castle?routeTroop(n,to):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
         const count=Math.min(1,n.stock[type],tot(n)-1);
         n.stock[type]-=count;
@@ -61,11 +63,10 @@ function routeCommand(data){
       }
     }
     baseDepart(n,dt);
-    refreshCastleType(n);
   };
   const baseSelect=select;
   select=function(id){baseSelect(id);if(N[id]?.castle&&N[id].selectedType!=null)sendType=N[id].selectedType;};
-  send=function(from,to){if(N[from]?.owner===myPlayer())routeCommand({kind:'route',node:from,to});};
+  send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to});};
   const baseAct=act;
   act=function(a){
     if(a==='cancel'){routeCommand({kind:'cancel',node:sel});return;}
@@ -80,7 +81,7 @@ function routeCommand(data){
   let wheelNode=null;
   closeWheel=function(){typeWheel.hidden=true;wheelNode=null;};
   openWheel=function(id,x,y){
-    const n=N[id];if(over||!n||n.cd>0||n.owner!==myPlayer())return;
+    const n=N[id];if(over||!n||n.shop||n.cd>0||n.owner!==myPlayer())return;
     select(id);wheelNode=id;typeWheel.dataset.node=id;
     if(drag)drag.held=true;
     typeWheel.innerHTML='';
@@ -104,15 +105,15 @@ function routeCommand(data){
   };
   const point=(x,y)=>{const p=new DOMPoint(x,y).matrixTransform(map.getScreenCTM().inverse());if(myPlayer()===2)p.y=100-p.y;return p;};
   const snap=(id,x,y)=>{
-    const a=N[id],p=point(x,y),dx=p.x-a.x,dy=p.y-a.y,len=Math.hypot(dx,dy);
+    const a=N[id],targets=a.shop?a.abilityTargets||[]:a.adj,p=point(x,y),dx=p.x-a.x,dy=p.y-a.y,len=Math.hypot(dx,dy);
     if(len<7)return null;
     let best=null,score=.82;
-    for(const to of a.adj){const b=N[to],vx=b.x-a.x,vy=b.y-a.y,c=(dx*vx+dy*vy)/(len*Math.hypot(vx,vy));if(c>score){best=to;score=c;}}
+    for(const to of targets){const b=N[to],vx=b.x-a.x,vy=b.y-a.y,c=(dx*vx+dy*vy)/(len*Math.hypot(vx,vy));if(c>score){best=to;score=c;}}
     return best;
   };
   const routeTarget=(id,x,y)=>{
     const hit=document.elementFromPoint?.(x,y)?.closest('[data-id]')?.dataset.id;
-    return hit&&N[id].adj.includes(hit)?hit:snap(id,x,y);
+    return hit&&(N[id].shop?N[hit]?.owner===myPlayer()&&!N[hit].shop:N[id].adj.includes(hit))?hit:snap(id,x,y);
   };
   document.addEventListener('pointerdown',e=>{if(!typeWheel.hidden&&!typeWheel.contains(e.target)&&!e.target.closest('[data-id]'))closeWheel();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeWheel();});
@@ -134,7 +135,7 @@ function routeCommand(data){
       typeWheel.querySelectorAll('button').forEach(b=>b.classList.toggle('hover',b===hit));return;
     }
     if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6){drag.moved=true;clearTimeout(holdTimer);}
-    if(drag.moved){select(drag.from);drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
+    if(drag.moved){if(!N[drag.from]?.shop)select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
     if(drag?.id!==e.pointerId)return;e.preventDefault();clearTimeout(holdTimer);
