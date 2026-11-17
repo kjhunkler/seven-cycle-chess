@@ -9,11 +9,13 @@ const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto
 const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
 localStorage.setItem("fruit-wars-profile", token);
 nameInput.value = savedName;
+document.querySelector("#profile-name").textContent = savedName;
 localStorage.setItem("fruit-wars-name",savedName);
 function labelProfile(summary,label){if(!summary)return;summary.title=label;summary.setAttribute("aria-label",label+" profile");}
 labelProfile(document.querySelector("#friend-summary"),savedName+" · player profile and friends");
 let name = savedName, room = "", peer = null, channel = null, iceServers = [], timeout;
 let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
+const pendingInvites = new Map();
 let outgoing = Promise.resolve();
 let relay = false, relayTimer, lastRelayFrame = 0;
 let turnServers = [], turnCacheUntil = 0, turnRequest;
@@ -54,6 +56,7 @@ function rename(value) {
   if (typeof value !== "string" || !value.trim()) return;
   name = value.trim().slice(0,32);
   nameInput.value = name;
+  document.querySelector("#profile-name").textContent = name;
   labelProfile(document.querySelector("#friend-summary"),name+" · player profile and friends");
   localStorage.setItem("fruit-wars-name",name);
   if(frame)labelProfile(frame.contentDocument.querySelector("#match-profile-name"),name+" · player profile");
@@ -116,6 +119,62 @@ async function request(action, fields = {}) {
   const data = await response.json();
   if (!response.ok) throw new Error(data.error);
   return data;
+}
+
+async function acceptInvite(invite) {
+  if (room) return;
+  await request("accept", { room: invite.room });
+  pendingInvites.delete(invite.key);
+  reserve(invite.room);
+  await connect(false);
+  renderInvitations();
+  renderRoster(lastFriends);
+}
+let lastFriends=[];
+function renderInvitations() {
+  const host = document.querySelector("#invite-toasts");
+  host.replaceChildren();
+  for (const invite of pendingInvites.values()) {
+    const toast = document.createElement("div");
+    toast.className = "invite-toast";
+    toast.setAttribute("role", "alert");
+    toast.append(document.createTextNode(invite.name + " invited you. "));
+    toast.append(addAction("Accept", () => acceptInvite(invite)), addAction("Decline", async () => {
+      await request("leave", { room: invite.room });
+      pendingInvites.delete(invite.key);
+      renderInvitations();
+      renderRoster(lastFriends);
+    }));
+    host.append(toast);
+  }
+}
+function renderRoster(friends) {
+  lastFriends=friends;
+  const signature = JSON.stringify([friends, [...pendingInvites.keys()].sort(), Boolean(room)]);
+  if (roster.dataset.signature === signature) return;
+  roster.dataset.signature = signature;
+  roster.replaceChildren();
+  for (const friend of friends) {
+    const item = document.createElement("li");
+    item.append(document.createTextNode(friend.name + " "));
+    const invitation = [...pendingInvites.values()].find(invite => invite.name === friend.name);
+    const action = invitation ? addAction("Accept", () => acceptInvite(invitation)) : addAction("Invite", async () => {
+      if (room) return;
+      void loadTurnServers();
+      status("Sending invitation…");
+      const result = await request("invite", { to: friend.id });
+      reserve(result.room);
+      status("Invitation sent to " + friend.name + ".");
+    });
+    action.disabled = Boolean(room);
+    item.append(action);
+    roster.append(item);
+  }
+  if (!friends.length) {
+    const empty = document.createElement("li");
+    empty.textContent = "No other players online.";
+    roster.append(empty);
+  }
 }
 
 function addAction(label, action) {
@@ -289,49 +348,12 @@ async function poll() {
     const data = await request("poll");
     iceServers = data.iceServers;
     labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
-    const signature = JSON.stringify([data.friends, Boolean(room)]);
-    if (roster.dataset.signature !== signature) {
-      roster.dataset.signature = signature;
-      roster.replaceChildren();
-      for (const friend of data.friends) {
-        const item = document.createElement("li");
-        item.append(document.createTextNode(friend.name + " "));
-        const invite = addAction("Invite", async () => {
-          if (room) return;
-          void loadTurnServers();
-          status("Sending invitation…");
-          const result = await request("invite", { to: friend.id });
-          reserve(result.room);
-          status("Invitation sent to " + friend.name + ".");
-        });
-        invite.disabled = Boolean(room);
-        item.append(invite);
-        roster.append(item);
-      }
-      if (!data.friends.length) {
-        const empty = document.createElement("li");
-        empty.textContent = "No other players online.";
-        roster.append(empty);
-      }
-    }
     for (const event of data.events) {
       if (event.kind === "invite" && !room) {
-        const invitation = document.createElement("p");
-        invitation.textContent = event.name + " invited you. ";
-        const dismiss = () => invitation.remove();
-        invitation.append(addAction("Accept", async () => {
-          if (room) return;
-          await request("accept", { room: event.room });
-          reserve(event.room);
-          await connect(false);
-          dismiss();
-        }), addAction("Decline", async () => {
-          await request("leave", { room: event.room });
-          dismiss();
-        }));
-        lobby.querySelector("#invitations").append(invitation);
+        const invite={key:event.room,room:event.room,name:event.name};
+        pendingInvites.set(invite.key,invite);
+        renderInvitations();
         lobby.closest("details").open = true;
-        setTimeout(dismiss, 30_000);
       }
       if (event.room !== room) continue;
       if (event.kind === "relay" && !endpoint && player === 2) {
@@ -355,6 +377,7 @@ async function poll() {
         reset("Your friend left or declined the match.", false);
       }
     }
+    renderRoster(data.friends);
     if (!room && ["Connecting to the lobby…","Lobby is unreachable. Retrying…"].includes(statusText.textContent)) status("You’re online.");
   } catch {
     if (!room) status("Lobby is unreachable. Retrying…");
@@ -366,7 +389,9 @@ async function poll() {
 form.onsubmit = event => {
   event.preventDefault();
   rename(nameInput.value);
+  form.hidden = true;
   status("Name saved.");
 };
+document.querySelector("#edit-profile-name").onclick=()=>{form.hidden=!form.hidden;if(!form.hidden)nameInput.focus();};
 status("Connecting to the lobby…");
 poll();

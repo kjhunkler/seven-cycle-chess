@@ -71,8 +71,12 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 .queue-icon{flex-shrink:0}.transform-status{display:flex;align-items:center;justify-content:space-between;font-size:12px}
 .type-wheel button.hover{border-color:var(--fg);box-shadow:0 0 0 3px var(--p1)}
 .type-wheel button small{font-size:10px;color:var(--fg);font-variant-numeric:tabular-nums}
-#lobby .feedback-settings,#match-profile .feedback-settings{display:flex;gap:6px;margin:12px 0 0;padding-top:10px;border-top:1px solid var(--bd)}
-#lobby .feedback-settings button,#match-profile .feedback-settings button{font-size:11px;padding:6px 9px;min-height:34px}
+.battle-shell{position:relative}
+.battle-tools{position:absolute;top:10px;right:10px;z-index:3}
+.battle-settings-button{width:36px;height:36px;padding:0;border-radius:50%;font-size:19px;background:var(--card);box-shadow:0 2px 10px #0003}
+.battle-settings-dialog{width:min(360px,calc(100% - 36px));border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--fg);box-shadow:0 18px 80px #0008}
+.battle-settings-dialog::backdrop{background:#101410bb;backdrop-filter:blur(3px)}
+.battle-settings-form{display:grid;gap:12px}.battle-settings-form h2{margin:0;font-size:20px}.battle-settings-form>label:not(.shop-setting){display:grid;gap:5px;font-weight:650}.battle-settings-form select{font:inherit;padding:9px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}.battle-settings-form .shop-setting{display:flex;align-items:center;gap:8px}.battle-settings-form input{width:20px;height:20px}.battle-settings-form .feedback-settings{display:flex;gap:6px;padding-top:10px;border-top:1px solid var(--bd)}.battle-settings-form .feedback-settings button{font-size:11px;padding:6px 9px;min-height:34px}.settings-actions{display:flex;justify-content:space-between;gap:8px;padding-top:6px;border-top:1px solid var(--bd)}
 #friends-panel{position:absolute;right:24px;top:16px;z-index:20;margin:0;max-width:calc(100vw - 32px)}
 #friends-panel,#match-profile{background:transparent;border:0;padding:0;border-radius:0}
 #friends-panel[open],#match-profile[open]{background:var(--card);border:1px solid var(--bd);border-radius:18px;padding:10px}
@@ -80,7 +84,7 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 #friends-panel>summary::-webkit-details-marker,#match-profile>summary::-webkit-details-marker{display:none}
 #friends-panel[open]>summary,#match-profile[open]>summary{margin-left:auto;margin-bottom:4px}
 .account-icon{width:20px;height:20px;fill:currentColor;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}.account-icon circle{stroke:none}
-#friends-panel[open]{width:330px;box-shadow:0 12px 35px #0007}#lobby{max-height:65dvh;overflow:auto}#lobby input{width:100%}
+#friends-panel[open]{width:330px;box-shadow:0 12px 35px #0007}#lobby{max-height:65dvh;overflow:auto}#lobby input{width:100%}#lobby form[hidden]{display:none}.profile-name-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}.profile-name-row strong{font-size:15px}.profile-name-row button{min-width:32px;min-height:32px;padding:3px}#invite-toasts{position:fixed;z-index:50;top:calc(16px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 24px));display:grid;gap:8px;pointer-events:none}#invite-toasts:empty{display:none}.invite-toast{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px;margin:0;border:1px solid var(--p1);border-radius:10px;background:var(--card);box-shadow:0 8px 24px #0005;font-size:12px;pointer-events:auto}
 @media(max-width:1099px){
  html{padding:0;overscroll-behavior:none;height:100%;overflow:hidden}
  body{height:100dvh;overflow:hidden;overscroll-behavior:none}
