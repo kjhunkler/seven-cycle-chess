@@ -11,7 +11,13 @@ Run the following in separate terminals from the repository root:
 
 Open http://localhost:8000/ in two separate browser profiles or a normal and a private window. Each browser automatically joins with a random name on first visit. The Friends panel lets players change their name and invite other online players. Accepting an invite opens the dedicated match page. Everyone currently in the lobby appears in the online friends list.
 
-The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions are encrypted between browsers. If direct WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
+The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions and ICE candidates are encrypted between browsers. When TURN is configured, WebRTC can connect directly or through Cloudflare. If WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
+
+## Enabling TURN on GitHub Pages
+
+1. Deploy the updated `smack-town-arena-turn` Worker from the [SmackTown repository](https://github.com/kjhunkler/SmackTown) using `npx wrangler deploy` in an authorized Cloudflare session. The Worker uses its existing `TURN_TOKEN_ID` variable and `TURN_API_TOKEN` secret.
+2. Set the Fruit Wars GitHub Actions repository variable `FRUIT_WARS_TURN_ENDPOINT` to `https://smacktownarena.com/api/turn-credentials` and dispatch **Deploy to GitHub Pages**. The Pages build publishes the endpoint URL. The Worker supplies temporary credentials to the browsers.
+3. To disable TURN for Fruit Wars, clear the variable and dispatch the workflow again.
 
 ## Publishing with a private signaling service
 

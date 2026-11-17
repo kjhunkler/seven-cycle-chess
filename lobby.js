@@ -4,6 +4,7 @@ const statusText = lobby.querySelector("[role=status]");
 const roster = lobby.querySelector("#friends");
 const nameInput = form.elements.namedItem("name");
 const endpoint = window.FRUIT_WARS_LOBBY || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8787/lobby" : "");
+const turnEndpoint = endpoint ? "" : window.FRUIT_WARS_TURN_ENDPOINT;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
 localStorage.setItem("fruit-wars-profile", token);
@@ -15,6 +16,34 @@ let name = savedName, room = "", peer = null, channel = null, iceServers = [], t
 let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
 let outgoing = Promise.resolve();
 let relay = false, relayTimer, lastRelayFrame = 0;
+let turnServers = [], turnCacheUntil = 0, turnRequest;
+let remoteCandidates = [];
+
+function loadTurnServers() {
+  if (!turnEndpoint || Date.now() < turnCacheUntil) return Promise.resolve(turnServers);
+  turnRequest ??= fetch(turnEndpoint, { cache: "no-store", signal: AbortSignal.timeout(2500) })
+    .then(async response => {
+      if (!response.ok) throw new Error("TURN credentials unavailable");
+      const { iceServers: servers, ttl } = await response.json();
+      turnServers = servers.flatMap(server => {
+        const urls = [server?.urls].flat().filter(url =>
+          typeof url === "string" && /^turns?:[^\s]+$/.test(url) && !/:53(?:\?|$)/.test(url));
+        if (!urls.length || typeof server.username !== "string" || !server.username ||
+          typeof server.credential !== "string" || !server.credential) return [];
+        return [{ urls, username: server.username, credential: server.credential }];
+      });
+      if (!turnServers.length || !Number.isFinite(ttl) || ttl < 60) throw new Error("Invalid TURN configuration");
+      turnCacheUntil = Date.now() + Math.min(ttl * 1000 - 30_000, 20 * 60 * 60 * 1000);
+      return turnServers;
+    })
+    .catch(() => {
+      turnServers = [];
+      turnCacheUntil = Date.now() + 60_000;
+      return turnServers;
+    })
+    .finally(() => { turnRequest = null; });
+  return turnRequest;
+}
 
 function status(message) {
   statusText.textContent = message;
@@ -115,6 +144,7 @@ function closePeer() {
   }
   const connection = peer;
   peer = channel = stateChannel = null;
+  remoteCandidates = [];
   connection?.close();
 }
 
@@ -178,22 +208,27 @@ function attach(dataChannel) {
   channel.onclose = () => reset("Your friend disconnected.");
 }
 
-function connect(host) {
+async function connect(host) {
+  const connectingRoom = room;
   player = host ? 1 : 2;
   showMatch();
+  status("Connecting to your friend…");
+  const turn = await loadTurnServers();
+  if (room !== connectingRoom) return;
   if (!endpoint && host) {
     relayTimer = setTimeout(async () => {
       if (!room || channel?.readyState === "open") return;
       const activeRoom = room;
+      closePeer();
       try {
         await request("relay", { room: activeRoom });
         if (room === activeRoom) startRelay();
       } catch {
         if (room === activeRoom) reset("The relay is unavailable. Please try another invitation.");
       }
-    }, 8500);
+    }, turnEndpoint ? 15_000 : 8500);
   }
-  const connection = new RTCPeerConnection({ iceServers });
+  const connection = new RTCPeerConnection({ iceServers: [...iceServers, ...turn] });
   peer = connection;
   function attachState(state) {
     stateChannel=state;
@@ -210,12 +245,20 @@ function connect(host) {
   peer.onconnectionstatechange = () => {
     if (endpoint && peer === connection && connection.connectionState === "failed") reset("Could not connect to your friend.");
   };
-  status("Connecting to your friend…");
 }
 
 async function publishDescription() {
   const connection = peer;
   const activeRoom = room;
+  let descriptionSent;
+  if (turnEndpoint) {
+    connection.onicecandidate = ({ candidate }) => {
+      if (!candidate || !descriptionSent) return;
+      descriptionSent.then(() => {
+        if (peer === connection) return request("candidate", { room: activeRoom, candidate: candidate.toJSON() });
+      }).catch(() => {});
+    };
+  }
   await connection.setLocalDescription();
   if (connection.iceGatheringState !== "complete") {
     await new Promise(resolve => {
@@ -229,12 +272,15 @@ async function publishDescription() {
       connection.addEventListener("icegatheringstatechange", changed);
     });
   }
-  if (peer === connection) await request("signal", { room: activeRoom, description: connection.localDescription });
+  if (peer === connection) {
+    descriptionSent = request("signal", { room: activeRoom, description: connection.localDescription });
+    await descriptionSent;
+  }
 }
 
 function reserve(id) {
   room = id;
-
+  clearTimeout(timeout);
   timeout = setTimeout(() => reset("The invitation or connection timed out. Try sending a new invite."), 35_000);
 }
 
@@ -252,6 +298,7 @@ async function poll() {
         item.append(document.createTextNode(friend.name + " "));
         const invite = addAction("Invite", async () => {
           if (room) return;
+          void loadTurnServers();
           status("Sending invitation…");
           const result = await request("invite", { to: friend.id });
           reserve(result.room);
@@ -276,7 +323,7 @@ async function poll() {
           if (room) return;
           await request("accept", { room: event.room });
           reserve(event.room);
-          connect(false);
+          await connect(false);
           dismiss();
         }), addAction("Decline", async () => {
           await request("leave", { room: event.room });
@@ -290,11 +337,20 @@ async function poll() {
       if (event.kind === "relay" && !endpoint && player === 2) {
         startRelay();
       } else if (event.kind === "accept" && !peer && !relay) {
-        connect(true);
-        await publishDescription();
+        reserve(room);
+        await connect(true);
+        if (peer) await publishDescription();
       } else if (event.kind === "signal" && peer) {
-        await peer.setRemoteDescription(event.description);
-        if (event.description.type === "offer") await publishDescription();
+        const connection = peer;
+        await connection.setRemoteDescription(event.description);
+        if (peer !== connection) continue;
+        for (const candidate of remoteCandidates.splice(0)) {
+          await connection.addIceCandidate(candidate).catch(() => {});
+        }
+        if (peer === connection && event.description.type === "offer") await publishDescription();
+      } else if (event.kind === "candidate" && !endpoint && peer && event.candidate) {
+        if (peer.remoteDescription) await peer.addIceCandidate(event.candidate).catch(() => {});
+        else if (remoteCandidates.length < 64) remoteCandidates.push(event.candidate);
       } else if (event.kind === "leave") {
         reset("Your friend left or declined the match.", false);
       }

@@ -1,1 +1,2 @@
 window.FRUIT_WARS_LOBBY = "";
+window.FRUIT_WARS_TURN_ENDPOINT = "";
