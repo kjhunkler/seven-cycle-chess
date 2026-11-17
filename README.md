@@ -28,3 +28,5 @@ All four editions load `board-ui.css` and `board-ui.js`, a shared presentation l
 - Haptics are off by default. Enable them on a device/browser that supports `navigator.vibrate`. Desktop and iOS browsers may not provide vibration; API support does not guarantee physical hardware feedback.
 
 Preview the worktree with `npx --yes http-server . -a 127.0.0.1 -p 8037 -c-1`.
+
+Gameplay runs at half speed across solo and multiplayer: castle production takes 4s, outpost production 6s, type changes 10s, and travel 4s. UI input and multiplayer synchronization keep their normal cadence. Desktop boards expand with the viewport up to a 1800px page width.

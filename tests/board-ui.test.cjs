@@ -48,6 +48,13 @@ for (const page of ['index.html', 'orchard.html', 'signal.html', 'match.html']) 
     assert.ok(vm.runInContext('G.some(g => g.from === "P1" && g.to === "C1")', context));
     assert.ok(frames.length > 0);
     frames.shift()(200);
+    // Exercise the real frame loop: production must not finish at the old 2s cadence.
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {})', context);
+    else vm.runInContext('init()', context);
+    vm.runInContext('act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
+    assert.equal(vm.runInContext('N.P1.q.length', context), 1, 'still producing after 3 real seconds');
+    vm.runInContext('for(let now=3200;now<=4400;now+=100)loop(now)', context);
+    assert.equal(vm.runInContext('N.P1.q.length', context), 0, 'production completes after 4 real seconds');
     if (page === 'match.html') {
       vm.runInContext('matchGame.start(2, () => {}); render(); panel();', context);
       assert.match(get('panel').innerHTML, /Grow your army/);

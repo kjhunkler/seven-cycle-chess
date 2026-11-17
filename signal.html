@@ -37,7 +37,7 @@ small{color:var(--mut)}
   <p>Drag from your node to an adjacent node to send troops. Tap to select, or hold an owned outpost to change its type. Use the selected node’s controls to choose a unit type and send all or half of that type.</p>
   <dl><dt>Cycle</dt><dd id="cycle"></dd>
   <dt>Matchups</dt><dd><b>+</b> Advantage · <b>−</b> Weakness · <b>=</b> Even. Each type beats the next two and loses to the previous two. Rings compare types against the largest visible defender. Troops carry damage along routes and heal when they capture a node.</dd>
-  <dt>Production</dt><dd>The castle builds one queued unit every 2s. Outposts build one unit every 3s and pause for 5s when changing type. Friendly outposts accept units of their current type.</dd>
+  <dt>Production</dt><dd>The castle builds one queued unit every 4s. Outposts build one unit every 6s and pause for 10s when changing type. Friendly outposts accept units of their current type.</dd>
   <dt>Victory</dt><dd>Capture the opposing castle. Units depart in single file and clash on shared routes.</dd></dl>
 </details>
 <details id="friends-panel" class="card"><summary id="friend-summary">Friends</summary><section class="card" id="lobby" aria-label="Online lobby">
@@ -50,7 +50,7 @@ small{color:var(--mut)}
   <div id="invitations"></div>
 </section></details></main>
 <script>
-const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=["◆","▲","■","✚","●","⬟","✦"].map((icon,i)=>[icon,["apple","orange","banana","avocado","blueberry","plum","coconut"][i]]);
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[66,50],B4:[88,50],C1:[28,75],C2:[50,75],C3:[72,75]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
@@ -231,7 +231,7 @@ function panel(){
 }
 let last=performance.now(),pl=0;
 function loop(now){
-  const dt=Math.min(.1,(now-last)/1e3);last=now;
+  const dt=Math.min(.1,(now-last)/1e3)*CONFIG.timeScale;last=now;
   step(dt);render();
   if(now-pl>150){pl=now;panel()}
   requestAnimationFrame(loop);

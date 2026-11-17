@@ -47,3 +47,14 @@ html:root:not([data-theme=light]){--bg:#101b22;--fg:#edf4ef;--mut:#a0b4b6;--edge
 @media(min-width:1100px){main,.orchard main,.signal main{padding-top:18px;row-gap:0}.editions{margin-bottom:8px}h1{margin-top:10px}.battle-top{padding-top:14px;padding-bottom:12px}#map{height:clamp(390px,60svh,650px)}}
 @media(max-width:1099px){#map{height:min(106vw,70svh)}}
 #lobby,#match{grid-column:1/-1}#match{max-width:860px;width:100%;margin:auto}
+
+/* Let large displays carry a larger battlefield instead of a fixed 650px board. */
+@media(min-width:1100px){
+  main,.orchard main,.signal main{max-width:1800px;width:calc(100% - 48px);box-sizing:border-box;grid-template-columns:minmax(0,1fr) clamp(320px,27vw,440px);column-gap:32px}
+  #map{height:min(78svh,1200px)}
+  #match{max-width:none;display:grid;grid-template-columns:minmax(0,1fr) clamp(320px,27vw,440px);gap:0 32px}
+  #match[hidden]{display:none}
+  #match .battle-shell{grid-row:2 / span 3}
+  #match #panel{grid-row:2}
+  #match .feedback-settings{grid-row:5}
+}

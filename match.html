@@ -37,7 +37,7 @@ button{min-height:44px}
 <div class="card"><small>Cycle: 🍎→🍊→🍌→🥑→🫐→🍇→🥥→🍎. Each fruit crushes the next one, beats the second, ties the third and fourth, loses to the fifth, and is crushed by the sixth. So 1 🍎 beats 2 🍊, and 1 🥥 beats 2 🍎. Drag between connected nodes to send troops. Tap to select, or hold an owned outpost to change its type. Rings show the selected fruit’s matchup against the largest defending stack: green + is strong, red − is weak, and gray = is even. Outposts only accept units of their own type. You only see your outposts and their neighbors.</small></div>
 </section></main>
 <script>
-const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[66,50],B4:[88,50],C1:[28,75],C2:[50,75],C3:[72,75]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
@@ -258,7 +258,7 @@ function panel(){
 }
 let last=performance.now(),pl=0;
 function loop(now){
-  const dt=Math.min(.1,(now-last)/1e3);last=now;
+  const dt=Math.min(.1,(now-last)/1e3)*CONFIG.timeScale;last=now;
   if(online){
     if(localPlayer===1){
       step(dt);
