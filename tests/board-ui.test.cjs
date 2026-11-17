@@ -10,6 +10,8 @@ const root = path.join(__dirname, '..');
 class Element {
   constructor() { this.dataset = {}; this.style = {}; this.innerHTML = ''; this.children = []; this.hidden = false; this.classList = { toggle() {} }; }
   setAttribute() {}
+  showModal() { this.open = true; }
+  close() { this.open = false; }
   addEventListener() {}
   before() {}
   after() {}
