@@ -33,7 +33,7 @@ button{min-height:44px}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
 </style><link rel="stylesheet" href="./board-ui.css?v=21"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -48,6 +48,14 @@ button{min-height:44px}
 const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
+// Threefold symmetric graph: castles, triangle side nodes, vertices, and hub.
+// Twin branches follows the ten-node two-player sketch.
+const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
+const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 B2-C2 B2-C3 C1-C2 C2-C3 C1-P1 C3-P1".split(" ").map(e=>e.split("-"));
+const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
+const THREE_EDGES="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
+const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
+const shopPosition=(c,kind,triangular)=>triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+5};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let productionCycle;
@@ -57,6 +65,11 @@ const $=id=>document.getElementById(id);
 function init(){
   productionCycle=null;
   N={};shakeNodes={};botThink=0;
+  if(lobbyConfig.map===3||lobbyConfig.map===5){
+    const positions=lobbyConfig.map===5?BRANCH_POS:THREE_POS,edges=lobbyConfig.map===5?BRANCH_EDGES:THREE_EDGES;
+    for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
+    for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
+  }else{
   for(const id in POS)N[id]={id,x:POS[id][0],y:POS[id][1],castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
   EDGES.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   const extra=lobbyConfig.map===2?{D1:[18,34],D2:[82,34],E1:[28,64],E2:[72,64]}:lobbyConfig.map===3?{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]}:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]};
@@ -64,7 +77,9 @@ function init(){
   const links=lobbyConfig.map===2?[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]:lobbyConfig.map===3?[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]];
   for(const[a,b]of links){N[a].adj.push(b);N[b].adj.push(a)}
 
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+5,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+  }
+
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,lobbyConfig.map===3),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
     if(n.castle){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -231,7 +246,7 @@ function snapshot(viewer=2){
   }));
   return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&[2,3,4].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&config.map>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&[2,3,4,5].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.map===5?2:config.map)>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
@@ -266,7 +281,7 @@ window.matchGame={
     if(localPlayer!==1)return;
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
     lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
-    if(changed&&!gameStarted){lobbyConfig.map=Math.max(lobbyConfig.map,...seats);configVersion++;lobbyReady=[false,false,false,false]}
+    if(changed&&!gameStarted){if(Math.max(...seats)>(lobbyConfig.map===5?2:lobbyConfig.map))lobbyConfig.map=Math.max(...seats);configVersion++;lobbyReady=[false,false,false,false]}
     sendLobby();updateLobbyUI();beginMatch();
   },
   setFriends(friends){

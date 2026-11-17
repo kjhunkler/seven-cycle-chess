@@ -43,7 +43,7 @@
   shell.append(board);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
   settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
@@ -118,7 +118,7 @@
   window.boardNodes=()=>N;
   render=function(){
     const V=vis(), now=performance.now(), me=player();
-    const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,y:me===2?100-n.y:n.y}]));
+    const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...(window.boardNodes().P3&&!window.boardNodes().P4?rotateBoardPoint(n,(me-1)*2*Math.PI/3):{x:n.x,y:me===2?100-n.y:n.y})}]));
     footer.querySelector('.ally').style.background=ownerColor(me);
     const rivals=Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))).filter(owner=>owner!==me);
     const rivalKeys=footer.querySelector('.rival-keys');
