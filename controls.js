@@ -1,5 +1,43 @@
 /* Persistent routes are simulated by the host and included in normal snapshots. */
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
+let castleConquests={};
+function survivingOwner(owner){while(castleConquests[owner])owner=castleConquests[owner];return owner}
+function botShopTurn(owner){
+  const castle=N['P'+owner];if(!castle||castle.disabled)return;
+  for(const shop of Object.values(N).filter(n=>n.shop&&n.owner===owner)){
+    if(shop.abilityReady){const ability={kind:'ability',from:shop.id,to:castle.id};if(typeof applyCommand==='function')applyCommand(owner,ability);else applyRouteCommand(owner,ability);continue}
+    if(shop.abilityCd>0)continue;
+    const incoming=G.filter(g=>g.to===shop.id&&g.owner===owner).reduce((sum,g)=>sum+g.n,0)+Object.values(N).flatMap(n=>n.orders).filter(o=>o.to===shop.id&&o.owner===owner).reduce((sum,o)=>sum+o.count,0);
+    const type=big(castle),count=Math.min(10-shop.charge-incoming,type<0?0:castle.stock[type]-2);
+    if(count>0)dispatch(castle,shop.id,type,count);
+  }
+}
+function eliminateCastle(castle,winner){
+  const loser=castle.owner;castleConquests[loser]=winner;
+  const destination=N['P'+winner];
+  for(const n of Object.values(N)){
+    if(n.owner===loser){n.owner=winner;for(const order of n.orders)order.owner=winner}
+    n.adj=n.adj.filter(id=>id!==castle.id);
+    n.routes=(n.routes||[]).filter(id=>id!==castle.id);
+    n.routeIndex=0;
+    n.orders=n.orders.filter(order=>{if(order.to!==castle.id)return true;n.stock[n.castle?order.type:n.ut]+=order.count;return false});
+    if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>id!==castle.id);
+  }
+  castle.disabled=true;castle.owner=0;castle.q=[];castle.orders=[];castle.routes=[];castle.adj=[];castle.pend=null;castle.cd=0;castle.tm=0;castle.shields=0;castle.boost=0;
+  castle.stock.forEach((count,type)=>destination.stock[type]+=count);castle.stock.fill(0);
+  for(const n of Object.values(N))if(n.shop&&n.owner===winner&&!Object.values(N).some(a=>a.adj.includes(n.id)))destination.adj.push(n.id);
+  G=G.filter(g=>{
+    g.owner=survivingOwner(g.owner);
+    if(g.to!==castle.id&&g.from!==castle.id)return true;
+    const target=g.owner===winner?destination:N[g.from];
+    if(target&&!target.disabled)target.stock[target.castle?g.type:target.ut]+=g.n;
+    return false;
+  });
+  sel=null;drag=null;closeWheel();
+  const remaining=Object.values(N).filter(n=>n.castle&&!n.disabled);
+  over=remaining.length===1?remaining[0].owner:0;
+  msg=N['P'+myPlayer()]?.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':'A castle fell. Its fruit joined the captor. Keep playing.';
+}
 function castleFruit(n){
   const selected=n.selectedType;
   if(selected==null){
@@ -51,6 +89,7 @@ function routeCommand(data){
   const baseInit=init;
   init=function(){
     baseInit();
+    castleConquests={};
     for(const n of Object.values(N)){n.routes=[];n.routeIndex=0;}
     if(typeof localPlayer!=='undefined'){
       for(const [a,b] of [['P1','P2'],['C1','A1'],['C2','A2'],['C3','A3'],['B1','B4'],['B2','B3']]){
@@ -62,9 +101,17 @@ function routeCommand(data){
     msg='Drag from your castle or an outpost to create a route. Tap to stop; hold to choose or transform.';
   };
   const baseArrive=arrive;
-  arrive=function(g){const owner=N[g.to].owner;baseArrive(g);if(N[g.to].owner!==owner){N[g.to].routes=[];N[g.to].routeIndex=0;}};
+  arrive=function(g){
+    g.owner=survivingOwner(g.owner);
+    const target=N[g.to];if(!target)return;
+    if(target.disabled){const c=N['P'+g.owner];if(c&&!c.disabled)c.stock[g.type]+=g.n;return}
+    const owner=target.owner;baseArrive(g);
+    if(target.castle&&owner!==g.owner&&over===g.owner&&Object.values(N).filter(n=>n.castle).length>2)eliminateCastle(target,g.owner);
+    if(target.owner!==owner){target.routes=[];target.routeIndex=0;}
+  };
   const baseDepart=depart;
   depart=function(n,dt){
+    if(n.disabled)return;
     if(n.castle)refreshCastleFruit(n);
     if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){

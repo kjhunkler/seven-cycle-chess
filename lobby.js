@@ -6,8 +6,8 @@ const nameInput = form.elements.namedItem("name");
 const endpoint = window.FRUIT_WARS_LOBBY || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8787/lobby" : "");
 const turnEndpoint = endpoint ? "" : window.FRUIT_WARS_TURN_ENDPOINT;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
-const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
-localStorage.setItem("fruit-wars-profile", token);
+// Connections are per tab, so two tabs in one browser can occupy different seats.
+const token = crypto.randomUUID();
 nameInput.value = savedName;
 document.querySelector("#profile-name").textContent = savedName;
 localStorage.setItem("fruit-wars-name",savedName);
@@ -97,11 +97,16 @@ function makeLink(room,seat,id,name){const link={room,seat,id,name,created:Date.
 async function invitePlayer(id){
   if(inviting||player!==1||links.size>=3||game()?.started)return;
   const friend=lastFriends.find(f=>f.id===id);if(!friend||[...links.values()].some(l=>l.id===id))return;
-  inviting=true;
+  inviting=true;let reservation;
   try{
     const seat=[2,3,4].find(p=>![...links.values()].some(l=>l.seat===p));
-    const result=await request("invite",{to:id});makeLink(result.room,seat,id,friend.name);session=true;showMatch();launchGame();updateMembers();status("Invitation sent to "+friend.name+".");
-  }finally{inviting=false}
+    // Reserve the seat before awaiting the service so ready-up cannot race an invite.
+    reservation=makeLink("pending:"+crypto.randomUUID(),seat,id,friend.name);session=true;showMatch();launchGame();updateMembers();
+    const result=await request("invite",{to:id});
+    if(links.get(reservation.room)!==reservation){void request("leave",{room:result.room}).catch(()=>{});return}
+    links.delete(reservation.room);reservation.room=result.room;links.set(result.room,reservation);status("Invitation sent to "+friend.name+".");
+  }catch(error){if(reservation)removeLink(reservation,"Invitation failed.");throw error}
+  finally{inviting=false}
 }
 async function acceptInvite(invite){
   if(session||inviting)return;inviting=true;
@@ -126,7 +131,15 @@ function reset(message,notify=true){
 }
 function sendLink(link,data){
   if(!link.accepted||link.left)return;
-  if(!link.relay){const channel=data.kind==="state"?link.state:link.channel;if(channel?.readyState==="open"){if(data.kind!=="state"||channel.bufferedAmount<32000)channel.send(JSON.stringify(data));return}}
+  if(!link.relay){const channel=data.kind==="state"?link.state:link.channel;if(channel?.readyState==="open"){
+    if(data.kind==="state"&&channel.bufferedAmount>=32000)return;
+    try{
+      const raw=JSON.stringify(data);
+      if(raw.length<=8000)channel.send(raw);
+      else{const id=crypto.randomUUID(),total=Math.ceil(raw.length/8000);if(total>128)return;for(let part=0;part<total;part++)channel.send(JSON.stringify({kind:"fragment",id,part,total,text:raw.slice(part*8000,(part+1)*8000)}))}
+    }catch{void fallback(link)}
+    return;
+  }}
   if(!link.relay)return;
   if(data.kind==="state"){
     if(performance.now()-link.lastState<120||link.statePending)return;link.lastState=performance.now();link.statePending=true;
@@ -149,6 +162,14 @@ function linkOpened(link){
 function receiveRelayGame(room,data){const link=links.get(room);if(link?.accepted){if(!link.relay)startRelay(link);receiveGame(link,data)}}
 function receiveGame(link,data){
   if(!data||typeof data!=="object"||links.get(link.room)!==link||link.left)return;
+  if(data.kind==="fragment"){
+    if(typeof data.id!=="string"||!Number.isInteger(data.total)||data.total<1||data.total>128||!Number.isInteger(data.part)||data.part<0||data.part>=data.total||typeof data.text!=="string"||data.text.length>8000)return;
+    link.fragments??=new Map();for(const [id,entry]of link.fragments)if(Date.now()-entry.created>5000)link.fragments.delete(id);
+    if(!link.fragments.has(data.id)){if(link.fragments.size>=3)link.fragments.delete(link.fragments.keys().next().value);link.fragments.set(data.id,{created:Date.now(),total:data.total,parts:new Map()})}
+    const entry=link.fragments.get(data.id);if(entry.total!==data.total)return;entry.parts.set(data.part,data.text);
+    if(entry.parts.size===entry.total){link.fragments.delete(data.id);try{receiveGame(link,JSON.parse(Array.from({length:entry.total},(_,part)=>entry.parts.get(part)).join("")))}catch{}}
+    return;
+  }
   link.seen=Date.now();
   if(data.kind==="welcome"&&player!==1){
     if(![2,3,4].includes(data.seat)||player&&player!==data.seat)return;

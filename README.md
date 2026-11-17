@@ -1,6 +1,6 @@
 # Fruit Wars online lobby
 
-GitHub Pages hosts all game editions and the online lobby. The lobby uses a small, separate Node HTTP service for presence, invitations, and exchanging WebRTC connection descriptions. The inviter runs the game simulation and sends game updates directly to the other browser over a WebRTC data channel.
+GitHub Pages hosts all game editions and the online lobby. The lobby uses a small, separate Node HTTP service for presence, invitations, and exchanging WebRTC connection descriptions. The host runs the game simulation and connects independently to each guest over WebRTC, with a relay fallback. Rooms support two, three, or four human players.
 
 ## Local setup
 
@@ -9,11 +9,11 @@ Run the following in separate terminals from the repository root:
     node lobby-server.mjs
     npx --yes http-server . -p 8000
 
-Open http://localhost:8000/ in two separate browser profiles or a normal and a private window. Each browser automatically joins with a random name on first visit. The Friends panel lets players change their name and invite other online players. Accepting an invite opens the dedicated match page. Everyone currently in the lobby appears in the online friends list.
+Open http://localhost:8000/ in two to four tabs or browser profiles. Each tab has its own connection identity. Each browser automatically joins with a random name on first visit. The Friends panel lets players change their name and invite other online players. Accepting an invite opens the dedicated match page. Everyone currently in the lobby appears in the online friends list.
 
 The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions and ICE candidates are encrypted between browsers. When TURN is configured, WebRTC can connect directly or through Cloudflare. If WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
 
-Active matches send heartbeats every three seconds. After nine seconds without incoming traffic, a watchdog attempts recovery; public-lobby matches can switch an established WebRTC connection to the encrypted broker relay without resetting the game. Recovery has a 45-second grace period, and waking a suspended tab grants a fresh window. Private-lobby matches wait for their existing connection to recover. This does not provide host migration or resume after a page refresh; the inviter must keep their game tab open.
+Active matches send heartbeats every three seconds and attempt relay recovery after twelve seconds without incoming traffic. Public matches use the encrypted broker relay; private matches can relay through the HTTP lobby. After twenty seconds without a guest, a bot controls that seat until the same tab reconnects. A host outage retains each guest’s board while waiting to resume. Transport replacement preserves the simulation and ready state. There is no host migration or resume after a page refresh; the host must keep the game tab open.
 
 ## Enabling TURN on GitHub Pages
 
@@ -39,4 +39,8 @@ Preview the worktree with `npx --yes http-server . -a 127.0.0.1 -p 8037 -c-1`.
 
 Gameplay runs at half speed across solo and multiplayer: castle production takes 4s, outpost production 6s, type changes 10s, and travel 4s. UI input and multiplayer synchronization keep their normal cadence. Desktop boards expand with the viewport up to a 1800px page width.
 
-Multiplayer matches open with a shared setup dialog. Either player can choose the expanded two-player map, a three-player map, a large four-player map, game speed, and Shop Nodes; both players must ready up before the match starts. The three- and four-player maps fill open seats with bots. Shop Nodes charge from ten incoming fruit, then can apply a one-hit shield or a seven-second triple-production boost to an owned node. Each shop ability has a ten-second game-time cooldown.
+Multiplayer matches open with a shared setup dialog. The host can invite up to three friends from this dialog and remove pending or disconnected seats before starting. Any participant can propose the map, speed, and Shop Nodes; the host commits settings and every human must ready up for that configuration. Open seats on a three- or four-player map are bots. Settings changes invalidate everyone’s readiness. Each seat has shield and boost shops; bots can charge and use them too. Shops charge from ten incoming fruit and grant a one-hit shield or seven seconds of triple production, with a ten-second game-time cooldown.
+
+Two-player matches end when a castle falls. In three- and four-player matches, a defeated player’s remaining territory, shops, queued departures, and moving fruit join the captor. Their castle is disabled and removed from the board along with its connections and routes. Play continues until only one castle survives. Eliminated humans can spectate; an eliminated host continues running the simulation.
+
+Run the multiplayer and UI checks with `node --test tests/*.test.cjs`. The suite covers two to four simulated browser sessions, encrypted public signaling, private relay behavior, readiness races, disconnect recovery, command ownership, fog, and castle elimination.

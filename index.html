@@ -160,7 +160,7 @@ function step(dt){
 }
 function ai(){
   for(const owner of [2,3,4]){
-  const castle=N[`P${owner}`];if(!castle||castle.disabled)continue;const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
+  const castle=N[`P${owner}`];if(!castle||castle.disabled)continue;botShopTurn(owner);const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
   const mine=Object.values(N).filter(n=>n.owner===owner&&big(n)>=0).sort(()=>Math.random()-.5).slice(0,2);
   for(const n of mine){
     const ty=big(n),c=n.stock[ty],amt=n.castle?c-2:c;

@@ -5,7 +5,7 @@ const publicLobby = (() => {
   const friends = new Map(), rooms = new Map(), inbox = [];
   let client, ready, opening, lastSeen = 0, lastName, keys, publicKey;
   const valid = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
-  const b64 = value => btoa(String.fromCharCode(...new Uint8Array(value)));
+  const b64 = value => {const bytes=new Uint8Array(value);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(raw)};
   const decode = value => Uint8Array.from(atob(value), char => char.charCodeAt(0));
   const encode = value => new TextEncoder().encode(value);
   const cipher = (iv, room) => ({name:"AES-GCM",iv,additionalData:encode(room)});
@@ -14,7 +14,7 @@ const publicLobby = (() => {
     return crypto.subtle.deriveKey({name:"ECDH",public:remote},keys.privateKey,{name:"AES-GCM",length:256},false,["encrypt","decrypt"]);
   }
   async function receive(route, payload) {
-    if (payload.length > 192_000) return;
+    if (payload.length > 1_500_000) return;
     const data = JSON.parse(payload.toString());
     if (!valid(data.id) || data.id === id) return;
     if (route === presence) {
@@ -30,7 +30,9 @@ const publicLobby = (() => {
     }
     const room = rooms.get(data.room);
     if (!room || room.id !== data.id || typeof data.iv !== "string" || typeof data.payload !== "string") return;
+    if(room.received?.has(data.iv))return;
     const raw = await crypto.subtle.decrypt(cipher(decode(data.iv),data.room),room.key,decode(data.payload));
+    room.received??=new Set();room.received.add(data.iv);if(room.received.size>2048)room.received.delete(room.received.values().next().value);
     room.seen = Date.now();
     const event = JSON.parse(new TextDecoder().decode(raw));
     if(event.kind==="accept")room.accepted=true;

@@ -26,42 +26,47 @@ createServer(async (req, res) => {
   try {
     for await (const chunk of req) {
       raw += chunk;
-      if (raw.length > 48_000) return reply(413, { error: "Message too large" });
+      if (raw.length > 1_100_000) return reply(413, { error: "Message too large" });
     }
     const body = JSON.parse(raw);
     const now = Date.now();
-    for (const [key, player] of players) if (now - player.seen > onlineFor) players.delete(key);
+    const participants=new Set([...matches.values()].filter(m=>m.accepted&&now-m.created<86_400_000).flatMap(m=>[m.from,m.to]));
+    for (const [key, player] of players) if (now-player.seen>onlineFor&&!participants.has(key))players.delete(key);
     for (const [key, match] of matches) {
-      if (!players.has(match.from) || !players.has(match.to) || (!match.accepted && now - match.created > 30_000)) matches.delete(key);
+      if (!players.has(match.from) || !players.has(match.to) || now-match.created>86_400_000 || (!match.accepted && now - match.created > 30_000)) {
+        for(const member of [match.from,match.to])players.get(member)?.inbox.push({kind:"expired",room:key});
+        matches.delete(key);
+      }
     }
     const name = typeof body.name === "string" && body.name.trim().slice(0, 32);
     if (!name) return reply(400, { error: "Enter a display name" });
     if (!players.has(id) && players.size >= 100) return reply(503, { error: "Lobby is full" });
-    const player = players.get(id) || { id, inbox: [] };
+    const player = players.get(id) || { id, inbox: [], states: new Map() };
     Object.assign(player, { name, seen: now });
     players.set(id, player);
 
     if (body.action === "poll") {
-      return reply(200, { id, iceServers, friends: [...players.values()].filter(p => p.id !== id)
-        .map(p => ({ id: p.id, name: p.name })), events: player.inbox.splice(0) });
+      const events=[...player.inbox.splice(0),...player.states.values()];player.states.clear();
+      return reply(200, { id, iceServers, friends: [...players.values()].filter(p => p.id !== id && now-p.seen<=onlineFor)
+        .map(p => ({ id: p.id, name: p.name })), events });
     }
 
     if (body.action === "invite") {
       const friend = players.get(body.to);
-      if (!friend || friend.id === id) return reply(404, { error: "Friend is offline" });
+      if (!friend || friend.id === id || now-friend.seen>onlineFor) return reply(404, { error: "Friend is offline" });
       if (player.lastInvite && now - player.lastInvite < 2000) return reply(429, { error: "Wait before inviting again" });
       if (friend.inbox.length >= 40) return reply(429, { error: "Friend inbox is full" });
       const room = randomUUID();
       player.lastInvite = now;
       matches.set(room, { from: id, to: friend.id, created: now, accepted: false });
-      friend.inbox.push({ kind: "invite", room, name });
+      friend.inbox.push({ kind: "invite", room, name, from:id, expiresAt:now+30_000 });
       return reply(200, { room });
     }
 
     const match = matches.get(body.room);
     if (!match || (id !== match.from && id !== match.to)) return reply(404, { error: "Invite expired" });
     const other = players.get(id === match.from ? match.to : match.from);
-    if (other.inbox.length >= 40) return reply(429, { error: "Friend inbox is full" });
+    if (other.inbox.length >= 256 && body.action!=="leave" && !(body.action==="game"&&body.game?.kind==="state")) return reply(429, { error: "Friend inbox is full" });
     if (body.action === "accept" && id === match.to && !match.accepted) {
       match.accepted = true;
       other.inbox.push({ kind: "accept", room: body.room, name });
@@ -69,7 +74,16 @@ createServer(async (req, res) => {
       body.description.type === (id === match.from ? "offer" : "answer") &&
       typeof body.description.sdp === "string") {
       other.inbox.push({ kind: "signal", room: body.room, description: body.description });
+    } else if(body.action==="candidate"&&match.accepted&&body.candidate&&typeof body.candidate.candidate==="string"){
+      other.inbox.push({kind:"candidate",room:body.room,candidate:body.candidate});
+    } else if(body.action==="relay"&&match.accepted){
+      other.inbox.push({kind:"relay",room:body.room});
+    } else if(body.action==="game"&&match.accepted&&body.game&&typeof body.game==="object"){
+      const event={kind:"game",room:body.room,game:body.game};
+      if(body.game.kind==="state")other.states.set(body.room,event);
+      else other.inbox.push(event);
     } else if (body.action === "leave") {
+      other.states.delete(body.room);player.states.delete(body.room);
       other.inbox.push({ kind: "leave", room: body.room });
       matches.delete(body.room);
     } else {

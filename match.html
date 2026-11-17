@@ -25,14 +25,15 @@ small{color:var(--mut)}
 .editions a[aria-current="page"]{background:var(--card);font-weight:700}
 input{font:inherit;min-width:0;max-width:100%;min-height:40px;box-sizing:border-box}
 button{min-height:44px}
-#variant-dialog{width:min(420px,calc(100% - 44px));border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--fg);box-shadow:0 18px 80px #0008}#variant-dialog::backdrop{background:#101410bb;backdrop-filter:blur(3px)}#variant-form{display:grid;gap:14px}#variant-form h2{margin:0}#variant-form label{display:grid;gap:5px;font-weight:650}#variant-form select{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}#variant-form .shop-toggle{display:flex;align-items:center}#variant-form .shop-toggle input{width:20px;height:20px}.variant-status{min-height:22px;color:var(--mut)}
+#variant-dialog{max-height:calc(100dvh - 48px);overflow:auto;width:min(420px,calc(100% - 44px));border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--fg);box-shadow:0 18px 80px #0008}#variant-dialog::backdrop{background:#101410bb;backdrop-filter:blur(3px)}#variant-form{display:grid;gap:14px}#variant-form h2{margin:0}#variant-form label{display:grid;gap:5px;font-weight:650}#variant-form select{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}#variant-form .shop-toggle{display:flex;align-items:center}#variant-form .shop-toggle input{width:20px;height:20px}.variant-status{min-height:22px;color:var(--mut)}
 #friends li{margin:4px 0}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
+#match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
 </style><link rel="stylesheet" href="./board-ui.css?v=21"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for both players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -82,21 +83,21 @@ function fight(at,an,dt,dn){
   if(pd-pa>CONFIG.strengthEpsilon)return[2,(pd-pa)/mult(dt,at)];
   return[0,0];
 }
-function canEnter(target,owner,type){
 function shopCapacity(target,includeOrders=true){
   const incoming=G.filter(g=>g.to===target.id&&g.owner===target.owner).reduce((sum,g)=>sum+g.n,0);
   const queued=includeOrders?Object.values(N).reduce((sum,n)=>sum+n.orders.filter(o=>o.to===target.id&&o.owner===target.owner).reduce((total,o)=>total+o.count,0),0):0;
   return target.abilityReady||target.abilityCd>0?0:Math.max(0,10-target.charge-incoming-queued);
 }
+function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
   return target.owner!==owner||target.castle||target.ut===type;
 }
 function dispatch(source,to,type,count){
-  source.stock[type]-=count;
   const target=N[to];
   if(target?.shop){if(target.owner!==source.owner)return;count=Math.min(count,shopCapacity(target));}
   if(count<=CONFIG.strengthEpsilon)return;
+  source.stock[type]-=count;
   source.orders.push({to,owner:source.owner,type,count});
 }
 function depart(source,dt){
@@ -154,7 +155,7 @@ function step(dt){
   G=G.filter(g=>!g.dead);
   const done=G.filter(g=>g.t>=1);G=G.filter(g=>g.t<1);for(const g of done){arrive(g);if(over)return}
   for(const n of Object.values(N))depart(n,dt);
-  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const castle=N[`P${owner}`];if(!castle||castle.disabled||connectedPlayers.includes(owner))continue;if(castle.q.length<3)castle.q.push(Math.random()*7|0);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.castle?castle.stock[type]-2:n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
+  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const castle=N[`P${owner}`];if(!castle||castle.disabled||connectedPlayers.includes(owner))continue;botShopTurn(owner);if(castle.q.length<3)castle.q.push(Math.random()*7|0);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.castle?castle.stock[type]-2:n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
 
 }
 function select(id){
@@ -239,7 +240,7 @@ function updateLobbyUI(){
   $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
   f.querySelector(".variant-status").textContent=`${humanPlayers.filter(p=>lobbyReady[p-1]).length} of ${humanPlayers.length} players ready${gameStarted?" · Starting…":""}`;
   const roster=$("match-roster");roster.replaceChildren();
-  for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;roster.append(row)}
+  for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;if(localPlayer===1&&member.seat!==1&&!gameStarted){const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.onclick=()=>parent.postMessage({kind:"remove-player",seat:member.seat},location.origin);row.append(remove)}roster.append(row)}
 }
 function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";sendLobby()}
 function lobbyAction(owner,data){
@@ -251,6 +252,8 @@ function lobbyAction(owner,data){
 function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
 $("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),shops:variantField("shops").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
+$("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
+$("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
 window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
@@ -264,7 +267,7 @@ window.matchGame={
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
     lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
     if(changed&&!gameStarted){lobbyConfig.map=Math.max(lobbyConfig.map,...seats);configVersion++;lobbyReady=[false,false,false,false]}
-    sendLobby();updateLobbyUI();
+    sendLobby();updateLobbyUI();beginMatch();
   },
   setFriends(friends){
     const host=$("match-invites");host.replaceChildren();if(localPlayer!==1||gameStarted||humanPlayers.length>=4)return;

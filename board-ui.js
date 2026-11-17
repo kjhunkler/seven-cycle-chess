@@ -81,7 +81,7 @@
   let effects=[], previousNodes=null, previousWinner=0, modalWinner=0, panelHTML='', statusHTML='';
   const burst = (n, color) => effects.push({x:n.x,y:n.y,color,start:performance.now()});
   const originalInit=init;
-  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;panelHTML='';statusHTML='';closeEndgame()};
+  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;panelHTML=null;statusHTML=null;closeEndgame()};
   if(typeof online==='undefined'&&typeof applyRouteCommand==='function'){
     const baseRouteCommand=applyRouteCommand;
     applyRouteCommand=function(owner,data){if(data?.kind==='ability'){const shop=N[data.from],target=N[data.to];if(shop?.shop&&shop.owner===owner&&shop.abilityReady&&shop.abilityCd<=0&&target?.owner===owner&&!target.shop){if(shop.shop==='shield')target.shields=(target.shields||0)+1;else target.boost=Math.max(target.boost||0,7);shop.abilityReady=false;shop.charge=0;shop.abilityCd=10;}return true;}return baseRouteCommand(owner,data)};
@@ -119,15 +119,16 @@
     if(over!==modalWinner){
       modalWinner=over;
       if(over){
-        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':'Your castle has fallen.';
+        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':N['P'+me]?.disabled?'The match is over. Another player won.':'Your castle has fallen.';
         retryButton.textContent=typeof online==='undefined'?'Play again':'Leave match';
         if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
       }else closeEndgame();
     }
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>',countLabels='';
-    for(const a of Object.values(N))if(!a.shop)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.shop&&!a.castle)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
+    for(const a of Object.values(N))if(!a.shop&&!a.disabled)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.disabled||b.shop&&!a.castle)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
     const source=N[sel];
     for(const n of Object.values(N)){
+      if(n.disabled)continue;
       const v=V.has(n.id),r=n.shop?3.5:n.castle?6.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
       const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':n.castle?'Castle':'Outpost'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
@@ -150,7 +151,7 @@
       h+=`<circle cx="${n.x}" cy="${n.y}" r="7.4" fill="transparent"/></g>`;
     }
     for(const a of Object.values(N)){
-      if(a.owner!==me)continue;
+      if(a.owner!==me||a.disabled)continue;
       const routes=[...(a.routes||[])];if(drag?.from===a.id&&drag.to&&!routes.includes(drag.to))routes.push(drag.to);
       for(const to of routes){const b=N[to],angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
         h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${me===1?'var(--p1)':'var(--p2)'}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
@@ -169,9 +170,9 @@
   const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
   panel=function(){
     const me=player(), c=N['P'+me];
-    const status=over?'':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
+    const status=over?'':c.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
+    let h=c.disabled?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
