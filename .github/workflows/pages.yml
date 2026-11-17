@@ -33,10 +33,11 @@ jobs:
       - name: Stage game
         env:
           FRUIT_WARS_LOBBY: ${{ vars.FRUIT_WARS_LOBBY }}
+          FRUIT_WARS_TURN_ENDPOINT: ${{ vars.FRUIT_WARS_TURN_ENDPOINT }}
         run: |
           mkdir site
           cp index.html orchard.html signal.html match.html editions.css board-ui.css board-ui.js controls.js manifest.webmanifest sw.js icon-192.png icon-512.png lobby.js public-lobby.js site/
-          node -e 'require("node:fs").writeFileSync("site/lobby-config.js", "window.FRUIT_WARS_LOBBY = " + JSON.stringify(process.env.FRUIT_WARS_LOBBY || "") + ";\n")'
+          node -e 'require("node:fs").writeFileSync("site/lobby-config.js", ["FRUIT_WARS_LOBBY", "FRUIT_WARS_TURN_ENDPOINT"].map(key => "window." + key + " = " + JSON.stringify(process.env[key] || "") + ";\n").join(""))'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site

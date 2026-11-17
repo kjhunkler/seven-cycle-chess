@@ -33,7 +33,7 @@ const publicLobby = (() => {
     room.seen = Date.now();
     const event = JSON.parse(new TextDecoder().decode(raw));
     if (event.kind === "game") receiveRelayGame(data.room,event.game);
-    if (["accept","signal","relay","leave"].includes(event.kind)) inbox.push({...event,room:data.room});
+    if (["accept","signal","candidate","relay","leave"].includes(event.kind)) inbox.push({...event,room:data.room});
     if (event.kind === "leave") rooms.delete(data.room);
   }
   async function open() {
@@ -70,7 +70,7 @@ const publicLobby = (() => {
     const room = rooms.get(fields.room);
     if (!room) throw new Error("Invitation expired.");
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const message = encode(JSON.stringify({kind:action,name,description:fields.description,game:fields.game}));
+    const message = encode(JSON.stringify({kind:action,name,description:fields.description,candidate:fields.candidate,game:fields.game}));
     const payload = await crypto.subtle.encrypt(cipher(iv,fields.room),room.key,message);
     await publish(address+room.id,{room:fields.room,iv:b64(iv),payload:b64(payload)},
       action==="game" && fields.game?.kind==="state" ? 0 : 1);
