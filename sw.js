@@ -1,5 +1,5 @@
-const CACHE = "fruit-wars-v5";
-const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "online.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css",
+const CACHE = "fruit-wars-v6";
+const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css",
   "manifest.webmanifest", "icon-192.png", "icon-512.png"].map(path => new URL(path, self.registration.scope).href);
 
 self.addEventListener("install", event => {

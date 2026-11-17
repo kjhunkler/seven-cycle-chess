@@ -4,15 +4,72 @@ const statusText = lobby.querySelector("[role=status]");
 const roster = lobby.querySelector("#friends");
 const nameInput = form.elements.namedItem("name");
 const endpoint = window.FRUIT_WARS_LOBBY || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8787/lobby" : "");
-const savedName = localStorage.getItem("fruit-wars-name") || "";
+const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
 localStorage.setItem("fruit-wars-profile", token);
 nameInput.value = savedName;
-let name = "", room = "", peer = null, channel = null, iceServers = [], timeout;
-let timer, player = 1;
+localStorage.setItem("fruit-wars-name",savedName);
+let name = savedName, room = "", peer = null, channel = null, iceServers = [], timeout;
+let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
+let outgoing = Promise.resolve();
 let relay = false, relayTimer, lastRelayFrame = 0;
 
-function status(message) { statusText.textContent = message; }
+function status(message) {
+  statusText.textContent = message;
+  const display = frame?.contentDocument?.querySelector("#match-status");
+  if (display) display.textContent = message;
+}
+function rename(value) {
+  if (typeof value !== "string" || !value.trim()) return;
+  name = value.trim().slice(0,32);
+  nameInput.value = name;
+  localStorage.setItem("fruit-wars-name",name);
+}
+function showMatch() {
+  if (frame) return;
+  editionURL = location.href;
+  const page = new URL("./match.html",editionURL);
+  frame = document.createElement("iframe");
+  frame.title = "Fruit Wars multiplayer match";
+  frame.style.cssText = "position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100;background:var(--bg)";
+  frame.onload = () => {
+    status(statusText.textContent);
+    frame.contentDocument.querySelector("#match-name").value = name;
+    launchGame();
+  };
+  frame.src = page.href;
+  document.querySelector("main").inert = true;
+  document.body.append(frame);
+  history.pushState({fruitWarsMatch:true},"",page.href);
+}
+function launchGame() {
+  if (!frame || frame.dataset.started || !matchStart || !frame.contentWindow.matchGame) return;
+  frame.dataset.started="true";
+  frame.contentWindow.matchGame.start(player,matchStart);
+}
+function startMatch(transmit) {
+  showMatch();
+  matchStart = transmit;
+  if (frame.dataset.started && frame.contentWindow.matchGame) frame.contentWindow.matchGame.start(player,transmit);
+  else launchGame();
+  receiveAt = Date.now();
+  clearInterval(heartbeat);
+  heartbeat = setInterval(() => {
+    if (Date.now()-receiveAt > 20_000) reset("Your friend stopped responding.");
+    else transmit({kind:"heartbeat"});
+  },3000);
+}
+function receiveGame(data) {
+  if (!matchStart || !data || typeof data!=="object") return;
+  receiveAt = Date.now();
+  if (data.kind!=="heartbeat") frame?.contentWindow.matchGame?.receive(data);
+}
+addEventListener("message",event=>{
+  if (event.origin!==location.origin || event.source!==frame?.contentWindow) return;
+  if (event.data?.kind==="leave-match") reset("You left the match.");
+  if (event.data?.kind==="rename") {rename(event.data.name);status("Name saved.");}
+});
+addEventListener("popstate",()=>{ if(frame) reset("You left the match."); });
 
 async function request(action, fields = {}) {
   if (!endpoint) return publicLobby(action, name, fields);
@@ -40,8 +97,9 @@ function addAction(label, action) {
 }
 
 function send(data) {
-  if (channel?.readyState === "open" && channel.bufferedAmount < 128_000) {
-    channel.send(JSON.stringify(data));
+  const connection = data.kind==="state" ? stateChannel : channel;
+  if (connection?.readyState==="open" && (data.kind!=="state" || connection.bufferedAmount<32_000)) {
+    connection.send(JSON.stringify(data));
   }
 }
 
@@ -51,12 +109,12 @@ function closePeer() {
     channel.onopen = null;
   }
   const connection = peer;
-  peer = channel = null;
+  peer = channel = stateChannel = null;
   connection?.close();
 }
 
 function receiveRelayGame(activeRoom, game) {
-  if (relay && room === activeRoom) window.matchGame.receive(game);
+  if (relay && room === activeRoom) receiveGame(game);
 }
 
 function startRelay() {
@@ -66,13 +124,16 @@ function startRelay() {
   closePeer();
   relay = true;
   lastRelayFrame = 0;
-  window.matchGame.start(player, game => {
+  startMatch(game => {
     const now = performance.now();
     if (game.kind === "state") {
-      if (now - lastRelayFrame < 165) return;
+      if (now - lastRelayFrame < 105) return;
       lastRelayFrame = now;
     }
-    request("game", { room, game }).catch(() => {});
+    const activeRoom = room;
+    const publish = () => room===activeRoom && request("game",{room:activeRoom,game});
+    if (game.kind==="state") Promise.resolve(publish()).catch(()=>{});
+    else outgoing=outgoing.then(publish).catch(()=>{});
   });
   status("Match connected through the relay.");
 }
@@ -84,8 +145,16 @@ function reset(message, notify = true) {
   clearTimeout(relayTimer);
   closePeer();
   relay = false;
-  window.matchGame.stop();
-  lobby.querySelector("#leave").disabled = true;
+  clearInterval(heartbeat);
+  matchStart = null;
+  if (frame) {
+    frame.onload = null;
+    frame.remove();
+    frame = null;
+    document.querySelector("main").inert = false;
+    if (history.state?.fruitWarsMatch) history.replaceState(null,"",editionURL);
+  }
+  lobby.closest("details").open = true;
   if (notify && previous) request("leave", { room: previous }).catch(() => {});
   status(message);
 }
@@ -95,17 +164,18 @@ function attach(dataChannel) {
   channel.onopen = () => {
     clearTimeout(timeout);
     clearTimeout(relayTimer);
-    window.matchGame.start(player, send);
+    startMatch(send);
     status("Match connected.");
   };
   channel.onmessage = event => {
-    try { window.matchGame.receive(JSON.parse(event.data)); } catch { reset("The match connection closed."); }
+    try { receiveGame(JSON.parse(event.data)); } catch { reset("The match connection closed."); }
   };
   channel.onclose = () => reset("Your friend disconnected.");
 }
 
 function connect(host) {
   player = host ? 1 : 2;
+  showMatch();
   if (!endpoint && host) {
     relayTimer = setTimeout(async () => {
       if (!room || channel?.readyState === "open") return;
@@ -120,8 +190,18 @@ function connect(host) {
   }
   const connection = new RTCPeerConnection({ iceServers });
   peer = connection;
-  if (host) attach(peer.createDataChannel("match"));
-  else peer.ondatachannel = event => attach(event.channel);
+  function attachState(state) {
+    stateChannel=state;
+    state.onmessage=event=>{
+      try { receiveGame(JSON.parse(event.data)); } catch {}
+    };
+  }
+  if (host) {
+    attach(peer.createDataChannel("match"));
+    attachState(peer.createDataChannel("state",{ordered:false,maxRetransmits:0}));
+  } else {
+    peer.ondatachannel=event=>event.channel.label==="state"?attachState(event.channel):attach(event.channel);
+  }
   peer.onconnectionstatechange = () => {
     if (endpoint && peer === connection && connection.connectionState === "failed") reset("Could not connect to your friend.");
   };
@@ -149,7 +229,7 @@ async function publishDescription() {
 
 function reserve(id) {
   room = id;
-  lobby.querySelector("#leave").disabled = false;
+
   timeout = setTimeout(() => reset("The invitation or connection timed out. Try sending a new invite."), 35_000);
 }
 
@@ -157,6 +237,7 @@ async function poll() {
   try {
     const data = await request("poll");
     iceServers = data.iceServers;
+    document.querySelector("#friend-summary").textContent = "Friends · " + data.friends.length + " online";
     const signature = JSON.stringify([data.friends, Boolean(room)]);
     if (roster.dataset.signature !== signature) {
       roster.dataset.signature = signature;
@@ -197,6 +278,7 @@ async function poll() {
           dismiss();
         }));
         lobby.querySelector("#invitations").append(invitation);
+        lobby.closest("details").open = true;
         setTimeout(dismiss, 30_000);
       }
       if (event.room !== room) continue;
@@ -216,19 +298,14 @@ async function poll() {
   } catch {
     if (!room) status("Lobby is unreachable. Retrying…");
   } finally {
-    timer = setTimeout(poll, 1500);
+    setTimeout(poll, 900);
   }
 }
 
 form.onsubmit = event => {
   event.preventDefault();
-  if (name) return;
-  name = nameInput.value.trim();
-  if (!name) return;
-  localStorage.setItem("fruit-wars-name", name);
-  for (const control of form.elements) control.disabled = true;
-  status("Connecting to the lobby…");
-  clearTimeout(timer);
-  poll();
+  rename(nameInput.value);
+  status("Name saved.");
 };
-lobby.querySelector("#leave").onclick = () => reset("You left the match.");
+status("Connecting to the lobby…");
+poll();

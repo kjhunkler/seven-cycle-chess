@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Fruit Wars · Online</title>
+<title>Fruit Wars Match</title>
 <link rel="manifest" href="./manifest.webmanifest">
 <link rel="apple-touch-icon" href="./icon-192.png">
 <meta name="theme-color" content="#171a18">
@@ -30,17 +30,7 @@ button{min-height:44px}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 </style></head><body><main>
-<nav class="editions" aria-label="Game edition"><a href="./">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html">Signal</a><a href="./online.html" aria-current="page">Online</a></nav><h1>Fruit Wars Online</h1>
-<section class="card" id="lobby" aria-label="Online lobby">
-  <form class="row"><label for="display-name">Display name</label>
-    <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
-    <button>Go online</button>
-  </form>
-  <p role="status">Enter your name to join the lobby. Everyone online is a friend. Your display name is shared in the public lobby.</p>
-  <h2>Friends online</h2><ul id="friends"></ul>
-  <div id="invitations"></div><button id="leave" disabled>Leave match</button>
-</section>
-<section id="match" hidden>
+<header class="row"><h1>Fruit Wars Match</h1><button id="leave-match">Leave match</button></header><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
@@ -51,7 +41,7 @@ const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strength
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[66,50],B4:[88,50],C1:[28,75],C2:[50,75],C3:[72,75]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
-let localPlayer=1, online=false, peerSend, nextSync=0;
+let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1;
 let N,G,drag,sel,sendType,half,msg,over;
 const $=id=>document.getElementById(id);
 function init(){
@@ -66,7 +56,7 @@ function init(){
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
-const strengthLabel=value=>Number(value.toFixed(2));
+
 const vis=(player=localPlayer)=>{const s=new Set();for(const n of Object.values(N))if(n.owner===player){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
@@ -101,7 +91,7 @@ function depart(source,dt){
 }
 function arrive(g){
   const n=N[g.to];
-  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+g.n);return}
+  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+Math.ceil(g.n));return}
   let a=g.n;
   while(a>0){
     const d=big(n);if(d<0)break;
@@ -110,7 +100,7 @@ function arrive(g){
   }
   if(a>0){
     if(n.castle){over=g.owner;return}
-    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=a;n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
+    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=Math.ceil(a);n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
     if(g.owner!==localPlayer&&sel===n.id)sel=null;
   }
 }
@@ -166,7 +156,7 @@ function act(a){
 }
 function command(data){
   if(localPlayer===1)applyCommand(1,data);
-  else peerSend(data);
+  else peerSend({...data,sequence:commandSequence++});
 }
 function applyCommand(owner,data){
   if(!online||over||!data||typeof data!=="object")return;
@@ -196,19 +186,23 @@ function snapshot(){
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
       pend:null,cd:0,tm:0,q:[],orders:[] }];
   }));
-  return {kind:"state",nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over};
+  return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over};
 }
 window.matchGame={
   start(player,send){
-    init();localPlayer=player;peerSend=send;online=true;nextSync=0;
+    init();localPlayer=player;peerSend=send;online=true;nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;
     msg=player===1?"You control the blue castle at the bottom.":"You control the red castle at the top.";
     if(player===1)$("match").hidden=false;
   },
   stop(){online=false;clearTimeout(holdTimer);closeWheel();drag=null;$("match").hidden=true},
   receive(data){
     if(!online)return;
-    if(localPlayer===1){applyCommand(2,data);return}
-    if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units))return;
+    if(localPlayer===1){
+      if(!Number.isSafeInteger(data?.sequence)||data.sequence<=lastCommand)return;
+      lastCommand=data.sequence;applyCommand(2,data);return;
+    }
+    if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units)||data.sequence<=lastSequence)return;
+    lastSequence=data.sequence;syncedAt=performance.now();
     N=data.nodes;G=data.units;over=data.over;
     if(sel&&N[sel].owner!==localPlayer)sel=null;
     $("match").hidden=false;
@@ -234,7 +228,7 @@ function render(){
       if(mark)h+=`<text x="${n.x+r+2}" y="${n.y-r}" text-anchor="middle" font-size="5" font-weight="bold" fill="${color}">${mark}</text>`;
     }
     h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="${n.castle?6:5.4}" fill="var(--fg)">${face}</text>`;
-    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${strengthLabel(tot(n))}${n.castle&&n.owner===localPlayer?" 🏰":""}</text>`;
+    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${n.stock.reduce((count,strength)=>count+Math.ceil(strength),0)}${n.castle&&n.owner===localPlayer?" 🏰":""}</text>`;
     h+="</g>";
   }
   if(drag?.moved){
@@ -245,7 +239,8 @@ function render(){
   for(const g of G){
     const A=N[g.from],B=N[g.to];
     if(g.owner!==localPlayer&&!V.has(g.from)&&!V.has(g.to))continue;
-    const x=A.x+(B.x-A.x)*g.t,y=A.y+(B.y-A.y)*g.t;
+    const t=localPlayer===2&&!over?Math.min(1,g.t+Math.min(200,performance.now()-syncedAt)/1000/CONFIG.travel):g.t;
+    const x=A.x+(B.x-A.x)*t,y=A.y+(B.y-A.y)*t;
     h+=`<g pointer-events="none"><circle cx="${x}" cy="${y}" r="1.6" fill-opacity="${.4+.6*g.n}" fill="${g.owner===1?"var(--p1)":"var(--p2)"}" stroke="var(--fg)" stroke-width=".3"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="2.5">${T[g.type][0]}</text></g>`;
   }
   $("map").innerHTML=h;
@@ -256,7 +251,7 @@ function panel(){
   let h=`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
   if(sel){
     const n=N[sel];
-    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${strengthLabel(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
+    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
     if(!n.castle)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   if($("panel").dataset.html!==h){$("panel").dataset.html=h;$("panel").innerHTML=h;}
@@ -359,5 +354,11 @@ map.addEventListener("pointerup",e=>{
 });
 map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
-if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+
+if(parent===window){
+  location.replace("./");
+}else{
+  $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
+  $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
+}
+</script></body></html>

@@ -28,7 +28,7 @@ small{color:var(--mut)}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 </style><link rel="stylesheet" href="./editions.css"></head><body class="signal"><main>
-<nav class="editions" aria-label="Game edition"><a href="./">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html" aria-current="page">Signal</a><a href="./online.html">Online</a></nav><header><p class="brand">Fruit Wars</p><h1>Signal</h1><p class="subtitle">Control the network. Capture the opposing relay.</p></header>
+<nav class="editions" aria-label="Game edition"><a href="./">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html" aria-current="page">Signal</a><a href="#friends-panel">Friends</a></nav><header><p class="brand">Fruit Wars</p><h1>Signal</h1><p class="subtitle">Control the network. Capture the opposing relay.</p></header>
 <div id="msg" aria-live="polite"></div>
 <svg id="map" aria-label="Battlefield" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
@@ -36,11 +36,19 @@ small{color:var(--mut)}
   <summary>Field guide</summary>
   <p>Drag from your node to an adjacent node to send troops. Tap to select, or hold an owned outpost to change its type. Use the selected node’s controls to choose a unit type and send all or half of that type.</p>
   <dl><dt>Cycle</dt><dd id="cycle"></dd>
-  <dt>Matchups</dt><dd><b>+</b> Advantage · <b>−</b> Weakness · <b>=</b> Even. Each type beats the next two and loses to the previous two. Rings compare types against the largest visible defender. Damaged troops carry fractional strength into their next fight.</dd>
+  <dt>Matchups</dt><dd><b>+</b> Advantage · <b>−</b> Weakness · <b>=</b> Even. Each type beats the next two and loses to the previous two. Rings compare types against the largest visible defender. Troops carry damage along routes and heal when they capture a node.</dd>
   <dt>Production</dt><dd>The castle builds one queued unit every 2s. Outposts build one unit every 3s and pause for 5s when changing type. Friendly outposts accept units of their current type.</dd>
   <dt>Victory</dt><dd>Capture the opposing castle. Units depart in single file and clash on shared routes.</dd></dl>
 </details>
-</main>
+<details id="friends-panel" class="card"><summary id="friend-summary">Friends</summary><section class="card" id="lobby" aria-label="Online lobby">
+  <form class="row"><label for="display-name">Display name</label>
+    <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
+    <button>Save name</button>
+  </form>
+  <p role="status">Connecting to friends…</p>
+  <strong>Friends online</strong><ul id="friends"></ul>
+  <div id="invitations"></div>
+</section></details></main>
 <script>
 const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=["◆","▲","■","✚","●","⬟","✦"].map((icon,i)=>[icon,["apple","orange","banana","avocado","blueberry","plum","coconut"][i]]);
@@ -60,7 +68,7 @@ function init(){
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
-const strengthLabel=value=>Number(value.toFixed(2));
+
 const vis=()=>{const s=new Set();for(const n of Object.values(N))if(n.owner===1){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
@@ -95,7 +103,7 @@ function depart(source,dt){
 }
 function arrive(g){
   const n=N[g.to];
-  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+g.n);return}
+  if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+Math.ceil(g.n));return}
   let a=g.n;
   while(a>0){
     const d=big(n);if(d<0)break;
@@ -104,7 +112,7 @@ function arrive(g){
   }
   if(a>0){
     if(n.castle){over=g.owner;return}
-    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=a;n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
+    n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=Math.ceil(a);n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
     if(g.owner!==1&&sel===n.id)sel=null;
   }
 }
@@ -194,7 +202,7 @@ function render(){
       if(mark)h+=`<text x="${n.x+r+2}" y="${n.y-r}" text-anchor="middle" font-size="5" font-weight="bold" fill="${color}">${mark}</text>`;
     }
     h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="${n.castle?6:5.4}" fill="var(--fg)">${face}</text>`;
-    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${strengthLabel(tot(n))}${n.castle&&n.owner===1?" ⬢":""}</text>`;
+    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${n.stock.reduce((count,strength)=>count+Math.ceil(strength),0)}${n.castle&&n.owner===1?" ⬢":""}</text>`;
     h+="</g>";
   }
   if(drag?.moved){
@@ -216,7 +224,7 @@ function panel(){
   let h=`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button aria-label="Queue ${t[1]}" title="${t[1]}" data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
   if(sel){
     const n=N[sel];
-    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" aria-label="Send ${T[i][1]}" data-act="s${i}">${T[i][0]} ${strengthLabel(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
+    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" aria-label="Send ${T[i][1]}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
     if(!n.castle)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" aria-label="Produce ${t[1]}" title="${t[1]}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   if($("panel").dataset.html!==h){$("panel").dataset.html=h;$("panel").innerHTML=h;}
@@ -273,6 +281,7 @@ document.addEventListener("pointerdown",event=>{
   if(!typeWheel.contains(event.target))closeWheel();
 },true);
 document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWheel()});
+document.querySelector('a[href="#friends-panel"]').addEventListener("click",()=>{$("friends-panel").open=true});
 map.addEventListener("contextmenu",event=>event.preventDefault());
 $("cycle").textContent=T.map(([icon,name])=>icon+" "+name).join(" → ")+" → "+T[0][0];
 map.addEventListener("pointerdown",e=>{
@@ -313,4 +322,4 @@ map.addEventListener("pointerup",e=>{
 map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script></body></html>
+</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
