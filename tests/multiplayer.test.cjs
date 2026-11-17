@@ -75,3 +75,26 @@ test('Twin branches seat capacity is two and adding a third player changes map',
  h.run('matchGame.setMembers([{seat:1,name:"One",connected:true},{seat:2,name:"Two",connected:true},{seat:3,name:"Three",connected:true}])');
  assert.equal(h.run('lobbyConfig.map'),3);
 });
+for(const page of ['index.html','match.html'])test(page+': four-player schema has both axis symmetries and four jumps between all castles',()=>{
+ const h=createGame(page);
+ h.run(page==='index.html'?'botConfig.map=4;botConfig.shops=false;init()':'lobbyConfig.map=4;lobbyConfig.shops=false;init()');
+ assert.equal(h.run('Object.keys(N).length'),17);
+ assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),52);
+ for(const axis of ['x','y'])assert.equal(h.run(`Object.values(N).every(n=>{
+ const flip=p=>({x:${axis==='x'?'100-p.x':'p.x'},y:${axis==='y'?'100-p.y':'p.y'}});
+ const p=flip(n),mirror=Object.values(N).find(b=>b.x===p.x&&b.y===p.y);
+ return mirror&&n.adj.every(id=>{const q=flip(N[id]);return mirror.adj.some(to=>N[to].x===q.x&&N[to].y===q.y)});
+ })`),true);
+ const distances=JSON.parse(h.run(`JSON.stringify([1,2,3,4].flatMap(a=>{
+ const d={['P'+a]:0},queue=['P'+a];for(const id of queue)for(const to of N[id].adj)if(d[to]===undefined){d[to]=d[id]+1;queue.push(to)}
+ return [1,2,3,4].filter(b=>b>a).map(b=>d['P'+b]);
+ }))`));
+ assert.deepEqual(distances,[4,4,4,4,4,4]);
+ for(let owner=1;owner<=4;owner++){
+  assert.equal(h.run(`boardViewPoint(N.P${owner},${owner}).y`),92);
+  assert.equal(h.run(`Object.values(N).every(n=>{const p=boardViewPoint(boardViewPoint(n,${owner}),${owner},true);return p.x===n.x&&p.y===n.y})`),true);
+ }
+ h.run(page==='index.html'?'botConfig.shops=true;init()':'lobbyConfig.shops=true;init()');
+ assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),8);
+ h.run('render();panel()');
+});

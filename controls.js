@@ -1,6 +1,12 @@
 /* Persistent routes are simulated by the host and included in normal snapshots. */
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let castleConquests={};
+// Forward/inverse view transforms keep pointer directions aligned with the map.
+function boardViewPoint(p,owner,inverse=false){
+ if(N.P4)return {x:owner===2||owner===4?100-p.x:p.x,y:owner===1||owner===2?100-p.y:p.y};
+ if(N.P3)return rotateBoardPoint(p,(inverse?-1:1)*(owner-1)*2*Math.PI/3);
+ return {x:p.x,y:owner===2?100-p.y:p.y};
+}
 function survivingOwner(owner){while(castleConquests[owner])owner=castleConquests[owner];return owner}
 function botShopTurn(owner){
   const castle=N['P'+owner];if(!castle||castle.disabled)return;
@@ -91,7 +97,9 @@ function routeCommand(data){
     baseInit();
     castleConquests={};
     for(const n of Object.values(N)){n.routes=[];n.routeIndex=0;}
-    if(N.P3&&!N.P4){
+    if(N.P4){
+      for(const group of [['P1','P2','P3','P4'],['A1','A4','C1','C4'],['A2','A3','C2','C3'],['B1','B3'],['D1','D2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
+    }else if(N.P3){
       for(const group of [['P1','P2','P3'],['C2','A1','A3'],['A2','C1','C3']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
     }else if(!N.B3){
       for(const [a,b] of [['P1','P2'],['C1','A1'],['C2','A2'],['C3','A3'],['B1','B2']]){N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];}
@@ -171,7 +179,7 @@ function routeCommand(data){
     typeWheel.style.setProperty('--wheel-hole',`${Math.max(22,(rect?.width||0)/2+8)}px`);
     typeWheel.style.left=cx+'px';typeWheel.style.top=cy+'px';typeWheel.style.transform=`translate(-50%,-50%) scale(${scale})`;typeWheel.hidden=false;pl=0;
   };
-  const point=(x,y)=>{const p=new DOMPoint(x,y).matrixTransform(map.getScreenCTM().inverse());if(N.P3&&!N.P4)return rotateBoardPoint(p,-(myPlayer()-1)*2*Math.PI/3);if(myPlayer()===2)p.y=100-p.y;return p;};
+  const point=(x,y)=>{const p=new DOMPoint(x,y).matrixTransform(map.getScreenCTM().inverse());return boardViewPoint(p,myPlayer(),true);};
   const snap=(id,x,y)=>{
     const a=N[id],targets=a.shop?a.abilityTargets||[]:a.adj,p=point(x,y),dx=p.x-a.x,dy=p.y-a.y,len=Math.hypot(dx,dy);
     if(len<7)return null;

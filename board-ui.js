@@ -118,7 +118,7 @@
   window.boardNodes=()=>N;
   render=function(){
     const V=vis(), now=performance.now(), me=player();
-    const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...(window.boardNodes().P3&&!window.boardNodes().P4?rotateBoardPoint(n,(me-1)*2*Math.PI/3):{x:n.x,y:me===2?100-n.y:n.y})}]));
+    const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
     footer.querySelector('.ally').style.background=ownerColor(me);
     const rivals=Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))).filter(owner=>owner!==me);
     const rivalKeys=footer.querySelector('.rival-keys');
