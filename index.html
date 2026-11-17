@@ -61,7 +61,7 @@ const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 
 const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
 const THREE_EDGES="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
-const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+5};
+const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
@@ -69,7 +69,7 @@ const $=id=>document.getElementById(id);
 let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:false,transformationWave:false,transformationTime:10};
 const extraMaps={
   1:{nodes:{},edges:[]},
-  2:{nodes:{D1:[18,34],D2:[82,34],E1:[28,64],E2:[72,64]},edges:[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
+  2:{nodes:{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]},edges:[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
   3:{nodes:{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]},edges:[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]},
   4:{nodes:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]},edges:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]]}
 };

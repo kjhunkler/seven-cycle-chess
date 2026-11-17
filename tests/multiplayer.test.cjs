@@ -98,3 +98,15 @@ for(const page of ['index.html','match.html'])test(page+': four-player schema ha
  assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),8);
  h.run('render();panel()');
 });
+for(const page of ['index.html','match.html'])for(const shops of [false,true])test(page+': Expanded orchard reflects all nodes and connections across both axes (shops '+shops+')',()=>{
+ const h=createGame(page);
+ h.run(page==='index.html'?`botConfig.map=2;botConfig.shops=${shops};init()`:`lobbyConfig.map=2;lobbyConfig.shops=${shops};init()`);
+ assert.equal(h.run('Object.keys(N).length'),shops?20:16);
+ for(const axis of ['x','y'])assert.equal(h.run(`Object.values(N).every(n=>{
+ const flip=p=>({x:${axis==='x'?'100-p.x':'p.x'},y:${axis==='y'?'100-p.y':'p.y'}});
+ const p=flip(n),mirror=Object.values(N).find(b=>b.x===p.x&&b.y===p.y);
+ return mirror&&mirror.adj.length===n.adj.length&&n.adj.every(id=>{const q=flip(N[id]);return mirror.adj.some(to=>N[to].x===q.x&&N[to].y===q.y)});
+ })`),true);
+ assert.equal(h.run('N.D1.ut===N.E1.ut&&N.D2.ut===N.E2.ut&&N.D1.ut===N.D2.ut'),true);
+ h.run('render();panel()');
+});
