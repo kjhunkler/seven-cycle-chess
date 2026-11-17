@@ -15,7 +15,7 @@ The public site defaults to the free EMQX public test broker. Display names and 
 
 ## Enabling TURN on GitHub Pages
 
-1. Deploy the updated `simple-rain-games-turn` Worker from the [SmackTown repository](https://github.com/kjhunkler/SmackTown) using `npx wrangler deploy` in an authorized Cloudflare session. The Worker uses its existing `TURN_TOKEN_ID` and `TURN_API_TOKEN` secrets.
+1. Deploy the updated `smack-town-arena-turn` Worker from the [SmackTown repository](https://github.com/kjhunkler/SmackTown) using `npx wrangler deploy` in an authorized Cloudflare session. The Worker uses its existing `TURN_TOKEN_ID` variable and `TURN_API_TOKEN` secret.
 2. Set the Fruit Wars GitHub Actions repository variable `FRUIT_WARS_TURN_ENDPOINT` to `https://smacktownarena.com/api/turn-credentials` and dispatch **Deploy to GitHub Pages**. The Pages build publishes the endpoint URL. The Worker supplies temporary credentials to the browsers.
 3. To disable TURN for Fruit Wars, clear the variable and dispatch the workflow again.
 
