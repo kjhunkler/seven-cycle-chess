@@ -32,7 +32,7 @@ button{min-height:44px}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 </style><link rel="stylesheet" href="./board-ui.css?v=21"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Both players can change these settings. The match starts when both are ready.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for both players…</p><button type="button" id="ready-button">Ready</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for both players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -50,6 +50,7 @@ const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let productionCycle;
+let humanPlayers=[1,2], connectedPlayers=[1,2], configVersion=0, lastCommands={}, lobbyMembers=[];
 let N,G,drag,sel,sendType,half,msg,over,botThink=0;
 const $=id=>document.getElementById(id);
 function init(){
@@ -61,9 +62,8 @@ function init(){
   for(const [id,[x,y]] of Object.entries(extra))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
   const links=lobbyConfig.map===2?[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]:lobbyConfig.map===3?[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]];
   for(const[a,b]of links){N[a].adj.push(b);N[b].adj.push(a)}
-  for(const id of ["P1","P2"])N[id].adj=[];
-  EDGES.forEach(([a,b])=>{if(N[a]&&N[b]){N[a].adj.push(b);N[b].adj.push(a)}});
-  if(lobbyConfig.shops)for(const owner of [1,2])for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:c.x+(kind==="shield"?-12:12),y:c.y,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+5,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
     if(n.castle){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -75,7 +75,7 @@ const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
 
-const vis=(player=localPlayer)=>{const s=new Set();for(const n of Object.values(N))if(n.owner===player){s.add(n.id);if(!n.shop)n.adj.forEach(x=>s.add(x))}return s};
+const vis=(player=localPlayer)=>{if(N[`P${player}`]?.disabled)return new Set(Object.keys(N));const s=new Set();for(const n of Object.values(N))if(n.owner===player){s.add(n.id);if(!n.shop)n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
   if(pa-pd>CONFIG.strengthEpsilon)return[1,(pa-pd)/mult(at,dt)];
@@ -83,6 +83,7 @@ function fight(at,an,dt,dn){
   return[0,0];
 }
 function canEnter(target,owner,type){
+  if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&!target.abilityReady&&target.abilityCd<=0;
   return target.owner!==owner||target.castle||target.ut===type;
 }
@@ -145,7 +146,7 @@ function step(dt){
   G=G.filter(g=>!g.dead);
   const done=G.filter(g=>g.t>=1);G=G.filter(g=>g.t<1);for(const g of done){arrive(g);if(over)return}
   for(const n of Object.values(N))depart(n,dt);
-  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [3,4]){const castle=N[`P${owner}`];if(!castle)continue;if(castle.q.length<3)castle.q.push(Math.random()*7|0);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.castle?castle.stock[type]-2:n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
+  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const castle=N[`P${owner}`];if(!castle||castle.disabled||connectedPlayers.includes(owner))continue;if(castle.q.length<3)castle.q.push(Math.random()*7|0);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.castle?castle.stock[type]-2:n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
 
 }
 function select(id){
@@ -184,7 +185,7 @@ function command(data){
   else peerSend({...data,sequence:commandSequence++});
 }
 function applyCommand(owner,data){
-  if(!online||over||!data||typeof data!=="object")return;
+  if(!online||!gameStarted||over||!data||typeof data!=="object"||!N[`P${owner}`]||N[`P${owner}`].disabled)return;
   if(data.kind==="ability"&&typeof data.from==="string"&&typeof data.to==="string"){
     const s=N[data.from],t=N[data.to];if(s?.shop&&s.owner===owner&&s.abilityReady&&s.abilityCd<=0&&t?.owner===owner&&!t.shop){if(s.shop==="shield")t.shields=(t.shields||0)+1;else t.boost=Math.max(t.boost||0,7);s.abilityReady=false;s.charge=0;s.abilityCd=10;}return;
   }
@@ -211,44 +212,78 @@ function applyCommand(owner,data){
     }
   }
 }
-function snapshot(){
-  const visible=vis(2);
+function snapshot(viewer=2){
+  const visible=vis(viewer);
   const nodes=Object.fromEntries(Object.entries(N).map(([id,n])=>{
-    if(n.owner===2)return [id,n];
+    if(n.owner===viewer)return [id,n];
     return [id,{ ...n, owner:visible.has(id)?n.owner:0,
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
       pend:null,cd:0,tm:0,q:[],orders:[],routes:[],selectedType:null }];
   }));
-  return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over,gameStarted,productionCycle};
+  return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function sendLobby(){peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,started:gameStarted})}
+function validConfig(config){return config&&[2,3,4].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&config.map>=Math.max(...humanPlayers)}
+function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
-function updateLobbyUI(){const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;$("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";f.querySelector(".variant-status").textContent=`${lobbyReady.filter(Boolean).length} of 2 players ready${gameStarted?" · Starting…":""}`}
-function beginMatch(){if(gameStarted||!lobbyReady.every(Boolean))return;gameStarted=true;CONFIG.timeScale=Number(lobbyConfig.speed);init();gameStarted=true;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";if(localPlayer===1)sendLobby()}
-$("variant-form").addEventListener("change",()=>{if(gameStarted)return;lobbyConfig={map:Number(variantField("map").value),speed:Number(variantField("speed").value),shops:variantField("shops").checked};lobbyReady[localPlayer-1]=false;if(localPlayer===1)lobbyReady[1]=false;sendLobby();updateLobbyUI()});
-$("ready-button").onclick=()=>{if(gameStarted)return;lobbyReady[localPlayer-1]=!lobbyReady[localPlayer-1];sendLobby();updateLobbyUI();if(localPlayer===1&&lobbyReady.every(Boolean))beginMatch()};
+function updateLobbyUI(){
+  const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
+  variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;
+  $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
+  f.querySelector(".variant-status").textContent=`${humanPlayers.filter(p=>lobbyReady[p-1]).length} of ${humanPlayers.length} players ready${gameStarted?" · Starting…":""}`;
+  const roster=$("match-roster");roster.replaceChildren();
+  for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;roster.append(row)}
+}
+function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";sendLobby()}
+function lobbyAction(owner,data){
+  if(gameStarted||!humanPlayers.includes(owner))return;
+  if(data.action==="config"&&validConfig(data.config)){lobbyConfig={...data.config};configVersion++;lobbyReady=[false,false,false,false]}
+  else if(data.action==="ready"&&data.configVersion===configVersion&&typeof data.value==="boolean")lobbyReady[owner-1]=data.value;
+  sendLobby();updateLobbyUI();beginMatch();
+}
+function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
+$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),shops:variantField("shops").checked}}));
+$("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 window.matchGame={
-  start(player,send){
-    localPlayer=player;peerSend=send;online=true;nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;gameStarted=false;lobbyReady=[false,false];lobbyConfig={map:2,speed:.5,shops:false};CONFIG.timeScale=.5;init();
+  reconnect(send){peerSend=send;nextSync=0},
+  start(player,send,humans=[1,2]){
+    localPlayer=player;peerSend=send;online=true;nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false};CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
+  rebind(send){peerSend=send;if(localPlayer===1){sendLobby();nextSync=0}},
+  get started(){return gameStarted},
+  setMembers(members){
+    if(localPlayer!==1)return;
+    const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
+    lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
+    if(changed&&!gameStarted){lobbyConfig.map=Math.max(lobbyConfig.map,...seats);configVersion++;lobbyReady=[false,false,false,false]}
+    sendLobby();updateLobbyUI();
+  },
+  setFriends(friends){
+    const host=$("match-invites");host.replaceChildren();if(localPlayer!==1||gameStarted||humanPlayers.length>=4)return;
+    for(const friend of friends){const button=document.createElement("button");button.type="button";button.textContent="Invite "+friend.name;button.onclick=()=>parent.postMessage({kind:"invite-player",to:friend.id},location.origin);host.append(button)}
+  },
   stop(){online=false;clearTimeout(holdTimer);closeWheel();drag=null;$("match").hidden=true},
-  receive(data){
-    if(!online)return;
+  receive(data,source=1){
+    if(!online||!data||typeof data!=="object")return;
+    if(localPlayer===1){
+      if(!humanPlayers.includes(source)||source===1)return;
+      if(data.kind==="lobby-action"){lobbyAction(source,data);return}
+      if(!gameStarted||!Number.isSafeInteger(data.sequence)||data.sequence<0||data.sequence<=(lastCommands[source]??-1))return;
+      lastCommands[source]=data.sequence;applyCommand(source,data);return;
+    }
+    if(source!==1)return;
     if(data?.kind==="lobby"){
-      if(localPlayer===1){if(data.config){lobbyConfig=data.config;lobbyReady=data.ready||lobbyReady;gameStarted=Boolean(data.started);if(gameStarted){CONFIG.timeScale=Number(lobbyConfig.speed);init()}updateLobbyUI();if(lobbyReady.every(Boolean)&&!gameStarted)beginMatch()}}
-      else if(Number.isSafeInteger(data.revision)&&data.revision>lastLobbyRevision){lastLobbyRevision=data.revision;lobbyConfig=data.config||lobbyConfig;lobbyReady=data.ready||lobbyReady;gameStarted=Boolean(data.started);if(gameStarted){CONFIG.timeScale=Number(lobbyConfig.speed);init();$("variant-dialog").close()}else updateLobbyUI()}
+      if(!Number.isSafeInteger(data.revision)||data.revision<=lastLobbyRevision||!validConfig(data.config)||!Array.isArray(data.ready))return;
+      lastLobbyRevision=data.revision;configVersion=data.configVersion;humanPlayers=data.humans;connectedPlayers=data.connected;lobbyMembers=data.members||[];lobbyConfig=data.config;lobbyReady=data.ready;
+      if(data.started&&!gameStarted){CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;$("variant-dialog").close()}else if(!gameStarted)updateLobbyUI();
       return;
     }
-    if(localPlayer===1){
-      if(!Number.isSafeInteger(data?.sequence)||data.sequence<=lastCommand)return;
-      lastCommand=data.sequence;applyCommand(2,data);return;
-    }
-    if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units)||data.sequence<=lastSequence)return;
+    if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units)||!Number.isSafeInteger(data.sequence)||data.sequence<=lastSequence)return;
+    if(data.config&&validConfig(data.config)){lobbyConfig=data.config;CONFIG.timeScale=lobbyConfig.speed}
     if(!gameStarted){gameStarted=Boolean(data.gameStarted);if(gameStarted){CONFIG.timeScale=Number(lobbyConfig.speed);$("variant-dialog").close()}}
     lastSequence=data.sequence;syncedAt=performance.now();
-    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;
-    if(sel&&N[sel].owner!==localPlayer)sel=null;
+    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;castleConquests=data.conquests||{};
+    if(sel&&(!N[sel]||N[sel].owner!==localPlayer||N[sel].disabled))sel=null;
     $("match").hidden=false;
   }
 };
@@ -308,7 +343,7 @@ function loop(now){
       productionCycle??=startProductionCycle(N,G,T.length,now);
       if(!over)advanceProductionCycle(productionCycle,N,G,T.length,now);
       step(dt);
-      if(now>=nextSync){nextSync=now+80;peerSend(snapshot())}
+      if(now>=nextSync){nextSync=now+80;for(const viewer of humanPlayers)if(viewer!==1)peerSend(snapshot(viewer),viewer)}
     }
     if(!$("match").hidden){
       render();

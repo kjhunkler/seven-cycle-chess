@@ -68,7 +68,7 @@ function init(){
   const positions={...POS,...extraMaps[botConfig.map].nodes};
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
   const edges=[...EDGES,...extraMaps[botConfig.map].edges];
-  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:c.x+(kind==="shield"?-12:12),y:c.y,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
+  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+5,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
   edges.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
     if(n.castle){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -80,7 +80,7 @@ const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
 
-const vis=()=>{const s=new Set();for(const n of Object.values(N))if(n.owner===1){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
+const vis=()=>{if(N.P1.disabled)return new Set(Object.keys(N));const s=new Set();for(const n of Object.values(N))if(n.owner===1){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
   if(pa-pd>CONFIG.strengthEpsilon)return[1,(pa-pd)/mult(at,dt)];
@@ -88,6 +88,7 @@ function fight(at,an,dt,dn){
   return[0,0];
 }
 function canEnter(target,owner,type){
+  if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&!target.abilityReady&&target.abilityCd<=0;
   return target.owner!==owner||target.castle||target.ut===type;
 }
@@ -151,7 +152,7 @@ function step(dt){
 }
 function ai(){
   for(const owner of [2,3,4]){
-  const castle=N[`P${owner}`];if(!castle)continue;const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
+  const castle=N[`P${owner}`];if(!castle||castle.disabled)continue;const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
   const mine=Object.values(N).filter(n=>n.owner===owner&&big(n)>=0).sort(()=>Math.random()-.5).slice(0,2);
   for(const n of mine){
     const ty=big(n),c=n.stock[ty],amt=n.castle?c-2:c;
