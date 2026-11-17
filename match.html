@@ -83,12 +83,20 @@ function fight(at,an,dt,dn){
   return[0,0];
 }
 function canEnter(target,owner,type){
+function shopCapacity(target,includeOrders=true){
+  const incoming=G.filter(g=>g.to===target.id&&g.owner===target.owner).reduce((sum,g)=>sum+g.n,0);
+  const queued=includeOrders?Object.values(N).reduce((sum,n)=>sum+n.orders.filter(o=>o.to===target.id&&o.owner===target.owner).reduce((total,o)=>total+o.count,0),0):0;
+  return target.abilityReady||target.abilityCd>0?0:Math.max(0,10-target.charge-incoming-queued);
+}
   if(!target||target.disabled)return false;
-  if(target.shop)return target.owner===owner&&!target.abilityReady&&target.abilityCd<=0;
+  if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
   return target.owner!==owner||target.castle||target.ut===type;
 }
 function dispatch(source,to,type,count){
   source.stock[type]-=count;
+  const target=N[to];
+  if(target?.shop){if(target.owner!==source.owner)return;count=Math.min(count,shopCapacity(target));}
+  if(count<=CONFIG.strengthEpsilon)return;
   source.orders.push({to,owner:source.owner,type,count});
 }
 function depart(source,dt){
@@ -101,7 +109,7 @@ function depart(source,dt){
       source.orders.shift();
       continue;
     }
-    const strength=Math.min(1,order.count);
+    const strength=Math.min(1,order.count,target.shop?shopCapacity(target,false):Infinity);
     G.push({from:source.id,to:order.to,owner:order.owner,type:order.type,n:strength,t:0});
     order.count-=strength;
     if(order.count<=CONFIG.strengthEpsilon)source.orders.shift();

@@ -62,6 +62,21 @@ for (const page of ['index.html', 'match.html']) {
       fields.productionRotation.checked = true;
       dialog.listeners.get('change')();
     }
+    vm.runInContext(`
+      globalThis.savedShopState={N,G};
+      const source={id:'P1',owner:1,castle:true,stock:[30,0,0,0,0,0,0],orders:[],routes:['S1H'],selectedType:0,departure:0,adj:['S1H']};
+      const shop={id:'S1H',shop:'shield',owner:1,charge:6,abilityReady:false,abilityCd:0,orders:[]};
+      N={P1:source,S1H:shop};G=[{to:'S1H',owner:1,n:2}];
+      dispatch(source,'S1H',0,20);
+    `,context);
+    assert.equal(vm.runInContext('N.P1.orders[0].count',context),2,'shop queue reserves only the unpaid amount after incoming troops');
+    assert.equal(vm.runInContext('N.P1.stock[0]',context),28,'excess troops stay at their source');
+    vm.runInContext("dispatch(N.P1,'S1H',0,20);for(let i=0;i<40;i++)depart(N.P1,.1)",context);
+    assert.equal(vm.runInContext('G.reduce((sum,g)=>sum+g.n,0)',context),4,'routes and queued orders together cannot overfill a shop');
+    assert.equal(vm.runInContext('N.P1.stock[0]',context),28,'routes keep remaining troops once shop capacity is reserved');
+    vm.runInContext('G=[];N.S1H.charge=10;N.S1H.abilityReady=true;dispatch(N.P1,"S1H",0,20);depart(N.P1,.1)',context);
+    assert.equal(vm.runInContext('G.length+N.P1.orders.length',context),0,'ready shops accept no additional dispatches');
+    vm.runInContext('N=savedShopState.N;G=savedShopState.G',context);
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);

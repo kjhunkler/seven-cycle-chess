@@ -71,7 +71,8 @@ function routeCommand(data){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
         const type=n.castle?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
-        const count=Math.min(1,n.stock[type],tot(n)-1);
+        const count=Math.min(1,n.stock[type],tot(n)-1,N[to].shop?shopCapacity(N[to]):Infinity);
+        if(count<=CONFIG.strengthEpsilon)continue;
         n.stock[type]-=count;
         G.push({from:n.id,to,owner:n.owner,type,n:count,t:0});
         n.routeIndex=(at+1)%n.routes.length;n.departure=CONFIG.departureInterval+dt;break;
