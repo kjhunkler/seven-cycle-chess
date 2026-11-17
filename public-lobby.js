@@ -1,5 +1,5 @@
 const publicLobby = (() => {
-  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v1";
+  const root = "fruit-wars/kjhunkler-seven-cycle-chess/v2";
   const id = crypto.randomUUID();
   const presence = root + "/presence", address = root + "/inbox/";
   const friends = new Map(), rooms = new Map(), inbox = [];
@@ -30,8 +30,10 @@ const publicLobby = (() => {
     const room = rooms.get(data.room);
     if (!room || room.id !== data.id || typeof data.iv !== "string" || typeof data.payload !== "string") return;
     const raw = await crypto.subtle.decrypt(cipher(decode(data.iv),data.room),room.key,decode(data.payload));
+    room.seen = Date.now();
     const event = JSON.parse(new TextDecoder().decode(raw));
-    if (["accept","signal","leave"].includes(event.kind)) inbox.push({...event,room:data.room});
+    if (event.kind === "game") receiveRelayGame(data.room,event.game);
+    if (["accept","signal","relay","leave"].includes(event.kind)) inbox.push({...event,room:data.room});
     if (event.kind === "leave") rooms.delete(data.room);
   }
   async function open() {
@@ -68,9 +70,10 @@ const publicLobby = (() => {
     const room = rooms.get(fields.room);
     if (!room) throw new Error("Invitation expired.");
     const iv = crypto.getRandomValues(new Uint8Array(12));
-    const message = encode(JSON.stringify({kind:action,name,description:fields.description}));
+    const message = encode(JSON.stringify({kind:action,name,description:fields.description,game:fields.game}));
     const payload = await crypto.subtle.encrypt(cipher(iv,fields.room),room.key,message);
-    await publish(address+room.id,{room:fields.room,iv:b64(iv),payload:b64(payload)},1);
+    await publish(address+room.id,{room:fields.room,iv:b64(iv),payload:b64(payload)},
+      action==="game" && fields.game?.kind==="state" ? 0 : 1);
     if (action === "leave") rooms.delete(fields.room);
     return {};
   };

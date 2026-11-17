@@ -11,7 +11,7 @@ Run the following in separate terminals from the repository root:
 
 Open http://localhost:8000/online.html in two separate browser profiles or a normal and a private window. Each browser stores its own free, name-only profile. Everyone currently in the lobby appears in the online friends list.
 
-The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions are encrypted between browsers. The broker is shared and has no availability guarantee.
+The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions are encrypted between browsers. If direct WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
 
 ## Publishing with a private signaling service
 

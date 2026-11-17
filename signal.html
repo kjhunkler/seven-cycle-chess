@@ -24,6 +24,9 @@ small{color:var(--mut)}
 .editions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .editions a{color:inherit;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border:1px solid var(--bd);border-radius:8px;text-decoration:none}
 .editions a[aria-current="page"]{background:var(--card);font-weight:700}
+.type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
+.type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
+.type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 </style><link rel="stylesheet" href="./editions.css"></head><body class="signal"><main>
 <nav class="editions" aria-label="Game edition"><a href="./">Original</a><a href="./orchard.html">Orchard</a><a href="./signal.html" aria-current="page">Signal</a><a href="./online.html">Online</a></nav><header><p class="brand">Fruit Wars</p><h1>Signal</h1><p class="subtitle">Control the network. Capture the opposing relay.</p></header>
 <div id="msg" aria-live="polite"></div>
@@ -31,15 +34,15 @@ small{color:var(--mut)}
 <div class="card" id="panel"></div>
 <details class="card guide">
   <summary>Field guide</summary>
-  <p>Drag from your node to an adjacent node, or tap the two nodes in order. Use the selected node’s controls to choose a unit type and send all or half of that type.</p>
+  <p>Drag from your node to an adjacent node to send troops. Tap to select, or hold an owned outpost to change its type. Use the selected node’s controls to choose a unit type and send all or half of that type.</p>
   <dl><dt>Cycle</dt><dd id="cycle"></dd>
-  <dt>Matchups</dt><dd><b>+</b> Advantage · <b>−</b> Weakness · <b>=</b> Even. Each type beats the next two and loses to the previous two. Rings compare types against the largest visible defender.</dd>
+  <dt>Matchups</dt><dd><b>+</b> Advantage · <b>−</b> Weakness · <b>=</b> Even. Each type beats the next two and loses to the previous two. Rings compare types against the largest visible defender. Damaged troops carry fractional strength into their next fight.</dd>
   <dt>Production</dt><dd>The castle builds one queued unit every 2s. Outposts build one unit every 3s and pause for 5s when changing type. Friendly outposts accept units of their current type.</dd>
   <dt>Victory</dt><dd>Capture the opposing castle. Units depart in single file and clash on shared routes.</dd></dl>
 </details>
 </main>
 <script>
-const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=["◆","▲","■","✚","●","⬟","✦"].map((icon,i)=>[icon,["apple","orange","banana","avocado","blueberry","plum","coconut"][i]]);
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[66,50],B4:[88,50],C1:[28,75],C2:[50,75],C3:[72,75]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
@@ -52,16 +55,17 @@ function init(){
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.castle){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;aiT=2;
-  msg="Queue units in your castle (bottom). Then drag from the castle to a connected outpost, or tap the two nodes in sequence.";
+  msg="Queue units in your castle (bottom). Then drag from the castle to a connected outpost.";
 }
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
+const strengthLabel=value=>Number(value.toFixed(2));
 const vis=()=>{const s=new Set();for(const n of Object.values(N))if(n.owner===1){s.add(n.id);n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
-  if(pa>pd)return[1,Math.max(1,Math.round(an*(1-pd/pa)))];
-  if(pd>pa)return[2,Math.max(1,Math.round(dn*(1-pa/pd)))];
+  if(pa-pd>CONFIG.strengthEpsilon)return[1,(pa-pd)/mult(at,dt)];
+  if(pd-pa>CONFIG.strengthEpsilon)return[2,(pd-pa)/mult(dt,at)];
   return[0,0];
 }
 function canEnter(target,owner,type){
@@ -81,8 +85,10 @@ function depart(source,dt){
       source.orders.shift();
       continue;
     }
-    G.push({from:source.id,to:order.to,owner:order.owner,type:order.type,n:1,t:0});
-    if(--order.count===0)source.orders.shift();
+    const strength=Math.min(1,order.count);
+    G.push({from:source.id,to:order.to,owner:order.owner,type:order.type,n:strength,t:0});
+    order.count-=strength;
+    if(order.count<=CONFIG.strengthEpsilon)source.orders.shift();
     source.departure=CONFIG.departureInterval;
     return;
   }
@@ -134,7 +140,7 @@ function ai(){
       else{const d=big(t);s=d<0?99:amt*mult(ty,d)/(t.stock[d]*mult(d,ty));s*=1+Math.random()*.4}
       if(s>bs){bs=s;best=id}
     }
-    if(best&&bs>=1)dispatch(n,best,ty,amt);
+    if(best&&bs>1)dispatch(n,best,ty,amt);
   }
 }
 function select(id){
@@ -151,20 +157,14 @@ function send(from,to){
   }else if(!count){
     msg="No "+T[sendType][1]+"s to send. Pick another type below.";
   }else{
-    dispatch(source,to,sendType,half?Math.max(1,count>>1):count);
+    dispatch(source,to,sendType,half?Math.min(count,Math.max(1,Math.floor(count/2))):count);
     msg="";
   }
 }
 function pick(id){
   if(over)return;
-  if(sel===id){sel=null;return}
-  if(sel&&N[sel].adj.includes(id)&&canEnter(N[id],1,sendType)){
-    send(sel,id);
-  }else if(N[id].owner===1){
-    select(id);
-  }else{
-    sel=null;
-  }
+  if(N[id].owner===1)select(id);
+  else sel=null;
 }
 function act(a){
   if(a==="restart")return init();
@@ -194,7 +194,7 @@ function render(){
       if(mark)h+=`<text x="${n.x+r+2}" y="${n.y-r}" text-anchor="middle" font-size="5" font-weight="bold" fill="${color}">${mark}</text>`;
     }
     h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="${n.castle?6:5.4}" fill="var(--fg)">${face}</text>`;
-    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${tot(n)}${n.castle&&n.owner===1?" ⬢":""}</text>`;
+    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${strengthLabel(tot(n))}${n.castle&&n.owner===1?" ⬢":""}</text>`;
     h+="</g>";
   }
   if(drag?.moved){
@@ -206,7 +206,7 @@ function render(){
     const A=N[g.from],B=N[g.to];
     if(g.owner!==1&&!V.has(g.from)&&!V.has(g.to))continue;
     const x=A.x+(B.x-A.x)*g.t,y=A.y+(B.y-A.y)*g.t;
-    h+=`<g pointer-events="none"><circle cx="${x}" cy="${y}" r="1.6" fill="${g.owner===1?"var(--p1)":"var(--p2)"}" stroke="var(--fg)" stroke-width=".3"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="2.5">${T[g.type][0]}</text></g>`;
+    h+=`<g pointer-events="none"><circle cx="${x}" cy="${y}" r="1.6" fill-opacity="${.4+.6*g.n}" fill="${g.owner===1?"var(--p1)":"var(--p2)"}" stroke="var(--fg)" stroke-width=".3"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="2.5">${T[g.type][0]}</text></g>`;
   }
   $("map").innerHTML=h;
 }
@@ -216,7 +216,7 @@ function panel(){
   let h=`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button aria-label="Queue ${t[1]}" title="${t[1]}" data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
   if(sel){
     const n=N[sel];
-    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" aria-label="Send ${T[i][1]}" data-act="s${i}">${T[i][0]} ${k}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
+    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" aria-label="Send ${T[i][1]}" data-act="s${i}">${T[i][0]} ${strengthLabel(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
     if(!n.castle)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" aria-label="Produce ${t[1]}" title="${t[1]}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   if($("panel").dataset.html!==h){$("panel").dataset.html=h;$("panel").innerHTML=h;}
@@ -233,16 +233,63 @@ addEventListener("click",e=>{
   if(button){act(button.dataset.act);pl=0}
 });
 const map=$("map");
+const typeWheel=document.createElement("div");
+typeWheel.className="type-wheel";
+typeWheel.hidden=true;
+typeWheel.setAttribute("role","group");
+typeWheel.setAttribute("aria-label","Choose outpost production type");
+document.body.append(typeWheel);
+let holdTimer;
+function closeWheel(){typeWheel.hidden=true}
+function openWheel(id,x,y){
+  const node=N[id];
+  if(over||!node||node.castle||node.owner!==1)return;
+  select(id);
+  drag.held=true;
+  const label=document.createElement("span");
+  label.textContent="Produce";
+  typeWheel.replaceChildren(label);
+  for(const [i,[icon,name]] of T.entries()){
+    const button=document.createElement("button");
+    const angle=2*Math.PI*i/T.length-Math.PI/2;
+    button.style.left=102+75*Math.cos(angle)+"px";
+    button.style.top=102+75*Math.sin(angle)+"px";
+    button.textContent=icon;
+    button.setAttribute("aria-label","Produce "+name);
+    if((node.pend??node.ut)===i)button.className="on";
+    button.onclick=()=>{
+      if(sel===id&&N[id].owner===1)act("p"+i);
+      closeWheel();
+      pl=0;
+    };
+    typeWheel.append(button);
+  }
+  typeWheel.style.left=Math.max(0,Math.min(innerWidth-208,x-104))+"px";
+  typeWheel.style.top=Math.max(0,Math.min(innerHeight-208,y-104))+"px";
+  typeWheel.hidden=false;
+  pl=0;
+}
+document.addEventListener("pointerdown",event=>{
+  if(!typeWheel.contains(event.target))closeWheel();
+},true);
+document.addEventListener("keydown",event=>{if(event.key==="Escape")closeWheel()});
+map.addEventListener("contextmenu",event=>event.preventDefault());
 $("cycle").textContent=T.map(([icon,name])=>icon+" "+name).join(" → ")+" → "+T[0][0];
 map.addEventListener("pointerdown",e=>{
   const node=e.target.closest("[data-id]");
   if(over||drag||!node||e.button!==0)return;
   drag={id:e.pointerId,from:node.dataset.id,startX:e.clientX,startY:e.clientY,moved:false};
   map.setPointerCapture(e.pointerId);
+  holdTimer=setTimeout(()=>{
+    if(drag?.id===e.pointerId&&!drag.moved)openWheel(drag.from,drag.startX,drag.startY);
+  },CONFIG.holdMs);
 });
 map.addEventListener("pointermove",e=>{
-  if(drag?.id!==e.pointerId||N[drag.from].owner!==1)return;
-  if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6)drag.moved=true;
+  if(drag?.id!==e.pointerId||drag.held||N[drag.from].owner!==1)return;
+  if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6){
+    drag.moved=true;
+    clearTimeout(holdTimer);
+  }
   if(drag.moved){
     select(drag.from);
     drag.x=e.clientX;
@@ -252,6 +299,8 @@ map.addEventListener("pointermove",e=>{
 });
 map.addEventListener("pointerup",e=>{
   if(drag?.id!==e.pointerId)return;
+  clearTimeout(holdTimer);
+  if(drag.held){drag=null;return}
   const target=document.elementFromPoint(e.clientX,e.clientY)?.closest("[data-id]")?.dataset.id;
   if(drag.moved){
     if(target)send(drag.from,target);
@@ -261,7 +310,7 @@ map.addEventListener("pointerup",e=>{
   drag=null;
   pl=0;
 });
-map.addEventListener("lostpointercapture",()=>{drag=null});
+map.addEventListener("lostpointercapture",()=>{clearTimeout(holdTimer);drag=null});
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
 </script></body></html>

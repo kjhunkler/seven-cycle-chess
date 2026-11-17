@@ -10,6 +10,7 @@ localStorage.setItem("fruit-wars-profile", token);
 nameInput.value = savedName;
 let name = "", room = "", peer = null, channel = null, iceServers = [], timeout;
 let timer, player = 1;
+let relay = false, relayTimer, lastRelayFrame = 0;
 
 function status(message) { statusText.textContent = message; }
 
@@ -44,13 +45,45 @@ function send(data) {
   }
 }
 
+function closePeer() {
+  if (channel) {
+    channel.onclose = null;
+    channel.onopen = null;
+  }
+  const connection = peer;
+  peer = channel = null;
+  connection?.close();
+}
+
+function receiveRelayGame(activeRoom, game) {
+  if (relay && room === activeRoom) window.matchGame.receive(game);
+}
+
+function startRelay() {
+  if (!room || relay) return;
+  clearTimeout(timeout);
+  clearTimeout(relayTimer);
+  closePeer();
+  relay = true;
+  lastRelayFrame = 0;
+  window.matchGame.start(player, game => {
+    const now = performance.now();
+    if (game.kind === "state") {
+      if (now - lastRelayFrame < 165) return;
+      lastRelayFrame = now;
+    }
+    request("game", { room, game }).catch(() => {});
+  });
+  status("Match connected through the relay.");
+}
+
 function reset(message, notify = true) {
   const previous = room;
   room = "";
   clearTimeout(timeout);
-  if (channel) channel.onclose = null;
-  peer?.close();
-  peer = channel = null;
+  clearTimeout(relayTimer);
+  closePeer();
+  relay = false;
   window.matchGame.stop();
   lobby.querySelector("#leave").disabled = true;
   if (notify && previous) request("leave", { room: previous }).catch(() => {});
@@ -61,6 +94,7 @@ function attach(dataChannel) {
   channel = dataChannel;
   channel.onopen = () => {
     clearTimeout(timeout);
+    clearTimeout(relayTimer);
     window.matchGame.start(player, send);
     status("Match connected.");
   };
@@ -72,12 +106,24 @@ function attach(dataChannel) {
 
 function connect(host) {
   player = host ? 1 : 2;
+  if (!endpoint && host) {
+    relayTimer = setTimeout(async () => {
+      if (!room || channel?.readyState === "open") return;
+      const activeRoom = room;
+      try {
+        await request("relay", { room: activeRoom });
+        if (room === activeRoom) startRelay();
+      } catch {
+        if (room === activeRoom) reset("The relay is unavailable. Please try another invitation.");
+      }
+    }, 8500);
+  }
   const connection = new RTCPeerConnection({ iceServers });
   peer = connection;
   if (host) attach(peer.createDataChannel("match"));
   else peer.ondatachannel = event => attach(event.channel);
   peer.onconnectionstatechange = () => {
-    if (peer === connection && connection.connectionState === "failed") reset("Could not connect to your friend.");
+    if (endpoint && peer === connection && connection.connectionState === "failed") reset("Could not connect to your friend.");
   };
   status("Connecting to your friend…");
 }
@@ -104,7 +150,7 @@ async function publishDescription() {
 function reserve(id) {
   room = id;
   lobby.querySelector("#leave").disabled = false;
-  timeout = setTimeout(() => reset("The invitation or connection timed out."), 35_000);
+  timeout = setTimeout(() => reset("The invitation or connection timed out. Try sending a new invite."), 35_000);
 }
 
 async function poll() {
@@ -154,7 +200,9 @@ async function poll() {
         setTimeout(dismiss, 30_000);
       }
       if (event.room !== room) continue;
-      if (event.kind === "accept" && !peer) {
+      if (event.kind === "relay" && !endpoint && player === 2) {
+        startRelay();
+      } else if (event.kind === "accept" && !peer && !relay) {
         connect(true);
         await publishDescription();
       } else if (event.kind === "signal" && peer) {
