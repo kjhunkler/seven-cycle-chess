@@ -135,3 +135,19 @@ for (const page of ['index.html', 'match.html']) {
   });
 }
 
+
+test('Pages deployment includes every local script loaded by the game', () => {
+  const workflow = fs.readFileSync(path.join(root, '.github/workflows/pages.yml'), 'utf8');
+  const copy = workflow.match(/cp (.+) site\//);
+  assert.ok(copy, 'deployment stages game assets');
+  const published = new Set(copy[1].trim().split(/\s+/));
+  published.add('lobby-config.js');
+  for (const page of ['index.html', 'match.html']) {
+    const html = fs.readFileSync(path.join(root, page), 'utf8');
+    for (const match of html.matchAll(/<script[^>]+src="([^"]+)"/g)) {
+      if (/^https?:/.test(match[1])) continue;
+      const asset = match[1].replace(/^\.\//, '').split('?')[0];
+      assert.ok(published.has(asset), page + ' needs published script ' + asset);
+    }
+  }
+});
