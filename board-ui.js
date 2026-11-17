@@ -26,10 +26,12 @@
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
   shell.innerHTML = '<div class="battle-tools"><button type="button" class="battle-settings-button" aria-label="Battle settings" title="Battle settings">⚙</button></div>';
-  board.before(shell); shell.append(board);
+  board.before(shell);
+  if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
+  shell.append(board);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="2">Expanded orchard</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
   settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
@@ -48,10 +50,13 @@
       if(reset){
         act('restart');
         previousNodes=null;
+        render();
+        panel();
+        renderProductionCycle(productionCycle,T);
       }else CONFIG.timeScale=next.speed;
     };
     settingsDialog.querySelector('.settings-restart').onclick=()=>{applySettings(true);settingsDialog.close();};
-    settingsDialog.addEventListener('close',()=>applySettings());
+    settingsDialog.addEventListener('change',()=>applySettings());
   }else settingsDialog.querySelector('.battle-settings-form').innerHTML='<h2>Battle settings</h2><p>Settings are chosen before an online match begins.</p><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><button value="close">Close</button>';
   const endgame=document.createElement('dialog');endgame.className='endgame-dialog';
   endgame.innerHTML='<p class="endgame-message"></p><div class="endgame-actions"><button type="button" class="endgame-retry">Play again</button><button type="button" class="endgame-close">Close</button></div>';
@@ -121,16 +126,16 @@
     }
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>',countLabels='';
     for(const a of Object.values(N))if(!a.shop)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.shop&&!a.castle)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
+    const source=N[sel];
     for(const n of Object.values(N)){
       const v=V.has(n.id),r=n.shop?3.5:n.castle?6.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
       const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':n.castle?'Castle':'Outpost'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
       h+=`<g data-id="${n.id}" class="board-node ${n.shake>0||typeof shakeNodes!=='undefined'&&shakeNodes[n.id]>now?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+.7}" fill="var(--card)" stroke="${col}" stroke-width=".35"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="${v?1:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
-      const routeType=sel&&N[sel].castle?N[sel].selectedType:sendType;
-      if(sel&&N[sel].adj.includes(n.id)&&routeType!=null&&canEnter(n,me,routeType)){
-        const type=routeType;
-        let color='var(--mut)',mark='';if(v&&n.owner!==me&&k>=0&&N[sel].stock[type]>0){const d=mult(type,k)-mult(k,type);color=d>0?'#71bc91':d<0?'#ee8792':'var(--mut)';mark=d>0?'+':d<0?'−':'=';}
+      if(source?.owner===me&&!source.shop&&!n.shop&&source.adj.includes(n.id)){
+        const type=source.castle?castleRouteFruit(source,n):canEnter(n,me,sendType)?sendType:-1;
+        let color='var(--mut)',mark='';if(v&&n.owner!==me&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){const d=mult(type,k)-mult(k,type);color=d>0?'#71bc91':d<0?'#ee8792':'var(--mut)';mark=d>0?'+':d<0?'−':'=';}
         h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.7}" fill="none" stroke="${color}" stroke-width=".55" stroke-dasharray="1 1"/>`;
         if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
       }

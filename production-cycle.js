@@ -61,5 +61,11 @@ function renderProductionCycle(cycle, types) {
       icon.setAttribute("aria-label", label);
     }
   }
+  const countdown=document.getElementById("production-countdown");
+  if(countdown){
+    const seconds=Math.ceil(cycle.remaining/1000);
+    const label=`Next in ${seconds}s`;
+    if(countdown.textContent!==label)countdown.textContent=label;
+  }
   document.getElementById("production-progress").value = PRODUCTION_CYCLE_MS - cycle.remaining;
 }

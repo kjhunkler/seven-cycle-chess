@@ -16,6 +16,18 @@ function refreshCastleFruit(n){
   n.selectedType=castleFruit(n);
   if(sel===n.id&&n.owner===myPlayer()&&n.selectedType!=null)sendType=n.selectedType;
 }
+function castleRouteFruit(n,target){
+  const selected=castleFruit(n);
+  if(selected!=null&&canEnter(target,n.owner,selected))return selected;
+  let best=-1,bestMatch=-Infinity,bestStock=-Infinity;
+  for(let i=0;i<T.length;i++){
+    const stock=n.stock[i];
+    if(stock<=CONFIG.strengthEpsilon||!canEnter(target,n.owner,i))continue;
+    const match=target.owner&&!target.castle?mult(i,target.ut):0;
+    if(match>bestMatch||match===bestMatch&&stock>bestStock){best=i;bestMatch=match;bestStock=stock;}
+  }
+  return best;
+}
 function applyRouteCommand(owner,data){
   if(!['route','stop','cancel','select-troop'].includes(data.kind))return false;
   const n=Object.hasOwn(N,data.node)?N[data.node]:null;
@@ -25,10 +37,7 @@ function applyRouteCommand(owner,data){
     return true;
   }
   if(data.kind==='route'&&n.adj.includes(data.to)){
-    if(n.castle){
-      refreshCastleFruit(n);
-      if(n.selectedType==null)return true;
-    }
+    if(n.castle)refreshCastleFruit(n);
     n.routes??=[];if(!n.routes.includes(data.to))n.routes.push(data.to);
   }
   if(data.kind==='stop'){n.routes=[];n.routeIndex=0;}
@@ -55,24 +64,12 @@ function routeCommand(data){
   const baseArrive=arrive;
   arrive=function(g){const owner=N[g.to].owner;baseArrive(g);if(N[g.to].owner!==owner){N[g.to].routes=[];N[g.to].routeIndex=0;}};
   const baseDepart=depart;
-  const routeTroop=(n,to)=>{
-    const target=N[to],selected=n.selectedType;
-    if(selected!=null&&n.stock[selected]>CONFIG.strengthEpsilon&&canEnter(target,n.owner,selected))return selected;
-    let best=-1,bestMatch=-Infinity,bestStock=-Infinity;
-    for(let i=0;i<T.length;i++){
-      const stock=n.stock[i];
-      if(stock<=CONFIG.strengthEpsilon||!canEnter(target,n.owner,i))continue;
-      const match=target.owner&&!target.castle?mult(i,target.ut):0;
-      if(match>bestMatch||match===bestMatch&&stock>bestStock){best=i;bestMatch=match;bestStock=stock;}
-    }
-    return best;
-  };
   depart=function(n,dt){
     if(n.castle)refreshCastleFruit(n);
     if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
-        const type=n.castle?routeTroop(n,to):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
+        const type=n.castle?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
         const count=Math.min(1,n.stock[type],tot(n)-1);
         n.stock[type]-=count;

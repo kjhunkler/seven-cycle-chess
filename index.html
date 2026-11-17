@@ -26,11 +26,12 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=19"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=21"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
+  <span id="production-countdown"></span>
   <progress id="production-progress" max="45000" aria-label="Time until next production pair"></progress>
 </div>
 <div id="msg"></div>
@@ -46,16 +47,17 @@ small{color:var(--mut)}
   <p role="status">Connecting to players…</p>
   <strong>Online players</strong><ul id="friends"></ul>
 </section></details><div id="invite-toasts" aria-live="assertive"></div></main>
-<script src="./production-cycle.js"></script><script>
-const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+<script src="./production-cycle.js?v=21"></script><script>
+const CONFIG={timeScale:1,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
-let botConfig={map:2,speed:.5,shops:false,productionRotation:true};
+let botConfig={map:1,speed:1,shops:true,productionRotation:true};
 const extraMaps={
+  1:{nodes:{},edges:[]},
   2:{nodes:{D1:[18,34],D2:[82,34],E1:[28,64],E2:[72,64]},edges:[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
   3:{nodes:{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]},edges:[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]},
   4:{nodes:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]},edges:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]]}
@@ -66,7 +68,7 @@ function init(){
   const positions={...POS,...extraMaps[botConfig.map].nodes};
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
   const edges=[...EDGES,...extraMaps[botConfig.map].edges];
-  if(botConfig.shops)for(const owner of botConfig.map===2?[1,2]:botConfig.map===3?[1,2,3]:[1,2,3,4])for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:c.x+(kind==="shield"?-12:12),y:c.y,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
+  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,x:c.x+(kind==="shield"?-12:12),y:c.y,castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
   edges.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
     if(n.castle){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -148,8 +150,8 @@ function step(dt){
   aiT-=dt;if(aiT<=0){aiT=CONFIG.aiInterval;ai()}
 }
 function ai(){
-  for(const owner of botConfig.map===2?[2]:botConfig.map===3?[2,3]:[2,3,4]){
-  const q=N[`P${owner}`].q;while(q.length<3)q.push(Math.random()*7|0);
+  for(const owner of [2,3,4]){
+  const castle=N[`P${owner}`];if(!castle)continue;const q=castle.q;while(q.length<3)q.push(Math.random()*7|0);
   const mine=Object.values(N).filter(n=>n.owner===owner&&big(n)>=0).sort(()=>Math.random()-.5).slice(0,2);
   for(const n of mine){
     const ty=big(n),c=n.stock[ty],amt=n.castle?c-2:c;
@@ -295,4 +297,4 @@ function openWheel(id,x,y){
 }
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=19"></script><script src="./board-ui.js?v=19"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=21"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

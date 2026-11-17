@@ -10,6 +10,7 @@ const root = path.join(__dirname, '..');
 class Element {
   constructor() { this.listeners = new Map(); this.dataset = {}; this.style = {}; this.innerHTML = ''; this.children = []; this.hidden = false; this.classList = { toggle() {} }; }
   setAttribute() {}
+  setPointerCapture() {}
   showModal() { this.open = true; }
   close() { this.open = false; this.listeners.get("close")?.(); }
   addEventListener(type, listener) { this.listeners.set(type, listener); }
@@ -44,21 +45,22 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     if (page === 'index.html') {
       const dialog = context.document.body.children.find(element => element.className === 'battle-settings-dialog');
-      const fields = {map: {value: '2'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: true}};
+      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: true}, productionRotation: {checked: true}};
       dialog.querySelector = selector => selector === 'form' ? {elements: fields} : new Element();
+      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && N.S1H.shop==="shield"', context), true, 'original map at standard speed with shops');
       vm.runInContext('globalThis.originalBoard=N', context);
-      dialog.close();
+      dialog.listeners.get('change')();
       assert.equal(vm.runInContext('N===originalBoard && CONFIG.timeScale===1.5', context), true, 'speed applies without resetting');
       fields.map.value = '4';
       fields.shops.checked = true;
       fields.productionRotation.checked = false;
-      dialog.close();
+      dialog.listeners.get('change')();
       assert.equal(vm.runInContext('N!==originalBoard && N.P3.owner===3 && N.P4.owner===4 && N.S4H.shop==="shield" && productionCycle===null', context), true, 'board-changing settings rebuild the match');
-      fields.map.value = '2';
+      fields.map.value = '1';
       fields.speed.value = '0.5';
-      fields.shops.checked = false;
+      fields.shops.checked = true;
       fields.productionRotation.checked = true;
-      dialog.close();
+      dialog.listeners.get('change')();
     }
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
@@ -78,6 +80,21 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 0, 'selected fruit is fully spent');
     assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle selects the next available fruit');
     assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'routes remain when the selected fruit runs out');
+    vm.runInContext('N.P1.stock=[0,3,0,0,0,0,0];N.P1.selectedType=0;N.C1.owner=0;select("P1");render()', context);
+    assert.match(get('map').innerHTML, /data-id="C1"[^]*?>(?:\+|−|=)<\/text>/, 'a depleted selection still shows the next fruit matchup');
+    vm.runInContext('N.P1.stock.fill(0);N.P1.routes=[]', context);
+    const map = get('map');
+    const target = id => ({closest: () => ({dataset: {id}})});
+    const pointer = {button: 0, pointerId: 1, clientX: 0, clientY: 0, target: target('P1'), preventDefault() {}};
+    context.document.elementFromPoint = () => target('C1');
+    map.listeners.get('pointerdown')(pointer);
+    map.listeners.get('pointermove')({...pointer, clientX: 20});
+    vm.runInContext('render()', context);
+    assert.match(map.innerHTML, /class="sending-arrow"/, 'drag previews a route even with no stock');
+    map.listeners.get('pointerup')({...pointer, clientX: 20});
+    vm.runInContext('render()', context);
+    assert.match(map.innerHTML, /class="sending-arrow"/, 'released drag keeps the route arrow');
+    assert.equal(vm.runInContext('N.P1.routes[0]', context), 'C1', 'an empty castle can set a route for future production');
     vm.runInContext('N.C1.owner=1;N.C1.ut=1;N.P1.stock=[2,3,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('G[0].type', context), 1, 'castle falls back to the strongest compatible fruit on a blocked lane');
     assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'fallback dispatch keeps the route arrow');
@@ -93,6 +110,7 @@ for (const page of ['index.html', 'match.html']) {
     }
     assert.ok(frames.length > 0);
     frames.shift()(200);
+    if (page === 'index.html') assert.match(get('production-countdown').textContent, /Next in \d+s/);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
     else vm.runInContext('init()', context);
