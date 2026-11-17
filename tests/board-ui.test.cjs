@@ -36,6 +36,7 @@ for (const page of ['index.html', 'match.html']) {
     });
     context.window = context;
     const html = fs.readFileSync(path.join(root, page), 'utf8');
+    vm.runInContext(fs.readFileSync(path.join(root, 'production-cycle.js'), 'utf8'), context, { filename: 'production-cycle.js' });
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
       if (match[1].trim()) vm.runInContext(match[1], context, { filename: page });
     }
@@ -44,7 +45,7 @@ for (const page of ['index.html', 'match.html']) {
     assert.match(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
-    vm.runInContext('act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
+    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
     assert.match(get('panel').innerHTML, /Queue/);
     assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
     vm.runInContext('sendType=0; send("P1","C1"); step(.1); render(); panel();', context);
@@ -77,10 +78,20 @@ for (const page of ['index.html', 'match.html']) {
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
     else vm.runInContext('init()', context);
-    vm.runInContext('act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
+    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.q.length', context), 1, 'still producing after 3 real seconds');
     vm.runInContext('for(let now=3200;now<=4400;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.q.length', context), 0, 'production completes after 4 real seconds');
+    vm.runInContext('productionCycle.next={buff:0,debuff:1};loop(45100)', context);
+    assert.equal(get('production-active-buff').textContent, '🍎');
+    assert.equal(get('production-progress').value, 0);
+    if (page === 'index.html') {
+      vm.runInContext('botConfig.productionRotation=false;act("restart");loop(45200)', context);
+      assert.equal(get('production-cycle').hidden, true);
+      assert.equal(vm.runInContext('productionMultiplier(productionCycle, 0)', context), 1);
+      vm.runInContext('botConfig.productionRotation=true;act("restart");loop(45300)', context);
+      assert.equal(get('production-cycle').hidden, false);
+    }
     if (page === 'match.html') {
       vm.runInContext('matchGame.start(2, () => {}); render(); panel();', context);
       assert.match(get('panel').innerHTML, /Queue/);

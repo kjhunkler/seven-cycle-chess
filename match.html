@@ -30,23 +30,30 @@ button{min-height:44px}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=17"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=18"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Both players can change these settings. The match starts when both are ready.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><p class="variant-status" role="status">Waiting for both players…</p><button type="button" id="ready-button">Ready</button></form></dialog>
+<div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
+  <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
+  <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
+  <progress id="production-progress" max="45000" aria-label="Time until next production pair"></progress>
+</div>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
 
 </section></main>
-<script>
+<script src="./production-cycle.js"></script><script>
 const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
+let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,botThink=0;
 const $=id=>document.getElementById(id);
 function init(){
+  productionCycle=null;
   N={};shakeNodes={};botThink=0;
   for(const id in POS)N[id]={id,x:POS[id][0],y:POS[id][1],castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
   EDGES.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
@@ -125,9 +132,9 @@ function step(dt){
     if(n.boost>0)n.boost=Math.max(0,n.boost-dt);
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(n.castle){if(n.q.length){n.tm+=dt;if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]+=n.boost>0?3:1}}}
+    if(n.castle){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]+=n.boost>0?3:1}}}
     else if(n.cd>0){n.cd-=dt;if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
-    else{n.tm+=dt;if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
+    else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
   }
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
   for(const a of G)for(const b of G){
@@ -212,7 +219,7 @@ function snapshot(){
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
       pend:null,cd:0,tm:0,q:[],orders:[],routes:[],selectedType:null }];
   }));
-  return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over,gameStarted};
+  return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===2||visible.has(g.from)||visible.has(g.to)),over,gameStarted,productionCycle};
 }
 function sendLobby(){peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
@@ -240,7 +247,7 @@ window.matchGame={
     if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units)||data.sequence<=lastSequence)return;
     if(!gameStarted){gameStarted=Boolean(data.gameStarted);if(gameStarted){CONFIG.timeScale=Number(lobbyConfig.speed);$("variant-dialog").close()}}
     lastSequence=data.sequence;syncedAt=performance.now();
-    N=data.nodes;G=data.units;over=data.over;
+    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;
     if(sel&&N[sel].owner!==localPlayer)sel=null;
     $("match").hidden=false;
   }
@@ -298,11 +305,14 @@ function loop(now){
   const dt=Math.min(.1,(now-last)/1e3)*CONFIG.timeScale;last=now;
   if(online){
     if(localPlayer===1&&gameStarted){
+      productionCycle??=startProductionCycle(N,G,T.length,now);
+      if(!over)advanceProductionCycle(productionCycle,N,G,T.length,now);
       step(dt);
       if(now>=nextSync){nextSync=now+80;peerSend(snapshot())}
     }
     if(!$("match").hidden){
       render();
+      renderProductionCycle(gameStarted?productionCycle:null,T);
       if(now-pl>150){pl=now;panel()}
     }
   }

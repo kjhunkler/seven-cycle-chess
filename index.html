@@ -26,8 +26,13 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=17"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=18"></head><body><main>
 <h1>Fruit Wars</h1>
+<div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
+  <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
+  <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
+  <progress id="production-progress" max="45000" aria-label="Time until next production pair"></progress>
+</div>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
@@ -41,14 +46,15 @@ small{color:var(--mut)}
   <p role="status">Connecting to players…</p>
   <strong>Online players</strong><ul id="friends"></ul>
 </section></details><div id="invite-toasts" aria-live="assertive"></div></main>
-<script>
+<script src="./production-cycle.js"></script><script>
 const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
+let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
-let botConfig={map:2,speed:.5,shops:false};
+let botConfig={map:2,speed:.5,shops:false,productionRotation:true};
 const extraMaps={
   2:{nodes:{D1:[18,34],D2:[82,34],E1:[28,64],E2:[72,64]},edges:[["A1","D1"],["A3","D2"],["B2","E1"],["B3","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
   3:{nodes:{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]},edges:[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]},
@@ -65,6 +71,7 @@ function init(){
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
     if(n.castle){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;aiT=2;
+  productionCycle=botConfig.productionRotation?startProductionCycle(N,G,T.length,performance.now()):null;
   msg="Queue units in your castle (bottom). Then drag from the castle to a connected outpost.";
 }
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
@@ -125,9 +132,9 @@ function step(dt){
   for(const n of Object.values(N)){
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(n.castle){if(n.q.length){n.tm+=dt;if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]++}}}
+    if(n.castle){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]++}}}
     else if(n.cd>0){n.cd-=dt;if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
-    else{n.tm+=dt;if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]++}}
+    else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]++}}
   }
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
   for(const a of G)for(const b of G){
@@ -239,7 +246,9 @@ function panel(){
 let last=performance.now(),pl=0;
 function loop(now){
   const dt=Math.min(.1,(now-last)/1e3)*CONFIG.timeScale;last=now;
+  if(productionCycle&&!over)advanceProductionCycle(productionCycle,N,G,T.length,now);
   step(dt);render();
+  renderProductionCycle(productionCycle,T);
   if(now-pl>150){pl=now;panel()}
   requestAnimationFrame(loop);
 }
@@ -286,4 +295,4 @@ function openWheel(id,x,y){
 }
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=17"></script><script src="./board-ui.js?v=17"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=17"></script><script src="./board-ui.js?v=18"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
