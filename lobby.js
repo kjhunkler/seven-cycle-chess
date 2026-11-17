@@ -9,7 +9,8 @@ const token = localStorage.getItem("fruit-wars-profile") || crypto.randomUUID();
 localStorage.setItem("fruit-wars-profile", token);
 nameInput.value = savedName;
 localStorage.setItem("fruit-wars-name",savedName);
-document.querySelector("#friend-summary").textContent = savedName;
+function labelProfile(summary,label){if(!summary)return;summary.title=label;summary.setAttribute("aria-label",label+" profile");}
+labelProfile(document.querySelector("#friend-summary"),savedName+" · player profile and friends");
 let name = savedName, room = "", peer = null, channel = null, iceServers = [], timeout;
 let player = 1, frame, editionURL, matchStart, stateChannel, receiveAt, heartbeat;
 let outgoing = Promise.resolve();
@@ -24,9 +25,9 @@ function rename(value) {
   if (typeof value !== "string" || !value.trim()) return;
   name = value.trim().slice(0,32);
   nameInput.value = name;
-  document.querySelector("#friend-summary").textContent = name;
+  labelProfile(document.querySelector("#friend-summary"),name+" · player profile and friends");
   localStorage.setItem("fruit-wars-name",name);
-  if(frame)frame.contentDocument.querySelector("#match-profile-name").textContent=name;
+  if(frame)labelProfile(frame.contentDocument.querySelector("#match-profile-name"),name+" · player profile");
 }
 function showMatch() {
   if (frame) return;
@@ -38,7 +39,7 @@ function showMatch() {
   frame.onload = () => {
     status(statusText.textContent);
     frame.contentDocument.querySelector("#match-name").value = name;
-    frame.contentDocument.querySelector("#match-profile-name").textContent = name;
+    labelProfile(frame.contentDocument.querySelector("#match-profile-name"),name+" · player profile");
     launchGame();
   };
   frame.src = page.href;
@@ -241,7 +242,7 @@ async function poll() {
   try {
     const data = await request("poll");
     iceServers = data.iceServers;
-    document.querySelector("#friend-summary").textContent = name + " · " + data.friends.length + " online";
+    labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
     const signature = JSON.stringify([data.friends, Boolean(room)]);
     if (roster.dataset.signature !== signature) {
       roster.dataset.signature = signature;

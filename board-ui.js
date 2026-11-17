@@ -37,6 +37,17 @@
   const settings = document.createElement('div'); settings.className = 'feedback-settings';
   settings.innerHTML = '<button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button>';
   (document.querySelector('#match-profile')||document.querySelector('#lobby')||document.querySelector('#friends-panel'))?.append(settings);
+  const endgame=document.createElement('dialog');endgame.className='endgame-dialog';
+  endgame.innerHTML='<p class="endgame-message"></p><div class="endgame-actions"><button type="button" class="endgame-retry">Play again</button><button type="button" class="endgame-close">Close</button></div>';
+  document.body.append(endgame);
+  const endgameMessage=endgame.querySelector('.endgame-message'),retryButton=endgame.querySelector('.endgame-retry'),closeButton=endgame.querySelector('.endgame-close');
+  const closeEndgame=()=>{if(typeof endgame.close==='function')endgame.close();else endgame.removeAttribute?.('open');};
+  closeButton.addEventListener('click',closeEndgame);
+  retryButton.addEventListener('click',()=>{
+    closeEndgame();
+    if(typeof online==='undefined')act('restart');
+    else if(parent!==window)parent.postMessage({kind:'leave-match'},location.origin);
+  });
   const updateSettings = () => {
     document.documentElement.dataset.motion = animated() ? 'on' : 'off';
     const m=document.getElementById('motion-toggle'), h=document.getElementById('haptic-toggle');
@@ -46,10 +57,10 @@
   document.getElementById('motion-toggle').onclick=()=>{motion=!motion;storage.set('fw-motion',motion?'on':'off');updateSettings()};
   document.getElementById('haptic-toggle').onclick=()=>{haptics=!haptics;storage.set('fw-haptics',haptics?'on':'off');updateSettings();vibrate(15)};
   reduced.addEventListener('change',updateSettings);updateSettings();
-  let effects=[], previousNodes=null, previousWinner=0, panelHTML='', statusHTML='';
+  let effects=[], previousNodes=null, previousWinner=0, modalWinner=0, panelHTML='', statusHTML='';
   const burst = (n, color) => effects.push({x:n.x,y:n.y,color,start:performance.now()});
   const originalInit=init;
-  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;panelHTML='';statusHTML=''};
+  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;panelHTML='';statusHTML='';closeEndgame()};
   const originalArrive=arrive;
   arrive=function(g){const n=N[g.to];if(n.owner!==g.owner&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
   const originalSelect=select;
@@ -77,6 +88,14 @@
     if(previousNodes)for(const n of Object.values(N)){const old=previousNodes[n.id];if(old&&old.owner!==n.owner&&old.visible&&V.has(n.id)){burst(n,n.owner===me?'var(--p1)':'var(--p2)');vibrate(n.owner===me?[22,40,35]:[45,35,45]);}}
     previousNodes=snapshot;
     if(over!==previousWinner){if(over)vibrate(over===me?[35,60,35,60,90]:[100,60,100]);previousWinner=over;}
+    if(over!==modalWinner){
+      modalWinner=over;
+      if(over){
+        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':'Your castle has fallen.';
+        retryButton.textContent=typeof online==='undefined'?'Play again':'Leave match';
+        if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
+      }else closeEndgame();
+    }
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>';
     for(const[a,b]of EDGES){const A=N[a],B=N[b],on=V.has(a)||V.has(b),active=sel&&(a===sel||b===sel);h+=`<path d="M${A.x} ${A.y}L${B.x} ${B.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${A.x} ${A.y}L${B.x} ${B.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
     for(const n of Object.values(N)){
@@ -91,7 +110,7 @@
         h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.7}" fill="none" stroke="${color}" stroke-width=".55" stroke-dasharray="1 1"/>`;
         if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
       }
-      if(v){const size=n.castle?8:7;h+=`<g transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${n.castle?castle:art(k>=0?k:n.ut)}</g>`;
+      if(v){const size=n.castle?8:7;h+=`<g class="${n.cd>0?'transforming-icon':''}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${n.castle?castle:art(k>=0?k:n.ut)}</g>`;
         const progress=n.cd>0?1-n.cd/CONFIG.cooldown:n.castle?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
         h+=`<rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${strengthLabel(tot(n))}</text>`;
@@ -116,7 +135,7 @@
   const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
   panel=function(){
     const me=player(), c=N['P'+me];
-    const status=over?`<strong>${over===me?'Victory. The orchard is yours.':'Your castle has fallen.'}</strong> ${typeof online==='undefined'?'<button data-act="restart">Play again ↗</button>':''}`:escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
+    const status=over?'':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
     let h=`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
