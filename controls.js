@@ -71,6 +71,10 @@ function routeCommand(data){
     for(const to of a.adj){const b=N[to],vx=b.x-a.x,vy=b.y-a.y,c=(dx*vx+dy*vy)/(len*Math.hypot(vx,vy));if(c>score){best=to;score=c;}}
     return best;
   };
+  const routeTarget=(id,x,y)=>{
+    const hit=document.elementFromPoint?.(x,y)?.closest('[data-id]')?.dataset.id;
+    return hit&&N[id].adj.includes(hit)?hit:snap(id,x,y);
+  };
   document.addEventListener('pointerdown',e=>{if(!typeWheel.hidden&&!typeWheel.contains(e.target)&&!e.target.closest('[data-id]'))closeWheel();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeWheel();});
   map.addEventListener('contextmenu',e=>e.preventDefault());
@@ -91,13 +95,13 @@ function routeCommand(data){
       typeWheel.querySelectorAll('button').forEach(b=>b.classList.toggle('hover',b===hit));return;
     }
     if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6){drag.moved=true;clearTimeout(holdTimer);}
-    if(drag.moved){select(drag.from);drag.to=snap(drag.from,e.clientX,e.clientY);pl=0;}
+    if(drag.moved){select(drag.from);drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
     if(drag?.id!==e.pointerId)return;e.preventDefault();clearTimeout(holdTimer);
     const d=drag;
     if(d.held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(b&&typeWheel.contains(b))b.click();else closeWheel();}
-    else if(d.moved){if(d.to)send(d.from,d.to);}
+    else if(d.moved){d.to=routeTarget(d.from,e.clientX,e.clientY);if(d.to)send(d.from,d.to);}
     else {const selected=sel===d.from;routeCommand({kind:'stop',node:d.from});select(d.from);if(selected&&!d.wasOpen)openWheel(d.from,e.clientX,e.clientY);}
     drag=null;pl=0;
   });
