@@ -81,7 +81,7 @@ function routeCommand(data){
   closeWheel=function(){typeWheel.hidden=true;wheelNode=null;};
   openWheel=function(id,x,y){
     const n=N[id];if(over||!n||n.cd>0||n.owner!==myPlayer())return;
-    select(id);wheelNode=id;
+    select(id);wheelNode=id;typeWheel.dataset.node=id;
     if(drag)drag.held=true;
     typeWheel.innerHTML='';
     T.forEach(([emoji,name],i)=>{

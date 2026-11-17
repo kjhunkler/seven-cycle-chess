@@ -110,6 +110,7 @@
     if(animated())for(const e of effects){const t=(now-e.start)/800;h+=`<g pointer-events="none" opacity="${1-t}"><circle cx="${e.x}" cy="${e.y}" r="${5+t*8}" fill="none" stroke="${e.color}" stroke-width="${.8*(1-t)}"/>`;for(let j=0;j<8;j++){const a=j*Math.PI/4;h+=`<circle cx="${e.x+Math.cos(a)*(5+t*10)}" cy="${e.y+Math.sin(a)*(5+t*10)}" r="${.65*(1-t)}" fill="${e.color}"/>`;}h+='</g>';}
     const focused=board.contains(document.activeElement)?document.activeElement.dataset.id:null;
     board.innerHTML=h;if(focused)board.querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
+    refreshWheel();
     shell.classList.toggle('battle-ended',!!over);
   };
   const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}<span>${escape(T[i][1])}</span></button>`;
@@ -122,7 +123,21 @@
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
   document.getElementById('msg').setAttribute('aria-live','polite');
+  const refreshWheel=()=>{
+    if(typeWheel.hidden)return;
+    const node=window.boardNodes()[typeWheel.dataset.node];
+    if(!node||node.owner!==player()){closeWheel();return;}
+    typeWheel.querySelectorAll('button[data-type]').forEach(button=>{
+      const i=Number(button.dataset.type),selected=node.castle?node.selectedType===i:(node.pend??node.ut)===i;
+      button.disabled=node.castle&&node.stock[i]<=CONFIG.strengthEpsilon;
+      button.setAttribute('aria-pressed',String(selected));
+      button.setAttribute('aria-label',node.castle?`${T[i][1]}, ${strengthLabel(node.stock[i])} available`:`Produce ${T[i][1]}`);
+      button.classList.toggle('on',selected);
+      button.innerHTML=icon(i)+(node.castle?`<small>${strengthLabel(node.stock[i])}</small>`:'');
+    });
+  };
+  window.refreshTypeWheel=refreshWheel;
   const oldWheel=openWheel;
-  openWheel=function(...args){oldWheel(...args);if(!typeWheel.hidden){const node=window.boardNodes()[args[0]];typeWheel.querySelectorAll('button').forEach((b,i)=>{b.innerHTML=icon(i)+(node?.castle?`<small>${strengthLabel(node.stock[i])}</small>`:'')});vibrate(18)}};
+  openWheel=function(...args){oldWheel(...args);if(!typeWheel.hidden){refreshWheel();vibrate(18)}};
   render();panel();
 })();

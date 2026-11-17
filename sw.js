@@ -1,4 +1,4 @@
-const CACHE = "fruit-wars-v13-centered-wheel";
+const CACHE = "fruit-wars-v14-live-wheel";
 const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css", "board-ui.css", "board-ui.js", "controls.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png"].map(path => new URL(path, self.registration.scope).href);
 
