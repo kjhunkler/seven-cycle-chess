@@ -18,7 +18,22 @@ function botShopTurn(owner){
     if(count>0)dispatch(castle,shop.id,type,count);
   }
 }
+function removeDefeatedShops(owner){
+  const removed=new Set(Object.values(N).filter(n=>n.shop&&n.owner===owner).map(n=>n.id));
+  if(!removed.size)return;
+  for(const n of Object.values(N)){
+    n.adj=n.adj.filter(id=>!removed.has(id));
+    n.routes=(n.routes||[]).filter(id=>!removed.has(id));
+    n.orders=n.orders.filter(order=>{if(!removed.has(order.to))return true;n.stock[n.castle?order.type:n.ut]+=order.count;return false});
+    if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>!removed.has(id));
+  }
+  G=G.filter(g=>{if(!removed.has(g.to)&&!removed.has(g.from))return true;const source=N[g.from];if(source&&!source.shop&&!source.disabled)source.stock[source.castle?g.type:source.ut]+=g.n;return false});
+  for(const id of removed)delete N[id];
+  if(removed.has(sel)){sel=null;closeWheel()}
+  if(removed.has(drag?.from)||removed.has(drag?.to))drag=null;
+}
 function eliminateCastle(castle,winner){
+  removeDefeatedShops(castle.owner);
   const loser=castle.owner;castleConquests[loser]=winner;
   const destination=N['P'+winner];
   for(const n of Object.values(N)){
@@ -31,7 +46,6 @@ function eliminateCastle(castle,winner){
   }
   castle.disabled=true;castle.owner=0;castle.q=[];castle.orders=[];castle.routes=[];castle.adj=[];castle.pend=null;castle.cd=0;castle.tm=0;castle.shields=0;castle.boost=0;
   castle.stock.forEach((count,type)=>destination.stock[type]+=count);castle.stock.fill(0);
-  for(const n of Object.values(N))if(n.shop&&n.owner===winner&&!Object.values(N).some(a=>a.adj.includes(n.id)))destination.adj.push(n.id);
   G=G.filter(g=>{
     g.owner=survivingOwner(g.owner);
     if(g.to!==castle.id&&g.from!==castle.id)return true;
@@ -121,7 +135,7 @@ function routeCommand(data){
     const target=N[g.to];if(!target)return;
     if(target.disabled){const c=N['P'+g.owner];if(c&&!c.disabled)c.stock[g.type]+=g.n;return}
     const owner=target.owner;baseArrive(g);
-    if(target.castle&&owner!==g.owner&&over===g.owner&&Object.values(N).filter(n=>n.castle).length>2)eliminateCastle(target,g.owner);
+    if(target.castle&&owner!==g.owner&&over===g.owner){if(Object.values(N).filter(n=>n.castle).length>2)eliminateCastle(target,g.owner);else removeDefeatedShops(owner);}
     if(target.owner!==owner){target.routes=[];target.routeIndex=0;}
   };
   const baseDepart=depart;

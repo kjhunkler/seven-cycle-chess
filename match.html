@@ -160,6 +160,7 @@ function step(dt){
   for(const n of Object.values(N)){
     if(n.shake>0)n.shake=Math.max(0,n.shake-dt);
     if(n.boost>0)n.boost=Math.max(0,n.boost-dt);
+    if(n.boost<1e-8)n.boost=0;
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
     if(queuedCastle(n)){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]+=n.boost>0?3:1}}}

@@ -1,0 +1,32 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const {createGame}=require('./game-harness.cjs');
+for(const page of ['index.html','match.html'])for(const target of ['C1','P1'])test(page+': speed ability counts down, boosts production, expires, and loses its icon on '+target,()=>{
+ const h=createGame(page);
+ h.run(page==='index.html'?'botConfig.shops=true;init();aiT=999':'lobbyConfig.shops=true;online=true;gameStarted=true;init();connectedPlayers=[1,2,3,4];botThink=999');
+ h.run(`globalThis.target=N.${target};target.owner=1;target.ut=0;target.stock=[6,0,0,0,0,0,0];target.tm=0;target.q=[0,0,0,0,0];N.S1B.abilityReady=true;`);
+ h.run(page==='index.html'?'applyRouteCommand(1,{kind:"ability",from:"S1B",to:target.id})':'applyCommand(1,{kind:"ability",from:"S1B",to:target.id})');
+ assert.equal(h.run('target.boost'),7);
+ h.run('step(2);render()');
+ assert.equal(h.run('target.boost'),5);
+ assert.match(h.elements.get('map').innerHTML,/⚡5s/);
+ if(target==='P1')assert.equal(h.run('target.stock[0]'),9);
+ else{h.run('step(1)');assert.equal(h.run('target.stock[0]'),9);}
+ h.run(`step(${target==='P1'?5:4});render()`);
+ assert.equal(h.run('target.boost'),0);
+ assert.doesNotMatch(h.elements.get('map').innerHTML,/⚡\d+s/);
+ h.run('globalThis.before=target.stock[0];target.tm=0;step(target.castle?CONFIG.castleRate:CONFIG.outpostRate)');
+ assert.equal(h.run('target.stock[0]-before'),1);
+});
+for(const page of ['index.html','match.html'])for(const players of [2,3,4])test(page+': defeating a castle removes its shops and references with '+players+' players',()=>{
+ const h=createGame(page);
+ h.run(page==='index.html'?`botConfig.map=${players};botConfig.shops=true;init()`:`lobbyConfig.map=${players};lobbyConfig.shops=true;init()`);
+ h.run('N.A1.owner=2;N.A1.ut=0;N.A1.stock=[6,0,0,0,0,0,0];N.A1.routes=["S2H"];N.A1.orders=[{to:"S2H",owner:2,type:0,count:2}];G=[{from:"A1",to:"S2B",owner:2,type:0,n:1,t:.5}];N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:1});render();panel()');
+ assert.equal(h.run('N.S2H===undefined&&N.S2B===undefined'),true);
+ assert.doesNotMatch(h.elements.get('map').innerHTML,/data-id="S2[HB]"/);
+ assert.equal(h.run('Object.values(N).some(n=>n.adj.some(id=>id==="S2H"||id==="S2B")||n.routes.some(id=>id==="S2H"||id==="S2B")||n.orders.some(o=>o.to==="S2H"||o.to==="S2B")||(n.abilityTargets||[]).some(id=>id==="S2H"||id==="S2B"))'),false);
+ assert.equal(h.run('G.some(g=>g.to==="S2H"||g.to==="S2B")'),false);
+ assert.equal(h.run('N.A1.stock[0]'),9);
+ assert.equal(h.run('!!N.S1H&&!!N.S1B'),true);
+ h.run('arrive({from:"A1",to:"S2B",owner:2,type:0,n:1});step(.1);render()');
+});

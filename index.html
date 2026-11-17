@@ -154,11 +154,13 @@ function step(dt){
   if(over)return;
   transformationClock+=dt;
   for(const n of Object.values(N)){
+    if(n.boost>0)n.boost=Math.max(0,n.boost-dt);
+    if(n.boost<1e-8)n.boost=0;
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(queuedCastle(n)){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]++}}}
+    if(queuedCastle(n)){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]+=n.boost>0?3:1}}}
     else if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
-    else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]++}}
+    else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
   }
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
   for(const a of G)for(const b of G){

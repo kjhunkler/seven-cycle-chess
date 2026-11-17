@@ -30,7 +30,7 @@ test('two-player castle capture still ends the game',()=>{const h=start();h.run(
 for(const map of [3,4])test(`${map} players: elimination converts territory, queued and moving fruit, disables castle and removes lines`,()=>{
  const h=start(map,true);h.run('N.P3.stock.fill(0);N.A3.owner=3;N.A3.stock=[5,0,0,0,0,0,0];N.A3.ut=0;N.A3.routes=["P3"];N.A3.orders=[{to:"B2",owner:3,type:0,count:2}];G=[{from:"A3",to:"B2",owner:3,type:0,n:1,t:.4},{from:"P3",to:"B2",owner:3,type:0,n:1,t:.4}];arrive({to:"P3",owner:1,type:0,n:1});render();panel()');
  assert.equal(h.run('over'),0);assert.equal(h.run('N.P3.disabled&&N.P3.owner===0'),true);assert.equal(h.run('N.A3.owner'),1);assert.equal(h.run('N.A3.orders[0].owner'),1);assert.equal(h.run('G[0].owner'),1);assert.equal(h.run('Object.values(N).some(n=>n.adj.includes("P3")||n.routes.includes("P3"))'),false);
- assert.doesNotMatch(h.elements.get('map').innerHTML,/data-id="P3"/);assert.equal(h.run('N.S3H.owner'),1);assert.equal(h.run('N.P1.adj.includes("S3H")'),true);
+ assert.doesNotMatch(h.elements.get('map').innerHTML,/data-id="P3"/);assert.equal(h.run('N.S3H'),undefined);assert.equal(h.run('N.P1.adj.includes("S3H")'),false);
  h.run('applyCommand(3,{kind:"queue",type:1})');assert.equal(h.run('N.P3.q.length'),0);
  if(map===4){h.run('N.P4.stock.fill(0);arrive({to:"P4",owner:2,type:0,n:1})');assert.equal(h.run('over'),0)}
  h.run('N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:1})');assert.equal(h.run('over'),1);assert.equal(h.run('N.A3.owner'),1);

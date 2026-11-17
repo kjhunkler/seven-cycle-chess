@@ -10,7 +10,7 @@
     const multiplier = productionMultiplier(cycle, type);
     if (multiplier === 1) return null;
     const buff = multiplier > 1;
-    return {percent: `${buff ? '+' : '−'}${Math.abs(Math.round((multiplier - 1) * 100))}%`, kind: buff ? 'buff' : 'debuff', arrow: buff ? '↑' : '↓', label: `${T[type][1]} ${buff ? '+' : ''}${Math.round((multiplier - 1) * 100)}% production speed`};
+    return {percent: `${buff ? '+' : '−'}${Math.abs(Math.round((multiplier - 1) * 100))}%`, kind: buff ? 'buff' : 'debuff', arrow: buff ? '▲' : '▼', label: `${T[type][1]} ${buff ? '+' : ''}${Math.round((multiplier - 1) * 100)}% production speed`};
   };
   const productionBadge = type => {
     const effect = productionEffect(type);
@@ -101,7 +101,7 @@
     applyRouteCommand=function(owner,data){if(data?.kind==='ability'){const shop=N[data.from],target=N[data.to];if(shop?.shop&&shop.owner===owner&&shop.abilityReady&&shop.abilityCd<=0&&target?.owner===owner&&!target.shop){if(shop.shop==='shield')target.shields=(target.shields||0)+1;else target.boost=Math.max(target.boost||0,7);shop.abilityReady=false;shop.charge=0;shop.abilityCd=10;}return true;}return baseRouteCommand(owner,data)};
   }
   const originalArrive=arrive;
-  arrive=function(g){const n=N[g.to];if(n.owner!==g.owner&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
+  arrive=function(g){const n=N[g.to];if(n&&n.owner!==g.owner&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
   const originalSelect=select;
   select=function(id){if(sel!==id&&N[id]?.owner===player())vibrate(9);return originalSelect(id)};
   const originalSend=send;
@@ -158,10 +158,9 @@
       if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=queuedCastle(n)?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*(transformationConfig().transformationWave?Math.cos(2*Math.PI*transformationProgress(n)):Math.sin(now/100)):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
         const productionType=queuedCastle(n)?n.q[0]:n.ut;
         const effect=!n.shop&&n.owner&&!(n.cd>0)?productionEffect(productionType):null;
-        if(effect)h+=`<g class="node-production node-production-${effect.kind}" pointer-events="none" role="img" aria-label="${effect.label}"><title>${effect.label}</title><rect x="${n.x-r-1}" y="${n.y-r-2}" width="8" height="3.5" rx="1.5" fill="var(--card)"/><text x="${n.x-r+3}" y="${n.y-r+.5}" text-anchor="middle" font-size="2.4" font-weight="800" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}">${effect.arrow}${effect.percent}</text></g>`;
         const progress=n.cd>0?transformationProgress(n):queuedCastle(n)?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
-        if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text></g>`;
+        if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text>${effect?`<g class="node-production node-production-${effect.kind}" transform="translate(${n.x+5.5} ${n.y+r+.8+(effect.kind==='buff'?-.6:.6)})" role="img" aria-label="${effect.label}"><title>${effect.label}</title><path d="${effect.kind==='buff'?'M0 -1.1L1.1 .8H-1.1Z':'M0 1.1L1.1 -.8H-1.1Z'}" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}"/></g>`:''}</g>`;
         if(n.shields>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+3.1}" fill="none" stroke="#55d9ff" stroke-width="1.5" class="shield-ring"/><text x="${n.x-r-1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#63e4ff" stroke="var(--card)" stroke-width=".7" paint-order="stroke">🛡️${n.shields>1?`×${n.shields}`:''}</text>`;
         if(n.boost>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.5}" fill="none" stroke="#ffd34e" stroke-width="1.5" stroke-dasharray="1 1"/><text x="${n.x+r+1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#ffd34e" stroke="var(--card)" stroke-width=".7" paint-order="stroke">⚡${Math.ceil(n.boost)}s</text>`;
       }else h+=`<text x="${n.x}" y="${n.y+1.3}" text-anchor="middle" font-size="4" fill="var(--mut)">?</text>`;
