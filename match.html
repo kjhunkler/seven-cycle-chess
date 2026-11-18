@@ -70,7 +70,7 @@ const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.
 const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,noQueue:true,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
-let countdownRemaining=0,countdownSyncedAt=0;
+let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
 // Guests predict known territory; the host owns combat, bots, fog and victory.
 const PREDICTION_LIMIT=1500, SYNC_INTERVAL=250;
 let pendingCommands=[],roundTrip=0,nextPing=0,pingToken=0,pingSentAt=0,awaitingPing=false;
@@ -243,7 +243,7 @@ function command(data){
   if(localPlayer===1){applyCommand(1,data);nextSync=0;}
   else{
     if(lastSequence<0||performance.now()-syncedAt>PREDICTION_LIMIT||pendingCommands.length>=128)return;
-    const packet={...data,sequence:commandSequence++};
+    const packet={...data,round:matchRound,sequence:commandSequence++};
     pendingCommands.push({packet,at:performance.now()});
     applyCommand(localPlayer,packet);pl=0;
     peerSend(packet);
@@ -285,10 +285,10 @@ function snapshot(viewer=2){
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
       pend:null,cd:0,tm:0,q:[],orders:[],routes:[],routeRemaining:{},selectedType:null }];
   }));
-  return {kind:"state",sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
+  return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
 function validConfig(config){return config&&[2,3,4,5,6,7,8,9,10,11].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.noQueue===undefined||typeof config.noQueue==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&mapPlayerCount(config.map)>=Math.max(...humanPlayers)}
-function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
+function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",round:matchRound,config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
   const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
@@ -299,13 +299,23 @@ function updateLobbyUI(){
   for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;if(localPlayer===1&&member.seat!==1&&!gameStarted){const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.onclick=()=>parent.postMessage({kind:"remove-player",seat:member.seat},location.origin);row.append(remove)}roster.append(row)}
 }
 function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";sendLobby()}
+function resetMatchLobby(){
+  gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyReady=[false,false,false,false];
+  pendingCommands=[];unitCorrections.clear();last=performance.now();nextSync=0;
+  init();msg="Choose match settings and ready up.";updateLobbyUI();
+}
 function lobbyAction(owner,data){
-  if(gameStarted||!humanPlayers.includes(owner))return;
+  if(!humanPlayers.includes(owner)||(data.round??0)!==matchRound)return;
+  if(data.action==="rematch"){
+    if(!gameStarted||!over)return;
+    matchRound++;configVersion++;resetMatchLobby();sendLobby();return;
+  }
+  if(gameStarted)return;
   if(data.action==="config"&&validConfig(data.config)){lobbyConfig={...data.config};configVersion++;lobbyReady=[false,false,false,false]}
   else if(data.action==="ready"&&data.configVersion===configVersion&&typeof data.value==="boolean")lobbyReady[owner-1]=data.value;
   sendLobby();updateLobbyUI();beginMatch();
 }
-function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
+function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields,round:matchRound};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
 $("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),transformationWave:variantField("transformationWave").checked,transformationTime:Number(variantField("transformationTime").value),shops:variantField("shops").checked,noQueue:variantField("noQueue").checked,portionControl:variantField("portionControl").checked,productionRotation:variantField("productionRotation").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
@@ -313,11 +323,12 @@ $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.or
 window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
-    localPlayer=player;peerSend=send;online=true;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,noQueue:true,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,noQueue:true,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
   rebind(send){peerSend=send;if(localPlayer===1){sendLobby();nextSync=0}},
   get started(){return gameStarted},
+  returnToLobby(){if(online&&over)submitLobby("rematch")},
   setMembers(members){
     if(localPlayer!==1)return;
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
@@ -336,7 +347,7 @@ window.matchGame={
       if(!humanPlayers.includes(source)||source===1)return;
       if(data.kind==="ping"&&Number.isSafeInteger(data.token)){peerSend({kind:"pong",token:data.token},source);return}
       if(data.kind==="lobby-action"){lobbyAction(source,data);return}
-      if(!gameStarted||!Number.isSafeInteger(data.sequence)||data.sequence<0||data.sequence<=(lastCommands[source]??-1))return;
+      if((data.round??0)!==matchRound||!gameStarted||!Number.isSafeInteger(data.sequence)||data.sequence<0||data.sequence<=(lastCommands[source]??-1))return;
       lastCommands[source]=data.sequence;applyCommand(source,data);nextSync=0;return;
     }
     if(source!==1)return;
@@ -344,13 +355,17 @@ window.matchGame={
       if(awaitingPing&&data.token===pingToken){const sample=Math.max(0,performance.now()-pingSentAt);roundTrip=roundTrip?roundTrip*.75+sample*.25:sample;awaitingPing=false;}
       return;
     }
+    const round=data.round??0;
+    if(!Number.isSafeInteger(round)||round<matchRound)return;
     if(data?.kind==="lobby"){
       if(!Number.isSafeInteger(data.revision)||data.revision<=lastLobbyRevision||!validConfig(data.config)||!Array.isArray(data.ready))return;
+      if(round>matchRound){matchRound=round;resetMatchLobby()}
       lastLobbyRevision=data.revision;configVersion=data.configVersion;humanPlayers=data.humans;connectedPlayers=data.connected;lobbyMembers=data.members||[];lobbyConfig=data.config;lobbyReady=data.ready;
       if(data.started&&!gameStarted){CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=data.countdownRemaining||0;countdownSyncedAt=performance.now();$("variant-dialog").close()}else if(!gameStarted)updateLobbyUI();
       return;
     }
     if(data?.kind!=="state"||!data.nodes||!Array.isArray(data.units)||!Number.isSafeInteger(data.sequence)||data.sequence<=lastSequence)return;
+    if(round>matchRound){matchRound=round;resetMatchLobby()}
     if(data.config&&validConfig(data.config)){lobbyConfig=data.config;CONFIG.timeScale=lobbyConfig.speed}
     if(!gameStarted){gameStarted=Boolean(data.gameStarted);if(gameStarted){CONFIG.timeScale=Number(lobbyConfig.speed);$("variant-dialog").close()}}
     const previousUnits=new Map(G.filter(g=>g.id).map(g=>[g.id,unitProgress(g)]));
@@ -507,4 +522,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=22"></script><script src="./board-ui.js?v=26"></script></body></html>
+</script><script src="./controls.js?v=22"></script><script src="./board-ui.js?v=27"></script></body></html>

@@ -95,7 +95,7 @@
   retryButton.addEventListener('click',()=>{
     closeEndgame();
     if(typeof online==='undefined')act('restart');
-    else if(parent!==window)parent.postMessage({kind:'leave-match'},location.origin);
+    else window.matchGame?.returnToLobby();
   });
   const updateSettings = () => {
     document.documentElement.dataset.motion = animated() ? 'on' : 'off';
@@ -158,7 +158,7 @@
       modalWinner=over;
       if(over){
         endgameMessage.textContent=over===me?'Victory. The orchard is yours.':N['P'+me]?.disabled?'The match is over. Another player won.':'Your castle has fallen.';
-        retryButton.textContent=typeof online==='undefined'?'Play again':'Leave match';
+        retryButton.textContent=typeof online==='undefined'?'Play again':'Return to lobby';
         if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
       }else closeEndgame();
     }
