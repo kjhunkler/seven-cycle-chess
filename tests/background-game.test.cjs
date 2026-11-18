@@ -41,7 +41,7 @@ test('an actual multiplayer castle capture still shows victory and defeat',()=>{
  guest.run('matchGame.start(2,()=>{})');
  guest.context.packet=JSON.parse(host.run('JSON.stringify(snapshot(2))'));
  guest.run('matchGame.receive(packet,1);render()');
- for(const [game,message]of [[host,'Victory. The orchard is yours.'],[guest,'Your castle has fallen.']]){
+ for(const [game,message]of [[host,'Victory. The orchard is yours.'],[guest,'Your named node was captured.']]){
   const dialog=game.context.document.body.children.find(el=>el.className==='endgame-dialog');
   assert.equal(dialog.open,true);
   assert.equal(dialog.querySelector('.endgame-message').textContent,message);

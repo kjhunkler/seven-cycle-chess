@@ -45,14 +45,14 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     if (page === 'index.html') {
       const dialog = context.document.body.children.find(element => element.className === 'battle-settings-dialog');
-      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: false}, noQueue: {checked: true}};
+      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: false}, fullElimination: {checked: false}};
       dialog.querySelector = selector => selector === 'form' ? {elements: fields} : new Element();
-      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && !N.S1H && botConfig.noQueue && !productionCycle', context), true, 'original map at standard speed with no queue enabled');
+      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && !N.S1H && !botConfig.fullElimination && !productionCycle', context), true, 'original map at standard speed with no queue enabled');
       vm.runInContext('globalThis.originalBoard=N', context);
       dialog.listeners.get('change')();
       assert.equal(vm.runInContext('N===originalBoard && CONFIG.timeScale===1.5', context), true, 'speed applies without resetting');
       fields.map.value = '4';
-      fields.noQueue.checked = false;
+      fields.fullElimination.checked = false;
       fields.shops.checked = true;
       fields.productionRotation.checked = false;
       dialog.listeners.get('change')();
@@ -65,7 +65,7 @@ for (const page of ['index.html', 'match.html']) {
     }
     vm.runInContext(`
       globalThis.savedShopState={N,G};
-      const source={id:'P1',owner:1,castle:true,stock:[30,0,0,0,0,0,0],orders:[],routes:['S1H'],selectedType:0,departure:0,adj:['S1H']};
+      const source={id:'P1',owner:1,home:1,ut:0,stock:[30,0,0,0,0,0,0],orders:[],routes:['S1H'],selectedType:0,departure:0,adj:['S1H']};
       const shop={id:'S1H',shop:'shield',owner:1,charge:6,abilityReady:false,abilityCd:0,orders:[]};
       N={P1:source,S1H:shop};G=[{to:'S1H',owner:1,n:2}];
       dispatch(source,'S1H',0,20);
@@ -78,27 +78,21 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext('G=[];N.S1H.charge=10;N.S1H.abilityReady=true;dispatch(N.P1,"S1H",0,20);depart(N.P1,.1)',context);
     assert.equal(vm.runInContext('G.length+N.P1.orders.length',context),0,'ready shops accept no additional dispatches');
     vm.runInContext('N=savedShopState.N;G=savedShopState.G',context);
-    vm.runInContext(typeof context.matchGame==='undefined'?'botConfig.noQueue=false;panel()':'lobbyConfig.noQueue=false;panel()',context);
-    assert.match(get('panel').innerHTML, /Queue/);
+    vm.runInContext(typeof context.matchGame==='undefined'?'panel()':'panel()',context);
+    assert.doesNotMatch(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.noQueue=false;lobbyConfig.productionRotation=true', context);
-    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
-    assert.match(get('panel').innerHTML, /Queue/);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
+    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
+    assert.doesNotMatch(get('panel').innerHTML, /Queue/);
     assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
     vm.runInContext('sendType=0; send("P1","C1"); step(.1); render(); panel();', context);
     assert.ok(vm.runInContext('G.some(g => g.from === "P1" && g.to === "C1")', context));
 
-    vm.runInContext('N.P1.stock=[7,0,0,0,0,0,0];N.P1.selectedType=0;G=[];N.P1.departure=0;send("P1","C2");for(let i=0;i<30;i++)depart(N.P1,.1)', context);
+    vm.runInContext('N.P1.stock=[7,0,0,0,0,0,0];N.P1.ut=0;G=[];N.P1.departure=0;send("P1","C2");for(let i=0;i<30;i++)depart(N.P1,.1)', context);
     assert.equal(vm.runInContext('tot(N.P1)', context), 1, 'routes preserve one defender');
     assert.equal(vm.runInContext('G.filter(g=>g.to==="C1").length', context), 3);
     assert.equal(vm.runInContext('G.filter(g=>g.to==="C2").length', context), 3);
-    assert.equal(vm.runInContext('N.P1.selectedType', context), 0, 'the last defender keeps its fruit selected');
-    vm.runInContext('N.P1.stock=[2,1,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];for(let i=0;i<30;i++)depart(N.P1,.1)', context);
-    assert.equal(vm.runInContext('N.P1.stock[0]', context), 0, 'selected fruit is fully spent');
-    assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle selects the next available fruit');
-    assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'routes remain when the selected fruit runs out');
-    vm.runInContext('N.P1.stock=[0,3,0,0,0,0,0];N.P1.selectedType=0;N.C1.owner=0;select("P1");render()', context);
-    assert.match(get('map').innerHTML, /class="counter-indicator/, 'a depleted selection still shows the next fruit matchup');
+    assert.equal(vm.runInContext('N.P1.ut', context), 0, 'the last defender keeps its fruit type');
     vm.runInContext('N.P1.stock.fill(0);N.P1.routes=[]', context);
     const map = get('map');
     const target = id => ({closest: () => ({dataset: {id}})});
@@ -112,9 +106,8 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext('render()', context);
     assert.match(map.innerHTML, /class="sending-arrow"/, 'released drag keeps the route arrow');
     assert.equal(vm.runInContext('N.P1.routes[0]', context), 'C1', 'an empty castle can set a route for future production');
-    vm.runInContext('N.C1.owner=1;N.C1.ut=1;N.P1.stock=[2,3,0,0,0,0,0];N.P1.selectedType=0;N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];depart(N.P1,.1)', context);
-    assert.equal(vm.runInContext('G[0].type', context), 1, 'castle falls back to the strongest compatible fruit on a blocked lane');
-    assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'fallback dispatch keeps the route arrow');
+    vm.runInContext('N.C1.owner=1;N.C1.ut=1;N.P1.ut=0;N.P1.stock=[5,0,0,0,0,0,0];N.P1.routes=["C1"];N.P1.routeIndex=0;N.P1.departure=0;G=[];depart(N.P1,.1)',context);
+    assert.equal(vm.runInContext('G.length',context),0,'all nodes refuse incompatible friendly fruit');
     vm.runInContext('routeCommand({kind:"stop",node:"P1"});N.P1.stock[0]=5;G=[];depart(N.P1,1)', context);
     assert.equal(vm.runInContext('G.length', context), 0, 'stop clears future departures');
     vm.runInContext('N.C1.owner=1;N.C1.cd=3;N.C1.pend=2;sel="C1";act("cancel")', context);
@@ -129,12 +122,12 @@ for (const page of ['index.html', 'match.html']) {
     frames.shift()(200);
     if (page === 'index.html') assert.match(get('production-countdown').textContent, /Next in \d+s/);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.noQueue=false;lobbyConfig.productionRotation=true', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
     else vm.runInContext('init()', context);
-    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; act("q0"); last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
-    assert.equal(vm.runInContext('N.P1.q.length', context), 1, 'still producing after 3 real seconds');
-    vm.runInContext('for(let now=3200;now<=4400;now+=100)loop(now)', context);
-    assert.equal(vm.runInContext('N.P1.q.length', context), 0, 'production completes after 4 real seconds');
+    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
+    assert.equal(vm.runInContext('N.P1.stock[0]', context), 6, 'still producing after 3 real seconds');
+    vm.runInContext('for(let now=3200;now<=6300;now+=100)loop(now)', context);
+    assert.equal(vm.runInContext('N.P1.stock[0]', context), 7, 'production completes after 6 real seconds');
     vm.runInContext('productionCycle.next={buff:0,debuff:1};loop(45100)', context);
     assert.equal(get('production-active-buff').textContent, '🍎');
     assert.equal(get('production-progress').value, 0);
@@ -146,8 +139,8 @@ for (const page of ['index.html', 'match.html']) {
       assert.equal(get('production-cycle').hidden, false);
     }
     if (page === 'match.html') {
-      vm.runInContext('matchGame.start(2, () => {});lobbyConfig.noQueue=false; render(); panel();', context);
-      assert.match(get('panel').innerHTML, /Queue/);
+      vm.runInContext('matchGame.start(2, () => {}); render(); panel();', context);
+      assert.doesNotMatch(get('panel').innerHTML, /Queue/);
     }
   });
 }

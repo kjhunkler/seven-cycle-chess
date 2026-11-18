@@ -3,7 +3,6 @@
   const board = document.getElementById('map');
   if (!board) return;
   // Presentation helpers belong here, independent of each edition's simulation.
-  const strengthLabel = value => Number(value.toFixed(2));
   const productionEffect = type => {
     const cycle = typeof productionCycle === 'undefined' ? null : productionCycle;
     if (type == null || !cycle) return null;
@@ -11,10 +10,6 @@
     if (multiplier === 1) return null;
     const buff = multiplier > 1;
     return {percent: `${buff ? '+' : '−'}${Math.abs(Math.round((multiplier - 1) * 100))}%`, kind: buff ? 'buff' : 'debuff', arrow: buff ? '▲' : '▼', label: `${T[type][1]} ${buff ? '+' : ''}${Math.round((multiplier - 1) * 100)}% production speed`};
-  };
-  const productionBadge = type => {
-    const effect = productionEffect(type);
-    return effect ? `<span class="production-badge production-${effect.kind}" role="img" aria-label="${effect.label}" title="${effect.label}">${effect.arrow}</span>` : '';
   };
   const player = () => typeof localPlayer === 'undefined' ? 1 : localPlayer;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
@@ -57,9 +52,9 @@
   shell.append(portionControl);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="7">Hourglass · 2 players</option><option value="8">Twin rivers · 2 players</option><option value="9">Crown lattice · 2 players</option><option value="10">Ring road · 2 players</option><option value="11">Crossroads · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-setting"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="7">Hourglass · 2 players</option><option value="8">Twin rivers · 2 players</option><option value="9">Crown lattice · 2 players</option><option value="10">Ring road · 2 players</option><option value="11">Crossroads · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=noQueue]').checked=!!botConfig.noQueue;settingsDialog.querySelector('[name=portionControl]').checked=!!botConfig.portionControl;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;settingsDialog.querySelector('[name=portionControl]').checked=!!botConfig.portionControl;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
@@ -69,11 +64,11 @@
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,noQueue,portionControl,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
-      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,noQueue:!!noQueue?.checked,portionControl:!!portionControl?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
+      const {map,speed,shops,productionRotation,fullElimination,portionControl,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
+      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked,portionControl:!!portionControl?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
       if(!Number.isFinite(next.transformationTime)||next.transformationTime<1||next.transformationTime>120)return;
       if(transformationTime)transformationTime.disabled=!next.transformationWave;
-      const reset=restart||next.transformationWave!==!!botConfig.transformationWave||next.transformationTime!==(botConfig.transformationTime??10)||next.noQueue!==!!botConfig.noQueue||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const reset=restart||next.transformationWave!==!!botConfig.transformationWave||next.transformationTime!==(botConfig.transformationTime??10)||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
       if(reset){
         act('restart');
@@ -146,7 +141,7 @@
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
     footer.querySelector('.ally').style.background=ownerColor(me);
-    const rivals=Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))).filter(owner=>owner!==me);
+    const rivals=Object.values(N).filter(n=>n.home).map(n=>n.home).filter(owner=>owner!==me);
     const rivalKeys=footer.querySelector('.rival-keys');
     const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> Rival${rivals.length>1?' '+(i+1):''}</span>`).join('');
     if(rivalKeys.innerHTML!==legend)rivalKeys.innerHTML=legend;
@@ -157,23 +152,23 @@
     if(over!==modalWinner){
       modalWinner=over;
       if(over){
-        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':N['P'+me]?.disabled?'The match is over. Another player won.':'Your castle has fallen.';
+        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':transformationConfig().fullElimination?'All your nodes were captured.':'Your named node was captured.';
         retryButton.textContent=typeof online==='undefined'?'Play again':'Return to lobby';
         if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
       }else closeEndgame();
     }
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>',countLabels='';
-    for(const a of Object.values(N))if(!a.shop&&!a.disabled)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.disabled||b.shop&&!a.castle)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
+    for(const a of Object.values(N))if(!a.shop&&!a.disabled)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.disabled||b.shop&&b.owner!==a.owner)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
     const source=N[sel];
     for(const n of Object.values(N)){
       if(n.disabled)continue;
-      const v=V.has(n.id),r=n.shop?3.5:n.castle?6.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
+      const v=V.has(n.id),r=n.shop?3.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
-      const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':n.castle?'Castle':'Outpost'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
+      const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':'Node'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
       h+=`<g data-id="${n.id}" class="board-node ${n.shake>0||typeof shakeNodes!=='undefined'&&shakeNodes[n.id]>now?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+.7}" fill="var(--card)" stroke="${col}" stroke-width=".35"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="${v?1:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
       if(source?.owner===me&&!source.shop&&!n.shop&&source.adj.includes(n.id)){
-        const type=source.castle?castleRouteFruit(source,n):canEnter(n,me,sendType)?sendType:-1;
+        const type=canEnter(n,me,source.ut)?source.ut:-1;
         let color='var(--mut)',matchup='';
         if(v&&n.owner!==me&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){
           const ratio=mult(type,k)/mult(k,type),advantage=ratio>1+CONFIG.strengthEpsilon,disadvantage=ratio<1-CONFIG.strengthEpsilon;
@@ -191,20 +186,20 @@
         h+=matchup;
       }
       if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="10" opacity=".25" pointer-events="none">🛡️</text>`;
-      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=queuedCastle(n)?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*(transformationConfig().transformationWave?Math.cos(2*Math.PI*transformationProgress(n)):Math.sin(now/100)):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
-        const productionType=queuedCastle(n)?n.q[0]:n.ut;
+      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=k>=0?k:n.ut,size=7,flash=n.cd>0&&animated()?.6+.4*(transformationConfig().transformationWave?Math.cos(2*Math.PI*transformationProgress(n)):Math.sin(now/100)):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
+        const productionType=n.ut;
         const effect=!n.shop&&n.owner&&!(n.cd>0)?productionEffect(productionType):null;
-        const progress=n.cd>0?transformationProgress(n):queuedCastle(n)?(n.q.length?n.tm/CONFIG.castleRate:0):n.owner?n.tm/CONFIG.outpostRate:0;
+        const progress=n.cd>0?transformationProgress(n):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
         if(!n.shop)countLabels+=`<g pointer-events="none"><rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${Math.round(tot(n))}</text>${effect?`<g class="node-production node-production-${effect.kind}" transform="translate(${n.x+5.5} ${n.y+r+.8+(effect.kind==='buff'?-.6:.6)})" role="img" aria-label="${effect.label}"><title>${effect.label}</title><path d="${effect.kind==='buff'?'M0 -1.1L1.1 .8H-1.1Z':'M0 1.1L1.1 -.8H-1.1Z'}" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}"/></g>`:''}</g>`;
         if(n.shields>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+3.1}" fill="none" stroke="#55d9ff" stroke-width="1.5" class="shield-ring"/><text x="${n.x-r-1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#63e4ff" stroke="var(--card)" stroke-width=".7" paint-order="stroke">🛡️${n.shields>1?`×${n.shields}`:''}</text>`;
         if(n.boost>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.5}" fill="none" stroke="#ffd34e" stroke-width="1.5" stroke-dasharray="1 1"/><text x="${n.x+r+1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#ffd34e" stroke="var(--card)" stroke-width=".7" paint-order="stroke">⚡${Math.ceil(n.boost)}s</text>`;
       }else h+=`<text x="${n.x}" y="${n.y+1.3}" text-anchor="middle" font-size="4" fill="var(--mut)">?</text>`;
-      if(n.castle){
-        const seat=Number(n.id.slice(1)),members=typeof lobbyMembers==='undefined'?[]:lobbyMembers;
+      if(n.home){
+        const seat=n.home,members=typeof lobbyMembers==='undefined'?[]:lobbyMembers;
         const name=members.find(member=>member.seat===seat)?.name||(seat===me?(typeof online==='undefined'?storage.get('fruit-wars-name'):'')||'You':typeof humanPlayers!=='undefined'&&humanPlayers.includes(seat)?`Player ${seat}`:`Bot ${seat}`);
         const shortName=Array.from(name).length>16?Array.from(name).slice(0,15).join('')+'…':name;
-        countLabels+=`<text class="castle-player-name" data-castle="${n.id}" x="${n.x}" y="${n.y+r+5.2}" text-anchor="middle" font-size="2.8" font-weight="750" fill="var(--fg)" stroke="var(--card)" stroke-width=".9" paint-order="stroke" pointer-events="none"><title>${escape(name)}</title>${escape(shortName)}</text>`;
+        countLabels+=`<text class="player-node-name" data-home="${n.id}" x="${n.x}" y="${n.y+r+5.2}" text-anchor="middle" font-size="2.8" font-weight="750" fill="var(--fg)" stroke="var(--card)" stroke-width=".9" paint-order="stroke" pointer-events="none"><title>${escape(name)}</title>${escape(shortName)}</text>`;
       }
       h+=`<circle cx="${n.x}" cy="${n.y}" r="7.4" fill="transparent"/></g>`;
     }
@@ -225,14 +220,13 @@
     refreshWheel();
     shell.classList.toggle('battle-ended',!!over);
   };
-  const button=(i,action,active=false,label='Queue')=>`<button type="button" class="fruit-button ${active?'on':''}" data-act="${action}${i}" aria-label="${label} ${escape(T[i][1])}" title="${escape(T[i][1])}" ${action==='q'?'':`aria-pressed="${active}"`}>${icon(i)}${action==='q'?productionBadge(i):''}<span>${escape(T[i][1])}</span></button>`;
   panel=function(){
-    const me=player(), c=N['P'+me];
-    const status=over?'':c.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your castle or an outpost to create a route.');
+    const me=player();
+    const status=over?'':isEliminated(me)?'You were eliminated. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your nodes to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h=c.disabled||noQueueMode()?'':`<div class="queue-strip" aria-label="Queue"><span>${c.q.length?c.q.map((i,index)=>`<button type="button" class="queued-fruit" data-act="dropq${index}" aria-label="Remove queued ${escape(T[i][1])}">${icon(i,'queue-icon')}${productionBadge(i)}</button>`).join(''):'Tap a fruit to queue'}</span></div><div class="fruit-palette">${T.map((_,i)=>button(i,'q')).join('')}</div>`;
+    let h="";
     if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
-    document.getElementById('panel').hidden=noQueueMode()&&!h;
+    document.getElementById('panel').hidden=!h;
     if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
   };
   document.getElementById('msg').setAttribute('aria-live','polite');
@@ -241,12 +235,12 @@
     const node=window.boardNodes()[typeWheel.dataset.node];
     if(!node||node.owner!==player()){closeWheel();return;}
     typeWheel.querySelectorAll('button[data-type]').forEach(button=>{
-      const i=Number(button.dataset.type),selected=queuedCastle(node)?node.selectedType===i:(node.pend??node.ut)===i;
-      button.disabled=queuedCastle(node)&&node.stock[i]<=CONFIG.strengthEpsilon;
+      const i=Number(button.dataset.type),selected=(node.pend??node.ut)===i;
+      button.disabled=false;
       button.setAttribute('aria-pressed',String(selected));
-      button.setAttribute('aria-label',queuedCastle(node)?`${T[i][1]}, ${strengthLabel(node.stock[i])} available`:`Produce ${T[i][1]}`);
+      button.setAttribute('aria-label',`Produce ${T[i][1]}`);
       button.classList.toggle('on',selected);
-      button.innerHTML=icon(i)+(queuedCastle(node)?`<small>${strengthLabel(node.stock[i])}</small>`:'');
+      button.innerHTML=icon(i);
     });
   };
   window.refreshTypeWheel=refreshWheel;

@@ -33,7 +33,7 @@ button{min-height:44px}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
 </style><link rel="stylesheet" href="./board-ui.css?v=25"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="7">Hourglass · 2 players</option><option value="8">Twin rivers · 2 players</option><option value="9">Crown lattice · 2 players</option><option value="10">Ring road · 2 players</option><option value="11">Crossroads · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="7">Hourglass · 2 players</option><option value="8">Twin rivers · 2 players</option><option value="9">Crown lattice · 2 players</option><option value="10">Ring road · 2 players</option><option value="11">Crossroads · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -45,12 +45,12 @@ button{min-height:44px}
 
 </section></main>
 <script src="./production-cycle.js?v=21"></script><script src="./duel-maps.js?v=1"></script><script>
-const CONFIG={timeScale:0.5,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={timeScale:0.5,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
-// Threefold symmetric graph: castles, triangle side nodes, vertices, and hub.
+// Threefold symmetric graph: starting nodes, triangle side nodes, vertices, and hub.
 // Twin branches follows the ten-node two-player sketch.
-// Axis-symmetric four-player schema; every castle pair is four edges apart.
+// Axis-symmetric four-player schema; every starting-node pair is four edges apart.
 const FOUR_POS={P1:[25,8],P2:[75,8],P3:[25,92],P4:[75,92],D1:[50,18],D2:[50,82],A1:[12,32],A2:[38,32],A3:[62,32],A4:[88,32],B1:[12,50],B2:[50,50],B3:[88,50],C1:[12,68],C2:[38,68],C3:[62,68],C4:[88,68]};
 const FOUR_EDGES="P1-A1 P1-A2 P2-A3 P2-A4 P3-C1 P3-C2 P4-C3 P4-C4 A1-A2 A3-A4 C1-C2 C3-C4 D1-A2 D1-A3 D2-C2 D2-C3 A2-B2 A3-B2 C2-B2 C3-B2 A1-B1 B1-C1 A4-B3 B3-C4 B1-B2 B2-B3".split(" ").map(e=>e.split("-"));
 const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
@@ -69,7 +69,7 @@ LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
 const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
-let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,noQueue:true,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
+let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
 // Guests predict known territory; the host owns combat, bots, fog and victory.
 const PREDICTION_LIMIT=1500, SYNC_INTERVAL=250;
@@ -92,31 +92,31 @@ function init(){
   N={};shakeNodes={};botThink=0;
   if(([3,4,5,6].includes(lobbyConfig.map)||TWO_PLAYER_MAPS[lobbyConfig.map])){
     const positions=TWO_PLAYER_MAPS[lobbyConfig.map]?.nodes||(lobbyConfig.map===4?FOUR_POS:lobbyConfig.map===5?BRANCH_POS:lobbyConfig.map===6?LARGE_THREE_POS:THREE_POS),edges=TWO_PLAYER_MAPS[lobbyConfig.map]?.edges||(lobbyConfig.map===4?FOUR_EDGES:lobbyConfig.map===5?BRANCH_EDGES:lobbyConfig.map===6?LARGE_THREE_EDGES:THREE_EDGES);
-    for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
+    for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
     for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
   }else{
-  for(const id in POS)N[id]={id,x:POS[id][0],y:POS[id][1],castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
+  for(const id in POS)N[id]={id,x:POS[id][0],y:POS[id][1],home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
   EDGES.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   const extra=lobbyConfig.map===2?{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]}:lobbyConfig.map===3?{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]}:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]};
-  for(const [id,[x,y]] of Object.entries(extra))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
+  for(const [id,[x,y]] of Object.entries(extra))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
   const links=lobbyConfig.map===2?[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]:lobbyConfig.map===3?[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]];
   for(const[a,b]of links){N[a].adj.push(b);N[b].adj.push(a)}
 
   }
 
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(lobbyConfig.map),lobbyConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(lobbyConfig.map),lobbyConfig.map===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
-    if(n.castle){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
-  for(const n of Object.values(N))if(n.castle){const owner=Number(n.id.slice(1));n.owner=owner;n.stock.fill(0);n.stock[Math.random()*7|0]=CONFIG.castleStart}
+    if(n.home){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
+  for(const n of Object.values(N))if(n.home){const owner=Number(n.id.slice(1));n.owner=owner;n.stock.fill(0);n.stock[Math.random()*7|0]=CONFIG.startingPopulation}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;
-  msg="Queue units in your castle (bottom). Then drag from the castle to a connected outpost.";
+  msg="Drag from your named node or another node to create a route.";
 }
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};
 const tot=n=>n.stock.reduce((a,b)=>a+b,0);
 
-const vis=(player=localPlayer)=>{if(N[`P${player}`]?.disabled)return new Set(Object.keys(N));const s=new Set();for(const n of Object.values(N))if(n.owner===player){s.add(n.id);if(!n.shop)n.adj.forEach(x=>s.add(x))}return s};
+const vis=(player=localPlayer)=>{if(isEliminated(player))return new Set(Object.keys(N));const s=new Set();for(const n of Object.values(N))if(n.owner===player){s.add(n.id);if(!n.shop)n.adj.forEach(x=>s.add(x))}return s};
 function fight(at,an,dt,dn){
   const pa=an*mult(at,dt),pd=dn*mult(dt,at);
   if(pa-pd>CONFIG.strengthEpsilon)return[1,(pa-pd)/mult(at,dt)];
@@ -125,13 +125,13 @@ function fight(at,an,dt,dn){
 }
 function shopCapacity(target,includeOrders=true){
   const incoming=G.filter(g=>g.to===target.id&&g.owner===target.owner).reduce((sum,g)=>sum+g.n,0);
-  const queued=includeOrders?Object.values(N).reduce((sum,n)=>sum+n.orders.filter(o=>o.to===target.id&&o.owner===target.owner).reduce((total,o)=>total+o.count,0),0):0;
-  return target.abilityReady||target.abilityCd>0?0:Math.max(0,10-target.charge-incoming-queued);
+  const reserved=includeOrders?Object.values(N).reduce((sum,n)=>sum+n.orders.filter(o=>o.to===target.id&&o.owner===target.owner).reduce((total,o)=>total+o.count,0),0):0;
+  return target.abilityReady||target.abilityCd>0?0:Math.max(0,10-target.charge-incoming-reserved);
 }
 function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
-  return target.owner!==owner||queuedCastle(target)||target.ut===type;
+  return target.owner!==owner||(target.cd<=0&&target.ut===type);
 }
 function dispatch(source,to,type,count){
   const target=N[to];
@@ -146,7 +146,7 @@ function depart(source,dt){
   while(source.orders.length){
     const order=source.orders[0],target=N[order.to];
     if(!canEnter(target,order.owner,order.type)){
-      if(source.castle||source.ut===order.type)source.stock[order.type]+=order.count;
+      if(source.ut===order.type)source.stock[order.type]+=order.count;
       source.orders.shift();
       continue;
     }
@@ -170,7 +170,6 @@ function arrive(g){
     if(w===1){n.stock[d]=0;a=r}else if(w===2){n.stock[d]=r;a=0}else{n.stock[d]=0;a=0}
   }
   if(a>0){
-    if(n.castle){over=g.owner;return}
     n.owner=g.owner;n.orders=[];n.departure=0;n.stock.fill(0);n.stock[g.type]=Math.ceil(a);n.ut=g.type;n.pend=null;n.cd=0;n.tm=0;
     if(g.owner!==localPlayer&&sel===n.id)sel=null;
   }
@@ -185,8 +184,7 @@ function step(dt){
     if(n.boost<1e-8)n.boost=0;
     if(!n.owner||(predicting&&n.owner!==localPlayer))continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(queuedCastle(n)){if(n.q.length){n.tm+=dt*productionMultiplier(productionCycle,n.q[0]);if(n.tm>=CONFIG.castleRate){n.tm=0;n.stock[n.q.shift()]+=n.boost>0?3:1}}}
-    else if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
+    if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
     else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
   }
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
@@ -203,7 +201,7 @@ function step(dt){
   }
   for(const n of Object.values(N))if(!predicting||n.owner===localPlayer)depart(n,dt);
   if(predicting)return;
-  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const castle=N[`P${owner}`];if(!castle||castle.disabled||connectedPlayers.includes(owner))continue;botShopTurn(owner);if(!noQueueMode()&&castle.q.length<3)castle.q.push(Math.random()*7|0);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.castle?castle.stock[type]-2:n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
+  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const homeNode=playerHome(owner);if(!homeNode||connectedPlayers.includes(owner))continue;botShopTurn(owner);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(t.owner===owner||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
 
 }
 function select(id){
@@ -234,7 +232,6 @@ function act(a){
   if(a==="half")half=!half;
   else if(a[0]==="s")sendType=+a[1];
   else if(a==="qc")command({kind:"clear"});
-  else if(a[0]==="q")command({kind:"queue",type:+a[1]});
   else if(a[0]==="p")command({kind:"produce",node:sel,type:+a[1]});
 }
 function command(data){
@@ -250,23 +247,16 @@ function command(data){
   }
 }
 function applyCommand(owner,data){
-  if(!online||!gameStarted||countdownRemaining>0||over||!data||typeof data!=="object"||!N[`P${owner}`]||N[`P${owner}`].disabled)return;
+  if(!online||!gameStarted||countdownRemaining>0||over||!data||typeof data!=="object"||isEliminated(owner))return;
   if(data.kind==="ability"&&typeof data.from==="string"&&typeof data.to==="string"){
     const s=N[data.from],t=N[data.to];if(s?.shop&&s.owner===owner&&s.abilityReady&&s.abilityCd<=0&&t?.owner===owner&&!t.shop){if(s.shop==="shield")t.shields=(t.shields||0)+1;else t.boost=Math.max(t.boost||0,7);s.abilityReady=false;s.charge=0;s.abilityCd=10;}return;
-  }
-  const castle=N["P"+owner];
-  if(data.kind==="clear"){castle.q=[];return}
-  if(data.kind==="dequeue"){
-    if(Number.isInteger(data.index)&&data.index>=0&&data.index<castle.q.length)castle.q.splice(data.index,1);
-    return;
   }
   if(applyRouteCommand(owner,data))return;
   const type=data.type;
   if(!Number.isInteger(type)||type<0||type>=T.length)return;
-  if(data.kind==="queue"&&!noQueueMode()&&castle.q.length<20)castle.q.push(type);
   if(data.kind==="produce"&&typeof data.node==="string"&&Object.hasOwn(N,data.node)){
     const n=N[data.node];
-    if(n.owner===owner&&!queuedCastle(n)&&!n.shop&&type!==(n.pend??n.ut)){
+    if(n.owner===owner&&!n.shop&&type!==(n.pend??n.ut)){
       beginTransformation(n,type);
     }
   }
@@ -283,22 +273,22 @@ function snapshot(viewer=2){
     if(n.owner===viewer)return [id,n];
     return [id,{ ...n, owner:visible.has(id)?n.owner:0,
       stock:visible.has(id)?n.stock:Array(7).fill(0), ut:visible.has(id)?n.ut:0,
-      pend:null,cd:0,tm:0,q:[],orders:[],routes:[],routeRemaining:{},selectedType:null }];
+      pend:null,cd:0,tm:0,orders:[],routes:[],routeRemaining:{} }];
   }));
-  return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
+  return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:eliminatedBy,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&[2,3,4,5,6,7,8,9,10,11].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.noQueue===undefined||typeof config.noQueue==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&mapPlayerCount(config.map)>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&[2,3,4,5,6,7,8,9,10,11].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&mapPlayerCount(config.map)>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",round:matchRound,config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
   const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
-  variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("transformationWave").checked=!!lobbyConfig.transformationWave;variantField("transformationTime").value=String(lobbyConfig.transformationTime??10);variantField("transformationTime").disabled=!lobbyConfig.transformationWave;variantField("shops").checked=lobbyConfig.shops;variantField("noQueue").checked=!!lobbyConfig.noQueue;variantField("portionControl").checked=!!lobbyConfig.portionControl;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;
+  variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("transformationWave").checked=!!lobbyConfig.transformationWave;variantField("transformationTime").value=String(lobbyConfig.transformationTime??10);variantField("transformationTime").disabled=!lobbyConfig.transformationWave;variantField("shops").checked=lobbyConfig.shops;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("portionControl").checked=!!lobbyConfig.portionControl;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;
   $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
   f.querySelector(".variant-status").textContent=`${humanPlayers.filter(p=>lobbyReady[p-1]).length} of ${humanPlayers.length} players ready${gameStarted?" · Starting…":""}`;
   const roster=$("match-roster");roster.replaceChildren();
   for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;if(localPlayer===1&&member.seat!==1&&!gameStarted){const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.onclick=()=>parent.postMessage({kind:"remove-player",seat:member.seat},location.origin);row.append(remove)}roster.append(row)}
 }
-function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a castle or outpost to send fruit.";sendLobby()}
+function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a node to send fruit.";sendLobby()}
 function resetMatchLobby(){
   gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyReady=[false,false,false,false];
   pendingCommands=[];unitCorrections.clear();last=performance.now();nextSync=0;
@@ -316,14 +306,14 @@ function lobbyAction(owner,data){
   sendLobby();updateLobbyUI();beginMatch();
 }
 function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields,round:matchRound};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
-$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),transformationWave:variantField("transformationWave").checked,transformationTime:Number(variantField("transformationTime").value),shops:variantField("shops").checked,noQueue:variantField("noQueue").checked,portionControl:variantField("portionControl").checked,productionRotation:variantField("productionRotation").checked}}));
+$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),transformationWave:variantField("transformationWave").checked,transformationTime:Number(variantField("transformationTime").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,portionControl:variantField("portionControl").checked,productionRotation:variantField("productionRotation").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
 $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
 window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
-    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,noQueue:true,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
   rebind(send){peerSend=send;if(localPlayer===1){sendLobby();nextSync=0}},
@@ -374,7 +364,7 @@ window.matchGame={
     countdownRemaining=Number.isFinite(data.countdownRemaining)?Math.max(0,data.countdownRemaining):0;countdownSyncedAt=syncedAt;
     if(Array.isArray(data.members))lobbyMembers=data.members;
     if(Number.isFinite(data.transformationClock))transformationClock=data.transformationClock;
-    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;castleConquests=data.conquests||{};
+    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;eliminatedBy=data.conquests||{};
     if(Array.isArray(data.humans))humanPlayers=data.humans;
     if(Array.isArray(data.connected))connectedPlayers=data.connected;
     pendingCommands=pendingCommands.filter(entry=>entry.packet.sequence>(data.ack??-1)&&syncedAt-entry.at<=PREDICTION_LIMIT);
@@ -401,9 +391,9 @@ function render(){
   for(const[a,b]of EDGES){const A=N[a],B=N[b],on=V.has(a)||V.has(b);
     h+=`<line x1="${A.x}" y1="${A.y}" x2="${B.x}" y2="${B.y}" stroke="var(--edge)" stroke-width="${on?.7:.3}" opacity="${on?1:.4}"/>`}
   for(const n of Object.values(N)){
-    const v=V.has(n.id),r=n.castle?6.5:5.2,tg=sel&&N[sel].adj.includes(n.id);
+    const v=V.has(n.id),r=5.2,tg=sel&&N[sel].adj.includes(n.id);
     const col=!v||!n.owner?"var(--neu)":n.owner===1?"var(--p1)":"var(--p2)";
-    const k=big(n),face=!v?"?":n.castle?"🏰":n.cd>0?"⏳":T[k>=0?k:n.ut][0];
+    const k=big(n),face=!v?"?":n.cd>0?"⏳":T[k>=0?k:n.ut][0];
     h+=`<g data-id="${n.id}" style="cursor:pointer"><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" fill-opacity="${v?.9:.3}" stroke="${n.id===sel?"var(--fg)":"var(--mut)"}" stroke-width="${n.id===sel?1.3:.4}"/>`;
     if(tg&&canEnter(n,localPlayer,sendType)){
       let color="var(--fg)",mark="";
@@ -415,8 +405,8 @@ function render(){
       h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.6}" fill="none" stroke="${color}" stroke-width="1" stroke-dasharray="1.5 1"/>`;
       if(mark)h+=`<text x="${n.x+r+2}" y="${n.y-r}" text-anchor="middle" font-size="5" font-weight="bold" fill="${color}">${mark}</text>`;
     }
-    h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="${n.castle?6:5.4}" fill="var(--fg)">${face}</text>`;
-    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${n.stock.reduce((count,strength)=>count+Math.ceil(strength),0)}${n.castle&&n.owner===localPlayer?" 🏰":""}</text>`;
+    h+=`<text x="${n.x}" y="${n.y}" text-anchor="middle" dominant-baseline="central" font-size="5.4" fill="var(--fg)">${face}</text>`;
+    if(v)h+=`<text x="${n.x}" y="${n.y+r+3.4}" text-anchor="middle" font-size="3.4" font-weight="600" fill="var(--fg)">${n.stock.reduce((count,strength)=>count+Math.ceil(strength),0)}</text>`;
     h+="</g>";
   }
   if(drag?.moved){
@@ -434,13 +424,12 @@ function render(){
   $("map").innerHTML=h;
 }
 function panel(){
-  $("msg").innerHTML=over?(over===localPlayer?"You captured the opposing castle.":"Your castle fell."):msg;
-  const c=N["P"+localPlayer];
-  let h=noQueueMode()?'':`<div class="row"><b>Castle queue</b>`+T.map((t,i)=>`<button data-act="q${i}">${t[0]}</button>`).join("")+`<button data-act="qc">Clear</button></div><div class="row"><small>${c.q.length?"Building: "+c.q.map(i=>T[i][0]).join(" "):"Queue is empty. Tap a fruit to add it."}</small></div>`;
+  $("msg").innerHTML=over?(over===localPlayer?"You won the match.":"Your named node was captured."):msg;
+  let h="";
   if(sel){
     const n=N[sel];
-    h+=`<div class="row"><b>${n.castle?"Castle":"Outpost "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
-    if(!n.castle)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
+    h+=`<div class="row"><b>${"Node "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
+    if(!n.shop)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   if($("panel").dataset.html!==h){$("panel").dataset.html=h;$("panel").innerHTML=h;}
 }
@@ -488,7 +477,7 @@ let holdTimer;
 function closeWheel(){typeWheel.hidden=true}
 function openWheel(id,x,y){
   const node=N[id];
-  if(over||!node||node.castle||node.owner!==localPlayer)return;
+  if(over||!node||node.owner!==localPlayer)return;
   select(id);
   drag.held=true;
   const label=document.createElement("span");

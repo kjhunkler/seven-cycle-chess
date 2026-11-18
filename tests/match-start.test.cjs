@@ -44,11 +44,11 @@ test('reconnecting guest receives remaining countdown and names from a snapshot'
 for(const viewer of [1,2,3,4])test(`castle names follow player ${viewer}'s rotated board and remain visible through fog`,()=>{
  const h=createGame();h.run(`matchGame.start(${viewer},()=>{},[1,2,3,4]);lobbyConfig.map=4;init();lobbyMembers=[{seat:1,name:'Ada <&"'},{seat:2,name:'Lin'},{seat:3,name:'Mira'},{seat:4,name:'Sol'}];render()`);
  const html=h.elements.get('map').innerHTML;
- assert.equal((html.match(/class="castle-player-name"/g)||[]).length,4);
+ assert.equal((html.match(/class="player-node-name"/g)||[]).length,4);
  assert.match(html,/Ada &lt;&amp;&quot;/);assert.doesNotMatch(html,/Ada <&"/);
  assert.match(html,/>Lin<\/text>/);assert.match(html,/>Mira<\/text>/);assert.match(html,/>Sol<\/text>/);
  h.run('N.P3.disabled=true;render()');
- assert.doesNotMatch(h.elements.get('map').innerHTML,/data-castle="P3"/);
+ assert.doesNotMatch(h.elements.get('map').innerHTML,/data-home="P3"/);
 });
 test('solo names use saved player name and bots with no countdown',()=>{
  const h=createGame('index.html');h.run('localStorage.getItem=()=>"Ada";render()');

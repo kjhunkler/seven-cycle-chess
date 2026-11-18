@@ -6,7 +6,7 @@ for(const page of ['index.html','match.html']){
   const h=createGame(page);
   assert.equal(h.run('transformationConfig().transformationWave'),false);
   assert.equal(h.run('transformationPeriod()'),10);
-  h.run(page==='index.html'?'botConfig.transformationWave=true;botConfig.noQueue=true;init();aiT=999':'lobbyConfig.transformationWave=true;lobbyConfig.noQueue=true;online=true;gameStarted=true;init();connectedPlayers=[1,2,3,4];botThink=999');
+  h.run(page==='index.html'?'botConfig.transformationWave=true;init();aiT=999':'lobbyConfig.transformationWave=true;online=true;gameStarted=true;init();connectedPlayers=[1,2,3,4];botThink=999');
   h.run('N.C1.owner=1;N.C1.ut=0;N.C1.stock=[6,0,0,0,0,0,0];for(let i=0;i<30;i++)step(.1);select("C1");act("p1")');
   assert.ok(Math.abs(h.run('N.C1.cd')-7)<1e-8);
   assert.ok(Math.abs(h.run('transformationProgress(N.C1)')-.3)<1e-8);

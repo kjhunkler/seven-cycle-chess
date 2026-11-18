@@ -2,22 +2,22 @@
 let portionPercent=100;
 function portionControlEnabled(){return !!transformationConfig().portionControl}
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
-let castleConquests={};
+let eliminatedBy={};
 // Forward/inverse view transforms keep pointer directions aligned with the map.
 function boardViewPoint(p,owner,inverse=false){
  if(N.P4)return {x:owner===2||owner===4?100-p.x:p.x,y:owner===1||owner===2?100-p.y:p.y};
  if(N.P3)return rotateBoardPoint(p,(inverse?-1:1)*(owner-1)*2*Math.PI/3);
  return {x:p.x,y:owner===2?100-p.y:p.y};
 }
-function survivingOwner(owner){while(castleConquests[owner])owner=castleConquests[owner];return owner}
+function survivingOwner(owner){while(eliminatedBy[owner])owner=eliminatedBy[owner];return owner}
 function botShopTurn(owner){
-  const castle=N['P'+owner];if(!castle||castle.disabled)return;
+  const homeNode=playerHome(owner);if(!homeNode)return;
   for(const shop of Object.values(N).filter(n=>n.shop&&n.owner===owner)){
-    if(shop.abilityReady){const ability={kind:'ability',from:shop.id,to:castle.id};if(typeof applyCommand==='function')applyCommand(owner,ability);else applyRouteCommand(owner,ability);continue}
+    if(shop.abilityReady){const ability={kind:'ability',from:shop.id,to:homeNode.id};if(typeof applyCommand==='function')applyCommand(owner,ability);else applyRouteCommand(owner,ability);continue}
     if(shop.abilityCd>0)continue;
     const incoming=G.filter(g=>g.to===shop.id&&g.owner===owner).reduce((sum,g)=>sum+g.n,0)+Object.values(N).flatMap(n=>n.orders).filter(o=>o.to===shop.id&&o.owner===owner).reduce((sum,o)=>sum+o.count,0);
-    const type=big(castle),count=Math.min(10-shop.charge-incoming,type<0?0:castle.stock[type]-2);
-    if(count>0)dispatch(castle,shop.id,type,count);
+    const type=big(homeNode),count=Math.min(10-shop.charge-incoming,type<0?0:homeNode.stock[type]-2);
+    if(count>0)dispatch(homeNode,shop.id,type,count);
   }
 }
 function removeDefeatedShops(owner){
@@ -26,79 +26,41 @@ function removeDefeatedShops(owner){
   for(const n of Object.values(N)){
     n.adj=n.adj.filter(id=>!removed.has(id));
     n.routes=(n.routes||[]).filter(id=>!removed.has(id));
-    n.orders=n.orders.filter(order=>{if(!removed.has(order.to))return true;n.stock[n.castle?order.type:n.ut]+=order.count;return false});
+    n.orders=n.orders.filter(order=>{if(!removed.has(order.to))return true;n.stock[n.ut]+=order.count;return false});
     if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>!removed.has(id));
   }
-  G=G.filter(g=>{if(!removed.has(g.to)&&!removed.has(g.from))return true;const source=N[g.from];if(source&&!source.shop&&!source.disabled)source.stock[source.castle?g.type:source.ut]+=g.n;return false});
+  G=G.filter(g=>{if(!removed.has(g.to)&&!removed.has(g.from))return true;const source=N[g.from];if(source&&!source.shop&&!source.disabled)source.stock[source.ut]+=g.n;return false});
   for(const id of removed)delete N[id];
   if(removed.has(sel)){sel=null;closeWheel()}
   if(removed.has(drag?.from)||removed.has(drag?.to))drag=null;
 }
-function eliminateCastle(castle,winner){
-  removeDefeatedShops(castle.owner);
-  const loser=castle.owner;castleConquests[loser]=winner;
-  const destination=N['P'+winner];
+function playerHome(owner){return Object.values(N).find(n=>n.home===owner)}
+function isEliminated(owner){return !!eliminatedBy[owner]}
+function eliminatePlayer(loser,winner){
+  removeDefeatedShops(loser);
+  eliminatedBy[loser]=winner;
   for(const n of Object.values(N)){
-    if(n.owner===loser){n.owner=winner;for(const order of n.orders)order.owner=winner}
-    n.adj=n.adj.filter(id=>id!==castle.id);
-    n.routes=(n.routes||[]).filter(id=>id!==castle.id);
-    n.routeIndex=0;
-    n.orders=n.orders.filter(order=>{if(order.to!==castle.id)return true;n.stock[queuedCastle(n)?order.type:n.ut]+=order.count;return false});
-    if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>id!==castle.id);
+    if(n.home===loser)n.home=0;
+    if(n.owner===loser){n.owner=winner;for(const order of n.orders)order.owner=winner;}
   }
-  castle.disabled=true;castle.owner=0;castle.q=[];castle.orders=[];castle.routes=[];castle.adj=[];castle.pend=null;castle.cd=0;castle.tm=0;castle.shields=0;castle.boost=0;
-  castle.stock.forEach((count,type)=>destination.stock[type]+=count);castle.stock.fill(0);
-  G=G.filter(g=>{
-    g.owner=survivingOwner(g.owner);
-    if(g.to!==castle.id&&g.from!==castle.id)return true;
-    const target=g.owner===winner?destination:N[g.from];
-    if(target&&!target.disabled)target.stock[target.castle?g.type:target.ut]+=g.n;
-    return false;
-  });
+  for(const g of G)g.owner=survivingOwner(g.owner);
   sel=null;drag=null;closeWheel();
-  const remaining=Object.values(N).filter(n=>n.castle&&!n.disabled);
-  over=remaining.length===1?remaining[0].owner:0;
-  msg=N['P'+myPlayer()]?.disabled?'Your castle fell. Your fruit joined the captor. Spectating the remaining players.':'A castle fell. Its fruit joined the captor. Keep playing.';
+  const remaining=Object.values(N).filter(n=>n.home);
+  over=remaining.length===1?remaining[0].home:0;
+  msg=isEliminated(myPlayer())?'You were eliminated. Your fruit joined the captor. Spectating the remaining players.':'A player was eliminated. Keep playing.';
 }
-function castleFruit(n){
-  if(noQueueMode())return n.ut;
-  const selected=n.selectedType;
-  if(selected==null){
-    const strongest=big(n);
-    return n.stock[strongest]>CONFIG.strengthEpsilon?strongest:null;
-  }
-  for(let offset=0;offset<T.length;offset++){
-    const type=(selected+offset)%T.length;
-    if(n.stock[type]>CONFIG.strengthEpsilon)return type;
-  }
-  return null;
-}
-function refreshCastleFruit(n){
-  n.selectedType=castleFruit(n);
-  if(sel===n.id&&n.owner===myPlayer()&&n.selectedType!=null)sendType=n.selectedType;
-}
-function castleRouteFruit(n,target){
-  const selected=castleFruit(n);
-  if(selected!=null&&canEnter(target,n.owner,selected))return selected;
-  let best=-1,bestMatch=-Infinity,bestStock=-Infinity;
-  for(let i=0;i<T.length;i++){
-    const stock=n.stock[i];
-    if(stock<=CONFIG.strengthEpsilon||!canEnter(target,n.owner,i))continue;
-    const match=target.owner&&!target.castle?mult(i,target.ut):0;
-    if(match>bestMatch||match===bestMatch&&stock>bestStock){best=i;bestMatch=match;bestStock=stock;}
-  }
-  return best;
+function capturedHome(node,loser,winner){
+  // Only the name moves. The captured and replacement nodes retain their normal state.
+  const next=transformationConfig().fullElimination?Object.values(N).filter(n=>!n.shop&&n.owner===loser).sort((a,b)=>tot(b)-tot(a)||a.id.localeCompare(b.id))[0]:null;
+  node.home=0;
+  if(next)next.home=loser;
+  else eliminatePlayer(loser,winner);
 }
 function applyRouteCommand(owner,data){
-  if(!['route','stop','cancel','select-troop'].includes(data.kind))return false;
+  if(!['route','stop','cancel'].includes(data.kind))return false;
   const n=Object.hasOwn(N,data.node)?N[data.node]:null;
   if(over||!n||n.owner!==owner)return true;
-  if(data.kind==='select-troop'){
-    if(queuedCastle(n)&&Number.isInteger(data.type)&&data.type>=0&&data.type<T.length&&n.stock[data.type]>CONFIG.strengthEpsilon){n.selectedType=data.type;if(owner===myPlayer())sendType=data.type;}
-    return true;
-  }
   if(data.kind==='route'&&n.adj.includes(data.to)){
-    if(n.castle)refreshCastleFruit(n);
     n.routes??=[];
     if(!n.routes.includes(data.to)){
       if(portionControlEnabled()){
@@ -121,7 +83,7 @@ function routeCommand(data){
   const baseInit=init;
   init=function(){
     baseInit();
-    castleConquests={};
+    eliminatedBy={};
     for(const n of Object.values(N)){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
     const duel=TWO_PLAYER_MAPS[transformationConfig().map];
     if(duel){
@@ -139,27 +101,31 @@ function routeCommand(data){
         N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];
       }
     }
-    for(const n of Object.values(N))if(n.castle){if(noQueueMode()){n.ut=Math.max(0,big(n));n.q=[]}refreshCastleFruit(n);}
+    for(const n of Object.values(N))if(n.home){n.ut=Math.max(0,big(n));}
     closeWheel();
-    msg='Drag from your castle or an outpost to create a route. Tap to stop; hold to choose or transform.';
+    msg='Drag from your nodes to create a route. Tap to stop; hold to choose or transform.';
   };
   const baseArrive=arrive;
   arrive=function(g){
     g.owner=survivingOwner(g.owner);
     const target=N[g.to];if(!target)return;
-    if(target.disabled){const c=N['P'+g.owner];if(c&&!c.disabled)c.stock[g.type]+=g.n;return}
-    const owner=target.owner;baseArrive(g);
-    if(target.castle&&owner!==g.owner&&over===g.owner){if(Object.values(N).filter(n=>n.castle).length>2)eliminateCastle(target,g.owner);else removeDefeatedShops(owner);}
+    if(target.disabled)return;
+    if(!target.shop&&target.owner===g.owner&&!canEnter(target,g.owner,g.type)){
+      [g.from,g.to]=[g.to,g.from];g.t=0;g.previous=0;
+      if(typeof unitCorrections!=='undefined')unitCorrections.delete(g.id);
+      G.push(g);return;
+    }
+    const owner=target.owner,home=target.home;baseArrive(g);
+    if(home&&target.owner!==owner)capturedHome(target,home,g.owner);
     if(target.owner!==owner){target.routes=[];target.routeRemaining={};target.routeIndex=0;}
   };
   const baseDepart=depart;
   depart=function(n,dt){
     if(n.disabled)return;
-    if(n.castle)refreshCastleFruit(n);
     if(n.routes?.length&&n.departure<=dt&&tot(n)>CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
-        const type=queuedCastle(n)?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
+        const type=n.stock[n.ut]>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,n.ut)?n.ut:-1;
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
         const remaining=n.routeRemaining?.[to];
         const count=Math.min(1,n.stock[type],remaining??Infinity,tot(n)-(remaining==null?1:0),N[to].shop?shopCapacity(N[to]):Infinity);
@@ -177,21 +143,11 @@ function routeCommand(data){
       }
     }
     baseDepart(n,dt);
-    if(n.castle)refreshCastleFruit(n);
   };
-  const baseSelect=select;
-  select=function(id){baseSelect(id);if(N[id]?.castle&&N[id].selectedType!=null)sendType=N[id].selectedType;};
   send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to,portion:portionPercent});};
   const baseAct=act;
   act=function(a){
-    if(noQueueMode()&&(a[0]==='q'||a.startsWith('dropq')))return;
     if(a==='cancel'){routeCommand({kind:'cancel',node:sel});return;}
-    if(a.startsWith('dropq')){
-      const index=Number(a.slice(5));
-      if(typeof command==='function')command({kind:'dequeue',index});
-      else if(Number.isInteger(index)&&index>=0&&index<N['P'+myPlayer()].q.length)N['P'+myPlayer()].q.splice(index,1);
-      return;
-    }
     baseAct(a);
   };
   let wheelNode=null;
@@ -212,13 +168,12 @@ function routeCommand(data){
     T.forEach(([emoji,name],i)=>{
       const b=document.createElement('button'),a=2*Math.PI*i/T.length-Math.PI/2;
       b.style.left=102+75*Math.cos(a)+'px';b.style.top=102+75*Math.sin(a)+'px';
-      b.textContent=emoji;b.dataset.type=i;b.setAttribute('aria-label',queuedCastle(n)?`${name}, ${Math.ceil(n.stock[i])} available`:'Produce '+name);
-      b.setAttribute('aria-pressed',String(queuedCastle(n)?n.selectedType===i:(n.pend??n.ut)===i));
-      b.disabled=queuedCastle(n)&&n.stock[i]<=CONFIG.strengthEpsilon;
-      if((queuedCastle(n)?n.selectedType===i:(n.pend??n.ut)===i))b.className='on';
+      b.textContent=emoji;b.dataset.type=i;b.setAttribute('aria-label','Produce '+name);
+      b.setAttribute('aria-pressed',String((n.pend??n.ut)===i));
+      b.disabled=false;
+      if(((n.pend??n.ut)===i))b.className='on';
       b.onclick=()=>{if(N[id].owner===myPlayer()){
-        if(queuedCastle(n))routeCommand({kind:'select-troop',node:id,type:i});
-        else {select(id);act('p'+i);}
+        select(id);act('p'+i);
       }closeWheel();pl=0;};typeWheel.append(b);
     });
     const marker=map.querySelector(`[data-id="${id}"] circle:nth-child(2)`)||map.querySelector(`[data-id="${id}"] circle`);
@@ -250,7 +205,7 @@ function routeCommand(data){
     const wasOpen=wheelNode===id;closeWheel();
     drag={id:e.pointerId,from:id,startX:e.clientX,startY:e.clientY,moved:false,wasOpen};
     map.setPointerCapture(e.pointerId);
-    holdTimer=setTimeout(()=>{if(drag&&!drag.moved){if(!N[id].castle)routeCommand({kind:'stop',node:id});openWheel(id,e.clientX,e.clientY);}},CONFIG.holdMs);
+    holdTimer=setTimeout(()=>{if(drag&&!drag.moved){routeCommand({kind:'stop',node:id});openWheel(id,e.clientX,e.clientY);}},CONFIG.holdMs);
   });
   map.addEventListener('pointermove',e=>{
     if(drag?.id!==e.pointerId)return;e.preventDefault();

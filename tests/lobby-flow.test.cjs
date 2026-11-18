@@ -6,14 +6,14 @@ for(const count of [2,3,4])test(`${count} browsers join one room, start together
  }
  assert.equal(host.run('links.size'),count-1);
  clients.forEach((c,i)=>assert.equal(c.run('player'),i+1));
- assert.equal(host.match.run('lobbyConfig.noQueue'),true);
- host.match.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,noQueue:false}})');await hub.pump();
+ assert.equal(host.match.run('lobbyConfig.fullElimination'),false);
+ host.match.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,fullElimination:false}})');await hub.pump();
  for(const c of clients)c.match.elements.get('ready-button').onclick();await hub.pump();
  for(const c of clients)assert.equal(c.match.run('gameStarted'),true);
  host.match.run('loop(5100)');await hub.pump();
- for(let i=1;i<count;i++)clients[i].match.run('act("q1")');await hub.pump();
- for(let i=1;i<count;i++)assert.equal(host.match.run(`N.P${i+1}.q[0]`),1);
- hub.advance(130);host.match.run('loop(5200)');await hub.pump();for(let i=1;i<count;i++)assert.equal(clients[i].match.run(`N.P${i+1}.q[0]`),1);
+ for(let i=1;i<count;i++)clients[i].match.run('select("P"+localPlayer);act("p"+((N[sel].ut+1)%7))');await hub.pump();
+ for(let i=1;i<count;i++)assert.equal(host.match.run(`N.P${i+1}.cd`),5);
+ hub.advance(130);host.match.run('loop(5200)');await hub.pump();for(let i=1;i<count;i++)assert.equal(clients[i].match.run(`N.P${i+1}.cd`),host.match.run(`N.P${i+1}.cd`));
  // The established match survives transport rebinding and a temporary absence.
  host.match.run('N.P1.stock[0]=77');hub.advance(21000);await hub.beat();await hub.pump();assert.equal(host.match.run('N.P1.stock[0]'),77);
 });

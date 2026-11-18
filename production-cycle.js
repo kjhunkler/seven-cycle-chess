@@ -18,8 +18,6 @@ function transformationProgress(node){
  const duration=transformationConfig().transformationWave?transformationPeriod():CONFIG.cooldown;
  return Math.max(0,Math.min(1,1-node.cd/duration));
 }
-function noQueueMode(){return !!(typeof botConfig!=='undefined'?botConfig.noQueue:typeof lobbyConfig!=='undefined'&&lobbyConfig.noQueue)}
-function queuedCastle(node){return !!node.castle&&!noQueueMode()}
 const PRODUCTION_CYCLE_MS = 45000;
 const PRODUCTION_BUFF = 1.25;
 const PRODUCTION_DEBUFF = 0.75;

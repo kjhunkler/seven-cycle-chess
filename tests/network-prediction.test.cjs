@@ -1,13 +1,13 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
-function network(seat=2,noQueue=true){
+function network(seat=2){
  const host=createGame(),guest=createGame(),outbox=[];let now=100;
  for(const h of [host,guest])h.context.performance.now=()=>now;
  host.run('matchGame.start(1,()=>{},[1,2,3,4])');
  guest.context.send=packet=>outbox.push(JSON.parse(JSON.stringify(packet)));
  guest.run(`matchGame.start(${seat},send,[1,2,3,4])`);
- host.run(`lobbyConfig.noQueue=${noQueue};init();gameStarted=true;countdownRemaining=0`);
+ host.run(`init();gameStarted=true;countdownRemaining=0`);
  const deliver=(h,packet,source)=>{h.context.packet=JSON.parse(JSON.stringify(packet));h.run(`matchGame.receive(packet,${source})`)};
  const snapshot=()=>JSON.parse(host.run(`JSON.stringify(snapshot(${seat}))`));
  const sync=()=>deliver(guest,snapshot(),1);
@@ -26,17 +26,17 @@ for(const seat of [2,3,4])test(`seat ${seat} predicts input and simulates depart
  n.flush();n.sync();assert.equal(guest.run('pendingCommands.length'),0);
  assert.equal(host.run(`N.P${seat}.routes.length`),1);
 });
-test('rollback replays ordered pending inputs and acknowledgements prevent duplicate queue entries',()=>{
- const n=network(2,false),{guest}=n,stale=n.snapshot();
- guest.run("command({kind:'queue',type:1});command({kind:'queue',type:2});command({kind:'dequeue',index:0})");
- assert.equal(guest.run('JSON.stringify(N.P2.q)'),'[2]');
- n.deliver(guest,stale,1);assert.equal(guest.run('JSON.stringify(N.P2.q)'),'[2]');
+test('rollback replays ordered route inputs and acknowledges each command once',()=>{
+ const n=network(),{guest}=n,stale=n.snapshot();
+ guest.run("command({kind:'route',node:'P2',to:N.P2.adj[0]});command({kind:'stop',node:'P2'});command({kind:'route',node:'P2',to:N.P2.adj[1]})");
+ const routes=guest.run('JSON.stringify(N.P2.routes)');
+ n.deliver(guest,stale,1);assert.equal(guest.run('JSON.stringify(N.P2.routes)'),routes);
  n.flush();n.sync();n.sync();
- assert.equal(guest.run('JSON.stringify(N.P2.q)'),'[2]');
+ assert.equal(guest.run('JSON.stringify(N.P2.routes)'),routes);
  assert.equal(guest.run('pendingCommands.length'),0);
- // A delayed unreliable snapshot cannot roll state back after a newer one.
- n.deliver(guest,stale,1);assert.equal(guest.run('JSON.stringify(N.P2.q)'),'[2]');
+ n.deliver(guest,stale,1);assert.equal(guest.run('JSON.stringify(N.P2.routes)'),routes);
 });
+
 test('host rejection corrects predicted actions without bypassing ownership',()=>{
  const n=network(),{host,guest}=n;
  host.run('N.P2.owner=1');guest.run("command({kind:'route',node:'P2',to:N.P2.adj[0]})");

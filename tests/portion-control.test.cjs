@@ -4,7 +4,7 @@ const {createGame,Element}=require('./game-harness.cjs');
 function setup(page,enabled=true){
  const h=createGame(page);
  h.run(page==='index.html'?`botConfig.portionControl=${enabled};init()`:`lobbyConfig.portionControl=${enabled};online=true;gameStarted=true;init()`);
- h.run('N.P1.stock=[20,0,0,0,0,0,0];N.P1.selectedType=0;globalThis.to=N.P1.adj.find(id=>!N[id].shop);');
+ h.run('N.P1.stock=[20,0,0,0,0,0,0];N.P1.ut=0;globalThis.to=N.P1.adj.find(id=>!N[id].shop);');
  return h;
 }
 for(const page of ['index.html','match.html']){
@@ -57,7 +57,7 @@ test('guest slider travels with command and host expires the arrow',()=>{
  const deliver=(target,data,source)=>{target.context.packet=JSON.parse(JSON.stringify(data));target.run(`matchGame.receive(packet,${source})`)};
  host.context.wire=data=>deliver(guest,data,1);guest.context.wire=data=>deliver(host,data,2);
  host.run('matchGame.start(1,wire)');guest.run('matchGame.start(2,wire)');
- host.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,portionControl:true}});gameStarted=true;N.P2.stock=[20,0,0,0,0,0,0];N.P2.selectedType=0;peerSend(snapshot(2),2)');
+ host.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,portionControl:true}});gameStarted=true;N.P2.stock=[20,0,0,0,0,0,0];N.P2.ut=0;peerSend(snapshot(2),2)');
  guest.run("portionPercent=25;send('P2',N.P2.adj[0]);portionPercent=100");
  assert.equal(host.run('N.P2.routeRemaining[N.P2.adj[0]]'),5);
  host.run('for(let i=0;i<5;i++)depart(N.P2,1);peerSend(snapshot(2),2)');
@@ -77,7 +77,7 @@ for(const page of ['index.html','match.html'])test(page+': slider visibility and
  assert.equal(control.querySelector('output').textContent,'25%');
  if(page==='index.html'){
   const dialog=h.context.document.body.children.find(node=>node.className==='battle-settings-dialog');
-  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},shops:{checked:false},productionRotation:{checked:false},noQueue:{checked:false},portionControl:{checked:false},transformationWave:{checked:false},transformationTime:{value:'10'}};
+  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},shops:{checked:false},productionRotation:{checked:false},fullElimination:{checked:false},portionControl:{checked:false},transformationWave:{checked:false},transformationTime:{value:'10'}};
   dialog.listeners.get('change')();h.run('render()');assert.equal(control.hidden,true);
  }else{
   h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];variantField("portionControl").checked=true');

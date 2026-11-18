@@ -6,7 +6,7 @@ for(const [map,name,count]of maps)for(const page of ['index.html','match.html'])
  const h=createGame(page);
  h.run(page==='index.html'?`botConfig.map=${map};botConfig.shops=${shops};init()`:`matchGame.start(1,()=>{});lobbyConfig.map=${map};lobbyConfig.shops=${shops};init();gameStarted=true`);
  assert.equal(h.run('Object.values(N).filter(n=>!n.shop).length'),count);
- assert.equal(h.run('Object.values(N).filter(n=>n.castle).length'),2);
+ assert.equal(h.run('Object.values(N).filter(n=>n.home).length'),2);
  assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),shops?4:0);
  for(const axis of ['x','y'])assert.equal(h.run(`Object.values(N).every(n=>{
   const flip=p=>({x:${axis==='x'?'100-p.x':'p.x'},y:${axis==='y'?'100-p.y':'p.y'}});
