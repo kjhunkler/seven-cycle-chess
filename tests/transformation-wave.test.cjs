@@ -50,6 +50,7 @@ test('guest can adjust wave interval in lobby; host synchronizes settings, readi
  }
  host.elements.get('ready-button').onclick();guest.elements.get('ready-button').onclick();
  assert.equal(host.run('gameStarted'),true);assert.equal(guest.run('gameStarted'),true);
+ host.run('loop(5100)');
  host.run('N.A1.owner=2;N.A1.ut=0;N.A1.stock=[6,0,0,0,0,0,0];connectedPlayers=[1,2,3,4];for(let i=0;i<30;i++)step(.1)');
  guest.run('command({kind:"produce",node:"A1",type:1})');
  host.run('peerSend(snapshot(2),2)');

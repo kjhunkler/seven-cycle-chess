@@ -7,10 +7,11 @@ for(const count of [2,3,4]){
   const drain=()=>{let limit=100;while(queue.length){assert.ok(limit-->0);const [target,data,source]=queue.shift();games[target-1].context.packet=data;games[target-1].context.source=source;games[target-1].run('matchGame.receive(packet,source)')}};
   drain();games[0].run('lobbyAction(1,{action:"config",config:{...lobbyConfig,noQueue:false}})');drain();for(const h of games)h.elements.get('ready-button').onclick();drain();
   for(const h of games)assert.equal(h.run('gameStarted'),true);
+  games[0].run('loop(5100)');drain();
   for(let p=2;p<=count;p++){games[p-1].run('act("q0")');games[p-1].run('routeCommand({kind:"route",node:"P1",to:"C1"})')};drain();
   for(let p=2;p<=count;p++)assert.equal(games[0].run(`N.P${p}.q[0]`),0);
   assert.equal(games[0].run('N.P1.routes.length'),0);
-  games[0].run('loop(200)');drain();
+  games[0].run('loop(5200)');drain();
   for(let p=2;p<=count;p++)assert.equal(games[p-1].run(`N.P${p}.owner`),p);
   assert.equal(games[1].run('N.P1.stock.reduce((a,b)=>a+b,0)'),0,'remote stock hidden');
  });

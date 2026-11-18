@@ -41,6 +41,10 @@
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
+  const startCountdown=document.createElement('div');
+  startCountdown.className='match-countdown';startCountdown.hidden=true;
+  startCountdown.setAttribute('role','status');startCountdown.setAttribute('aria-live','polite');
+  shell.append(startCountdown);
   const portionControl=document.createElement('label');
   portionControl.className='portion-control';
   portionControl.hidden=!portionControlEnabled();
@@ -130,6 +134,14 @@
   window.boardNodes=()=>N;
   render=function(){
     if(typeof online==='undefined'&&document.querySelector('main')?.inert){closeEndgame();return;}
+    const starting=typeof countdownRemaining!=='undefined'&&countdownRemaining>0;
+    startCountdown.hidden=!starting;
+    if(starting){
+      const elapsed=localPlayer===1?0:Math.max(0,performance.now()-countdownSyncedAt);
+      const seconds=Math.max(1,Math.ceil((countdownRemaining-elapsed)/1000));
+      const label=`Starting in ${seconds}`;
+      if(startCountdown.textContent!==label)startCountdown.textContent=label;
+    }
     portionControl.hidden=!portionControlEnabled();
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
@@ -176,6 +188,12 @@
         if(n.shields>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+3.1}" fill="none" stroke="#55d9ff" stroke-width="1.5" class="shield-ring"/><text x="${n.x-r-1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#63e4ff" stroke="var(--card)" stroke-width=".7" paint-order="stroke">🛡️${n.shields>1?`×${n.shields}`:''}</text>`;
         if(n.boost>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.5}" fill="none" stroke="#ffd34e" stroke-width="1.5" stroke-dasharray="1 1"/><text x="${n.x+r+1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#ffd34e" stroke="var(--card)" stroke-width=".7" paint-order="stroke">⚡${Math.ceil(n.boost)}s</text>`;
       }else h+=`<text x="${n.x}" y="${n.y+1.3}" text-anchor="middle" font-size="4" fill="var(--mut)">?</text>`;
+      if(n.castle){
+        const seat=Number(n.id.slice(1)),members=typeof lobbyMembers==='undefined'?[]:lobbyMembers;
+        const name=members.find(member=>member.seat===seat)?.name||(seat===me?(typeof online==='undefined'?storage.get('fruit-wars-name'):'')||'You':typeof humanPlayers!=='undefined'&&humanPlayers.includes(seat)?`Player ${seat}`:`Bot ${seat}`);
+        const shortName=Array.from(name).length>16?Array.from(name).slice(0,15).join('')+'…':name;
+        countLabels+=`<text class="castle-player-name" data-castle="${n.id}" x="${n.x}" y="${n.y+r+5.2}" text-anchor="middle" font-size="2.8" font-weight="750" fill="var(--fg)" stroke="var(--card)" stroke-width=".9" paint-order="stroke" pointer-events="none"><title>${escape(name)}</title>${escape(shortName)}</text>`;
+      }
       h+=`<circle cx="${n.x}" cy="${n.y}" r="7.4" fill="transparent"/></g>`;
     }
     for(const a of Object.values(N)){

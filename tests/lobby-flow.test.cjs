@@ -10,9 +10,10 @@ for(const count of [2,3,4])test(`${count} browsers join one room, start together
  host.match.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,noQueue:false}})');await hub.pump();
  for(const c of clients)c.match.elements.get('ready-button').onclick();await hub.pump();
  for(const c of clients)assert.equal(c.match.run('gameStarted'),true);
+ host.match.run('loop(5100)');await hub.pump();
  for(let i=1;i<count;i++)clients[i].match.run('act("q1")');await hub.pump();
  for(let i=1;i<count;i++)assert.equal(host.match.run(`N.P${i+1}.q[0]`),1);
- host.match.run('loop(200)');await hub.pump();for(let i=1;i<count;i++)assert.equal(clients[i].match.run(`N.P${i+1}.q[0]`),1);
+ hub.advance(130);host.match.run('loop(5200)');await hub.pump();for(let i=1;i<count;i++)assert.equal(clients[i].match.run(`N.P${i+1}.q[0]`),1);
  // The established match survives transport rebinding and a temporary absence.
  host.match.run('N.P1.stock[0]=77');hub.advance(21000);await hub.beat();await hub.pump();assert.equal(host.match.run('N.P1.stock[0]'),77);
 });
