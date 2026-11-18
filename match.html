@@ -503,7 +503,7 @@ function openWheel(id,x,y){
   typeWheel.hidden=false;
   pl=0;
 }
-init();requestAnimationFrame(loop);
+init();
 
 if(parent===window){
   location.replace("./");
@@ -511,4 +511,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=23"></script><script src="./board-ui.js?v=27"></script></body></html>
+</script><script src="./controls.js?v=23"></script><script src="./board-ui.js?v=27"></script><script>requestAnimationFrame(loop);</script></body></html>
