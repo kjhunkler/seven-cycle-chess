@@ -41,11 +41,21 @@
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
+  const portionControl=document.createElement('label');
+  portionControl.className='portion-control';
+  portionControl.hidden=!portionControlEnabled();
+  portionControl.innerHTML='<span>Portion <output>100%</output></span><input type="range" min="25" max="100" step="25" value="100" aria-label="Troops per new arrow" aria-valuetext="100%"><span class="portion-ticks" aria-hidden="true"><span>25%</span><span>50%</span><span>75%</span><span>100%</span></span>';
+  const portionSlider=portionControl.querySelector('input'),portionOutput=portionControl.querySelector('output');
+  portionSlider.addEventListener('input',()=>{
+    const value=Number(portionSlider.value);if(![25,50,75,100].includes(value))return;
+    portionPercent=value;portionOutput.textContent=value+'%';portionSlider.setAttribute('aria-valuetext',value+'%');
+  });
+  shell.append(portionControl);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"><option value="1">Original map</option><option value="2">Expanded orchard</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves</option><option value="4">Grand orchard</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-setting"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=noQueue]').checked=!!botConfig.noQueue;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=noQueue]').checked=!!botConfig.noQueue;settingsDialog.querySelector('[name=portionControl]').checked=!!botConfig.portionControl;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
@@ -55,8 +65,8 @@
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,noQueue,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
-      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,noQueue:!!noQueue?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
+      const {map,speed,shops,productionRotation,noQueue,portionControl,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
+      const next={map:Number(map.value),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,noQueue:!!noQueue?.checked,portionControl:!!portionControl?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
       if(!Number.isFinite(next.transformationTime)||next.transformationTime<1||next.transformationTime>120)return;
       if(transformationTime)transformationTime.disabled=!next.transformationWave;
       const reset=restart||next.transformationWave!==!!botConfig.transformationWave||next.transformationTime!==(botConfig.transformationTime??10)||next.noQueue!==!!botConfig.noQueue||next.map!==botConfig.map||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
@@ -119,6 +129,7 @@
   });
   window.boardNodes=()=>N;
   render=function(){
+    portionControl.hidden=!portionControlEnabled();
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
     footer.querySelector('.ally').style.background=ownerColor(me);

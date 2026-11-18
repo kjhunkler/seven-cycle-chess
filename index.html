@@ -66,7 +66,7 @@ const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
-let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:false,transformationWave:false,transformationTime:10};
+let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:false,portionControl:false,transformationWave:false,transformationTime:10};
 const extraMaps={
   1:{nodes:{},edges:[]},
   2:{nodes:{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]},edges:[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},

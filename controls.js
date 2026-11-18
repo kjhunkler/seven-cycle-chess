@@ -1,4 +1,6 @@
-/* Persistent routes are simulated by the host and included in normal snapshots. */
+/* Routes and their optional troop budgets are simulated by the host. */
+let portionPercent=100;
+function portionControlEnabled(){return !!transformationConfig().portionControl}
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let castleConquests={};
 // Forward/inverse view transforms keep pointer directions aligned with the map.
@@ -97,9 +99,18 @@ function applyRouteCommand(owner,data){
   }
   if(data.kind==='route'&&n.adj.includes(data.to)){
     if(n.castle)refreshCastleFruit(n);
-    n.routes??=[];if(!n.routes.includes(data.to))n.routes.push(data.to);
+    n.routes??=[];
+    if(!n.routes.includes(data.to)){
+      if(portionControlEnabled()){
+        if(![25,50,75,100].includes(data.portion))return true;
+        const stock=tot(n);if(stock<=CONFIG.strengthEpsilon)return true;
+        n.routeRemaining??={};
+        n.routeRemaining[data.to]=Math.min(stock,Math.max(1,Math.floor(stock*data.portion/100)));
+      }
+      n.routes.push(data.to);
+    }
   }
-  if(data.kind==='stop'){n.routes=[];n.routeIndex=0;}
+  if(data.kind==='stop'){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
   if(data.kind==='cancel'){n.pend=null;n.cd=0;n.transformAt=null;}
   return true;
 }
@@ -111,7 +122,7 @@ function routeCommand(data){
   init=function(){
     baseInit();
     castleConquests={};
-    for(const n of Object.values(N)){n.routes=[];n.routeIndex=0;}
+    for(const n of Object.values(N)){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
     if(N.P4){
       for(const group of [['P1','P2','P3','P4'],['A1','A4','C1','C4'],['A2','A3','C2','C3'],['B1','B3'],['D1','D2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
     }else if(N.D1){
@@ -136,22 +147,30 @@ function routeCommand(data){
     if(target.disabled){const c=N['P'+g.owner];if(c&&!c.disabled)c.stock[g.type]+=g.n;return}
     const owner=target.owner;baseArrive(g);
     if(target.castle&&owner!==g.owner&&over===g.owner){if(Object.values(N).filter(n=>n.castle).length>2)eliminateCastle(target,g.owner);else removeDefeatedShops(owner);}
-    if(target.owner!==owner){target.routes=[];target.routeIndex=0;}
+    if(target.owner!==owner){target.routes=[];target.routeRemaining={};target.routeIndex=0;}
   };
   const baseDepart=depart;
   depart=function(n,dt){
     if(n.disabled)return;
     if(n.castle)refreshCastleFruit(n);
-    if(n.routes?.length&&n.departure<=dt&&tot(n)>1+CONFIG.strengthEpsilon){
+    if(n.routes?.length&&n.departure<=dt&&tot(n)>CONFIG.strengthEpsilon){
       for(let offset=0;offset<n.routes.length;offset++){
         const at=((n.routeIndex||0)+offset)%n.routes.length,to=n.routes[at];
         const type=queuedCastle(n)?castleRouteFruit(n,N[to]):n.stock.findIndex((v,i)=>v>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,i));
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
-        const count=Math.min(1,n.stock[type],tot(n)-1,N[to].shop?shopCapacity(N[to]):Infinity);
+        const remaining=n.routeRemaining?.[to];
+        const count=Math.min(1,n.stock[type],remaining??Infinity,tot(n)-(remaining==null?1:0),N[to].shop?shopCapacity(N[to]):Infinity);
         if(count<=CONFIG.strengthEpsilon)continue;
         n.stock[type]-=count;
         G.push({from:n.id,to,owner:n.owner,type,n:count,t:0});
-        n.routeIndex=(at+1)%n.routes.length;n.departure=CONFIG.departureInterval+dt;break;
+        if(remaining!=null){
+          n.routeRemaining[to]=Math.max(0,remaining-count);
+          if(n.routeRemaining[to]<=CONFIG.strengthEpsilon){
+            n.routes.splice(at,1);delete n.routeRemaining[to];
+            n.routeIndex=n.routes.length?at%n.routes.length:0;
+          }else n.routeIndex=(at+1)%n.routes.length;
+        }else n.routeIndex=(at+1)%n.routes.length;
+        n.departure=CONFIG.departureInterval+dt;break;
       }
     }
     baseDepart(n,dt);
@@ -159,7 +178,7 @@ function routeCommand(data){
   };
   const baseSelect=select;
   select=function(id){baseSelect(id);if(N[id]?.castle&&N[id].selectedType!=null)sendType=N[id].selectedType;};
-  send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to});};
+  send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to,portion:portionPercent});};
   const baseAct=act;
   act=function(a){
     if(noQueueMode()&&(a[0]==='q'||a.startsWith('dropq')))return;
