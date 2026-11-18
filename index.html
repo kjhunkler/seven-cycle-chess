@@ -47,7 +47,7 @@ small{color:var(--mut)}
   <p role="status">Connecting to players…</p>
   <strong>Online players</strong><ul id="friends"></ul>
 </section></details><div id="invite-toasts" aria-live="assertive"></div></main>
-<script src="./production-cycle.js?v=21"></script><script>
+<script src="./production-cycle.js?v=21"></script><script src="./duel-maps.js?v=1"></script><script>
 const CONFIG={timeScale:1,castleRate:2,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,castleStart:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
@@ -86,9 +86,9 @@ function init(){
   transformationClock=0;
   N={};
   CONFIG.timeScale=botConfig.speed;
-  const positions=botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===6?LARGE_THREE_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes};
+  const positions=TWO_PLAYER_MAPS[botConfig.map]?.nodes||(botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===6?LARGE_THREE_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes});
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
-  const edges=botConfig.map===4?FOUR_EDGES:botConfig.map===5?BRANCH_EDGES:botConfig.map===6?LARGE_THREE_EDGES:botConfig.map===3?THREE_EDGES:[...EDGES,...extraMaps[botConfig.map].edges];
+  const edges=TWO_PLAYER_MAPS[botConfig.map]?.edges||(botConfig.map===4?FOUR_EDGES:botConfig.map===5?BRANCH_EDGES:botConfig.map===6?LARGE_THREE_EDGES:botConfig.map===3?THREE_EDGES:[...EDGES,...extraMaps[botConfig.map].edges]);
   if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(botConfig.map),botConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
   edges.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
@@ -335,4 +335,4 @@ function openWheel(id,x,y){
 }
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=21"></script><script src="./board-ui.js?v=25"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=22"></script><script src="./board-ui.js?v=26"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

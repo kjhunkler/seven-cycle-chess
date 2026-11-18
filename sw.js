@@ -1,5 +1,5 @@
-const CACHE = "fruit-wars-v42-counter-strength-hints";
-const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css", "board-ui.css", "board-ui.js", "controls.js", "production-cycle.js",
+const CACHE = "fruit-wars-v43-five-duel-maps";
+const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css", "board-ui.css", "board-ui.js", "controls.js", "production-cycle.js", "duel-maps.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png"].map(path => new URL(path, self.registration.scope).href);
 
 self.addEventListener("install", event => {

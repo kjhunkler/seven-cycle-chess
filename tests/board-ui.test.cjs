@@ -37,7 +37,7 @@ for (const page of ['index.html', 'match.html']) {
     });
     context.window = context;
     const html = fs.readFileSync(path.join(root, page), 'utf8');
-    vm.runInContext(fs.readFileSync(path.join(root, 'production-cycle.js'), 'utf8'), context, { filename: 'production-cycle.js' });
+    for(const file of ['production-cycle.js','duel-maps.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
       if (match[1].trim()) vm.runInContext(match[1], context, { filename: page });
     }

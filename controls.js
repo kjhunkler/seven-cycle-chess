@@ -123,7 +123,10 @@ function routeCommand(data){
     baseInit();
     castleConquests={};
     for(const n of Object.values(N)){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
-    if(N.P4){
+    const duel=TWO_PLAYER_MAPS[transformationConfig().map];
+    if(duel){
+      for(const group of duel.startGroups)for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
+    }else if(N.P4){
       for(const group of [['P1','P2','P3','P4'],['A1','A4','C1','C4'],['A2','A3','C2','C3'],['B1','B3'],['D1','D2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
     }else if(N.D1){
       for(const group of [['P1','P2'],['A1','A3','C1','C3'],['A2','C2'],['B1','B4'],['B2','B3'],['D1','D2','E1','E2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
