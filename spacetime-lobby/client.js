@@ -4,12 +4,37 @@ import { createProfileAuth } from './profile-auth.js';
 const historyCredentialKey = 'fruit-wars-history-profile';
 const pendingMatchPrefix = 'fruit-wars-pending-match:';
 
+export function directoryRoster(db, selfId, now = Date.now()) {
+  const members = new Map([...db.member.iter()].map(m => [m.profile,m]));
+  const self = db.liveProfile.id.find(selfId)?.member;
+  const represented = new Set([self]);
+  const people = [];
+  // Only a recent server-stamped heartbeat establishes presence.
+  const active = [...db.player.iter()].filter(player => player.lastSeen !== undefined &&
+    now - Number(player.lastSeen / 1000n) <= 30000);
+  for (const player of active) {
+    if (player.id === selfId) continue;
+    const live = db.liveProfile.id.find(player.id);
+    const account = members.get(live?.member);
+    if (account && represented.has(account.profile)) continue;
+    if (account) represented.add(account.profile);
+    people.push({id:player.id,solo:db.soloStanding.id.find(player.id),name:account?.name ?? player.name,key:JSON.parse(player.key),online:true,
+      played:live?.played ?? 0,wins:live?.wins ?? 0});
+  }
+  for (const account of members.values()) if (!represented.has(account.profile)) {
+    people.push({id:'member-'+account.profile,solo:db.soloStanding.id.find('member-'+account.profile),name:account.name,online:false,
+      lastOnline:Number(account.lastOnline/1000n),wins:account.wins,played:account.played});
+  }
+  return people.sort((a,b)=>Number(b.online)-Number(a.online)||a.name.localeCompare(b.name));
+}
+
 export function createLobbyDirectory(database, host = 'https://maincloud.spacetimedb.com', authClient) {
   let connection, catalog, selfId;
   let catalogRevision = 0;
   let token;
   let synced = false;
   let announcedName;
+  let lastAnnounced = 0;
   let historyRegistered = false;
   let saving;
   let saveError;
@@ -146,9 +171,12 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       const conn = connected();
       selfId = profile.id;
       if (conn.db.communityMap.count()===0n) await conn.reducers.initializeCommunity();
-      if (announcedName !== profile.name) {
+      if (announcedName !== profile.name || Date.now() - lastAnnounced >= 5000) {
         await conn.reducers.announce({ ...profile, key: JSON.stringify(profile.key) });
-        if (connection === conn && synced) announcedName = profile.name;
+        if (connection === conn && synced) {
+          announcedName = profile.name;
+          lastAnnounced = Date.now();
+        }
       }
       if (!historyRegistered && !guestLinked) {
         try {
@@ -186,24 +214,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         await conn.reducers.acknowledgeInvitation({ room: row.room });
       }
 
-      const members = new Map([...conn.db.member.iter()].map(m => [m.profile,m]));
-      const self = conn.db.liveProfile.id.find(profile.id)?.member;
-      const represented = new Set([self]);
-      const people = [];
-      for (const player of conn.db.player.iter()) {
-        if (player.id === profile.id) continue;
-        const live = conn.db.liveProfile.id.find(player.id);
-        const account = members.get(live?.member);
-        if (account && represented.has(account.profile)) continue;
-        if (account) represented.add(account.profile);
-        people.push({id:player.id,solo:conn.db.soloStanding.id.find(player.id),name:account?.name ?? player.name,key:JSON.parse(player.key),online:true,
-          played:live?.played ?? 0,wins:live?.wins ?? 0});
-      }
-      for (const account of members.values()) if (!represented.has(account.profile)) {
-        people.push({id:'member-'+account.profile,solo:conn.db.soloStanding.id.find('member-'+account.profile),name:account.name,online:false,
-          lastOnline:Number(account.lastOnline/1000n),wins:account.wins,played:account.played});
-      }
-      return people.sort((a,b)=>Number(b.online)-Number(a.online)||a.name.localeCompare(b.name));
+      return directoryRoster(conn.db, profile.id);
     },
     community() {
       if (!synced) return;

@@ -17,7 +17,7 @@ On the public site, SpacetimeDB Maincloud publishes the online player list and d
 
 The Pages workflow builds the SpacetimeDB client from the checked-in TypeScript bindings. Set the repository variable `FRUIT_WARS_SPACETIME_DB` to a different database name to use that Maincloud deployment, or set it to `off` and dispatch **Deploy to GitHub Pages** to use the MQTT lobby. A configured private HTTP lobby takes precedence. See [SpacetimeDB module setup](spacetime-lobby/README.md) for publishing and regenerating the client bindings.
 
-Signing in opens Friends with multiplayer wins, losses, games played, win rate, and a separate solo record. A green dot marks an online player. Signed-in profiles remain listed with their last online time after their final session closes. Guests leave the directory when they disconnect.
+Friends shows multiplayer wins, losses, games played, win rate, and a separate solo record. A green dot marks an online player. Presence refreshes every five seconds and expires after 30 seconds without a heartbeat, even if a disconnect notification is missed. Signed-in profiles remain listed with their last online time after their final active session closes. Guests leave the directory when they disconnect or their heartbeat expires.
 
 Open **Map library** to preview a layout, see its creator, last edit and play count, or copy a link to it. Signed-in players can publish maps, vote, and comment. The creator can edit a published map. Each edit creates a revision so a match keeps the layout it started with. Solo battle settings and multiplayer setup both preview the selected map.
 

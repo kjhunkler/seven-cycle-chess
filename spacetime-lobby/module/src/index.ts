@@ -37,6 +37,7 @@ const player = table({ public: true }, {
   id: t.string().primaryKey(),
   name: t.string(),
   key: t.string(),
+  lastSeen: t.option(t.u64()),
 });
 
 const session = table({}, {
@@ -297,7 +298,9 @@ export const announce = lobby.reducer(
     }
 
     const current = ctx.db.session.identity.find(ctx.sender);
-    const profile = { id, name: displayName, key };
+    const profile = { id, name: displayName, key, lastSeen: ctx.timestamp.microsSinceUnixEpoch };
+    const user = accountFor(ctx);
+    if (user) refreshProfile(ctx,user.profile,profile.lastSeen);
     if (current) {
       if (current.id !== id || ctx.db.player.id.find(id)?.key !== key) {
         throw new SenderError('This connection already has a lobby profile.');

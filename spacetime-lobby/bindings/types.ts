@@ -218,6 +218,7 @@ export const Player = __t.object("Player", {
   id: __t.string(),
   name: __t.string(),
   key: __t.string(),
+  lastSeen: __t.option(__t.u64()),
 });
 export type Player = __Infer<typeof Player>;
 

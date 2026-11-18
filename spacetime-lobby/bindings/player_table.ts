@@ -14,4 +14,5 @@ export default __t.row({
   id: __t.string().primaryKey(),
   name: __t.string(),
   key: __t.string(),
+  lastSeen: __t.option(__t.u64()),
 });

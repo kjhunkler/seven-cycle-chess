@@ -403,7 +403,6 @@ function renderAccount(data) {
   const stats=document.querySelector("#player-stats");
   stats.hidden=!data.stats;
   if(data.stats)stats.textContent=statsLine(data.stats,data.solo);
-  if(signedIn && previous?.profile!==data.profile)document.querySelector("#friends-panel").open=true;
   if(signedIn&&data.name!==previous?.name)rename(data.name);
 }
 

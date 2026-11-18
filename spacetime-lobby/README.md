@@ -17,6 +17,8 @@ npm run build
 
 Commit schema and binding changes together. The GitHub Pages workflow builds and stages the client bundle. Keep module changes compatible with the currently deployed client when publishing before the Pages update.
 
+Presence requires the module and client with `player.lastSeen` to be deployed together. The client announces every five seconds; the server stamps each announcement and updates signed-in members' last-online time. The directory expires sessions after 30 seconds without an announcement, hides expired guests, and retains members as offline unless another tab has a fresh heartbeat. Legacy rows without a heartbeat remain hidden until their client announces again.
+
 ## Email profiles
 
 Enable SpacetimeAuth in the Maincloud dashboard. Use a public web OAuth client with email login enabled and register the site root as its redirect URI, including its trailing slash. Fruit Wars requests Authorization Code with PKCE and the `offline_access` scope. The client ID is public. The static site does not use an OAuth client secret.
