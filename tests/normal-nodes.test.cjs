@@ -22,8 +22,8 @@ for(const page of ['index.html','match.html']){
   h.run('act("p"+nextType)');
   assert.equal(h.run('N.P1.pend'),h.run('nextType'));
   h.run('panel()');
-  assert.equal(h.elements.get('panel').hidden,false);
-  assert.match(h.elements.get('panel').innerHTML,/Transforming/);
+  assert.equal(h.elements.get('panel').hidden,true);
+  assert.doesNotMatch(h.elements.get('panel').innerHTML,/Transforming/);
   h.run('step(1)');
   assert.equal(h.run('tot(N.P1)'),7);
   h.run('for(let i=0;i<41;i++)step(.1)');

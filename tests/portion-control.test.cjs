@@ -64,7 +64,7 @@ test('guest slider travels with command and host expires the arrow',()=>{
  assert.equal(guest.run('N.P2.routes.length'),0);
 });
 
-for(const page of ['index.html','match.html'])test(page+': slider visibility and input follow the optional setting',()=>{
+for(const page of ['index.html','match.html'])test(page+': legacy portion config still enables the slider',()=>{
  let shell;const before=Element.prototype.before;
  Element.prototype.before=function(node){shell=node};
  let h;try{h=createGame(page)}finally{Element.prototype.before=before}
@@ -77,12 +77,14 @@ for(const page of ['index.html','match.html'])test(page+': slider visibility and
  assert.equal(control.querySelector('output').textContent,'25%');
  if(page==='index.html'){
   const dialog=h.context.document.body.children.find(node=>node.className==='battle-settings-dialog');
-  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},shops:{checked:false},productionRotation:{checked:false},fullElimination:{checked:false},portionControl:{checked:false},transformationWave:{checked:false},transformationTime:{value:'10'}};
+  assert.doesNotMatch(dialog.innerHTML,/name="(?:portionControl|transformationWave|transformationTime)"/);
+  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},shops:{checked:false},productionRotation:{checked:false},fullElimination:{checked:false}};
   dialog.listeners.get('change')();h.run('render()');assert.equal(control.hidden,true);
  }else{
-  h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];variantField("portionControl").checked=true');
+  h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];variantField("shops").checked=true');
   h.elements.get('variant-form').listeners.get('change')();
-  assert.equal(h.run('lobbyConfig.portionControl'),true);
+  assert.equal(h.run('lobbyConfig.portionControl'),undefined);
+  assert.equal(h.run('lobbyConfig.shops'),true);
   assert.equal(h.run('lobbyReady.some(Boolean)'),false);
  }
 });

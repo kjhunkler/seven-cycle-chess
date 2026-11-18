@@ -34,18 +34,16 @@ for(const page of ['index.html','match.html']){
   assert.equal(h.run('transformationProgress(N.C1)'),.4);
  });
 }
-test('guest can adjust wave interval in lobby; host synchronizes settings, readiness, deadlines, and progress',()=>{
+test('legacy wave config still synchronizes deadlines and progress',()=>{
  const host=createGame(),guest=createGame();
  const deliver=(target,data,source)=>{target.context.packet=JSON.parse(JSON.stringify(data));target.run(`matchGame.receive(packet,${source})`)};
  host.context.send=data=>deliver(guest,data,1);
  guest.context.send=data=>deliver(host,data,2);
  host.run('matchGame.start(1,send)');guest.run('matchGame.start(2,send)');host.run('sendLobby();lobbyReady=[true,false]');
- guest.run('variantField("transformationWave").checked=true;variantField("transformationTime").value="12.5"');
- guest.elements.get('variant-form').listeners.get('change')();
+ guest.run('submitLobby("config",{config:{...lobbyConfig,transformationWave:true,transformationTime:12.5}})');
  for(const h of [host,guest]){
   assert.equal(h.run('lobbyConfig.transformationWave'),true);
   assert.equal(h.run('lobbyConfig.transformationTime'),12.5);
-  assert.equal(h.run('variantField("transformationTime").disabled'),false);
   assert.equal(h.run('lobbyReady.some(Boolean)'),false);
  }
  host.elements.get('ready-button').onclick();guest.elements.get('ready-button').onclick();

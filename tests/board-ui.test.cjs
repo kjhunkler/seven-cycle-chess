@@ -10,6 +10,7 @@ const root = path.join(__dirname, '..');
 class Element {
   constructor() { this.listeners = new Map(); this.dataset = {}; this.style = {}; this.innerHTML = ''; this.children = []; this.hidden = false; this.classList = { toggle() {} }; }
   setAttribute() {}
+  getBoundingClientRect() { return {left: 400, top: 400, width: 40, height: 40}; }
   setPointerCapture() {}
   showModal() { this.open = true; }
   close() { this.open = false; this.listeners.get("close")?.(); }
@@ -110,8 +111,33 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(vm.runInContext('G.length',context),0,'all nodes refuse incompatible friendly fruit');
     vm.runInContext('routeCommand({kind:"stop",node:"P1"});N.P1.stock[0]=5;G=[];depart(N.P1,1)', context);
     assert.equal(vm.runInContext('G.length', context), 0, 'stop clears future departures');
-    vm.runInContext('N.C1.owner=1;N.C1.cd=3;N.C1.pend=2;sel="C1";act("cancel")', context);
-    assert.equal(vm.runInContext('N.C1.pend', context), null);
+    vm.runInContext(`N.C1.owner=1;N.C1.ut=0;beginTransformation(N.C1,1);sel=null;
+      typeWheel.style.setProperty=()=>{};
+      typeWheel.contains=button=>typeWheel.children.includes(button);
+      typeWheel.querySelectorAll=()=>typeWheel.children.filter(child=>child.dataset.type!==undefined);
+    `, context);
+    const wheel = context.document.body.children.find(node => node.className === 'type-wheel');
+    const tapNode = () => {
+      const event = {...pointer, target: target('C1')};
+      map.listeners.get('pointerdown')(event);
+      map.listeners.get('pointerup')(event);
+      assert.equal(wheel.hidden, false);
+    };
+    const fruit = type => wheel.children.findLast(node => node.dataset.type === type);
+    tapNode();
+    vm.runInContext('panel()', context);
+    assert.equal(get('panel').hidden, true);
+    assert.match(fruit(1).innerHTML, /wheel-progress/);
+    fruit(1).onclick({detail: 0});
+    assert.equal(vm.runInContext('N.C1.cd', context), 0, 'pending fruit cancels');
+    vm.runInContext('beginTransformation(N.C1,1);N.C1.cd=2', context);
+    tapNode();
+    fruit(2).onclick({detail: 0});
+    assert.equal(vm.runInContext('N.C1.pend', context), 2, 'different fruit replaces the target');
+    assert.equal(vm.runInContext('N.C1.cd', context), 5, 'replacement starts a fresh timer');
+    tapNode();
+    fruit(0).onclick({detail: 0});
+    assert.equal(vm.runInContext('N.C1.pend', context), null, 'current fruit cancels');
     if(page==='match.html'){
       vm.runInContext('applyCommand(2,{kind:"route",node:"P1",to:"C1"})',context);
       assert.equal(vm.runInContext('N.P1.routes.length',context),0,'remote cannot command opponent');

@@ -52,10 +52,10 @@
   shell.append(portionControl);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"></select></label><div class="settings-map-preview"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><label>Map <select name="map"></select></label><div class="settings-map-preview"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog.querySelector('[name=map]'),settingsDialog.querySelector('.settings-map-preview'),()=>botConfig);
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);showSoloPreview();settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;settingsDialog.querySelector('[name=portionControl]').checked=!!botConfig.portionControl;settingsDialog.querySelector('[name=transformationWave]').checked=!!botConfig.transformationWave;settingsDialog.querySelector('[name=transformationTime]').value=String(botConfig.transformationTime??10);settingsDialog.querySelector('[name=transformationTime]').disabled=!botConfig.transformationWave;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){settingsDialog.querySelector('[name=map]').value=String(botConfig.map);showSoloPreview();settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
@@ -65,11 +65,9 @@
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,fullElimination,portionControl,transformationWave,transformationTime}=settingsDialog.querySelector('form').elements;
-      const next={...selectionConfig(Number(map.value)),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked,portionControl:!!portionControl?.checked,transformationWave:!!transformationWave?.checked,transformationTime:Number(transformationTime?.value??10)};
-      if(!Number.isFinite(next.transformationTime)||next.transformationTime<1||next.transformationTime>120)return;
-      if(transformationTime)transformationTime.disabled=!next.transformationWave;
-      const reset=restart||next.transformationWave!==!!botConfig.transformationWave||next.transformationTime!==(botConfig.transformationTime??10)||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,speed,shops,productionRotation,fullElimination}=settingsDialog.querySelector('form').elements;
+      const next={...selectionConfig(Number(map.value)),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
+      const reset=restart||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
       if(reset){
         act('restart');
@@ -102,10 +100,10 @@
   document.getElementById('motion-toggle').onclick=()=>{motion=!motion;storage.set('fw-motion',motion?'on':'off');updateSettings()};
   document.getElementById('haptic-toggle').onclick=()=>{haptics=!haptics;storage.set('fw-haptics',haptics?'on':'off');updateSettings();vibrate(15)};
   reduced.addEventListener('change',updateSettings);updateSettings();
-  let effects=[], previousNodes=null, previousWinner=0, modalWinner=0, panelHTML='', statusHTML='';
+  let effects=[], previousNodes=null, previousWinner=0, modalWinner=0, statusHTML='';
   const burst = (n, color) => effects.push({x:n.x,y:n.y,color,start:performance.now()});
   const originalInit=init;
-  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;panelHTML=null;statusHTML=null;closeEndgame()};
+  init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;statusHTML=null;closeEndgame()};
   if(typeof online==='undefined'&&typeof applyRouteCommand==='function'){
     const baseRouteCommand=applyRouteCommand;
     applyRouteCommand=function(owner,data){if(data?.kind==='ability'){const shop=N[data.from],target=N[data.to];if(shop?.shop&&shop.owner===owner&&shop.abilityReady&&shop.abilityCd<=0&&target?.owner===owner&&!target.shop){if(shop.shop==='shield')target.shields=(target.shields||0)+1;else target.boost=Math.max(target.boost||0,7);shop.abilityReady=false;shop.charge=0;shop.abilityCd=10;}return true;}return baseRouteCommand(owner,data)};
@@ -123,7 +121,7 @@
   document.addEventListener('click',e=>{if(e.target.closest('[data-act]'))vibrate(8)});
   board.addEventListener('keydown',e=>{
     const node=e.target.closest('[data-id]');if(!node)return;
-    if(e.key==='Enter'||e.key===' '){e.preventDefault();const id=node.dataset.id;if(sel&&sel!==id&&N[sel].adj.includes(id))send(sel,id);else {const selected=sel===id;routeCommand({kind:'stop',node:id});pick(id);if(selected){const r=node.getBoundingClientRect();openWheel(id,r.x+r.width/2,r.y+r.height/2);}}pl=0;}
+    if(e.key==='Enter'||e.key===' '){e.preventDefault();const id=node.dataset.id;if(N[id].owner===player()&&N[id].cd>0){const r=node.getBoundingClientRect();openWheel(id,r.x+r.width/2,r.y+r.height/2);}else if(sel&&sel!==id&&N[sel].adj.includes(id))send(sel,id);else {const selected=sel===id;routeCommand({kind:'stop',node:id});pick(id);if(selected){const r=node.getBoundingClientRect();openWheel(id,r.x+r.width/2,r.y+r.height/2);}}pl=0;}
     if(e.key==='Escape'){sel=null;closeWheel();pl=0;}
     if(['ArrowLeft','ArrowUp','ArrowRight','ArrowDown'].includes(e.key)){e.preventDefault();const nodes=[...board.querySelectorAll('[data-id]')],at=nodes.indexOf(node),delta=['ArrowLeft','ArrowUp'].includes(e.key)?-1:1;nodes[(at+delta+nodes.length)%nodes.length].focus();}
   });
@@ -225,23 +223,22 @@
     const me=player();
     const status=over?'':isEliminated(me)?'You were eliminated. Your fruit joined the captor. Spectating the remaining players.':escape(msg||'Choose your next move. Drag from your nodes to create a route.');
     if(status!==statusHTML){document.getElementById('msg').innerHTML=status;statusHTML=status;}
-    let h="";
-    if(sel&&N[sel]?.owner===me&&N[sel].cd>0)h+=`<div class="transform-status">Transforming · ${N[sel].cd.toFixed(1)}s <button data-act="cancel">Cancel</button></div>`;
-    document.getElementById('panel').hidden=!h;
-    if(h!==panelHTML){const active=document.activeElement,action=document.getElementById('panel').contains(active)?active.dataset.act:null;document.getElementById('panel').innerHTML=h;panelHTML=h;if(action)document.querySelector(`#panel [data-act="${action}"]`)?.focus({preventScroll:true});}
+    document.getElementById('panel').hidden=true;
   };
   document.getElementById('msg').setAttribute('aria-live','polite');
   const refreshWheel=()=>{
     if(typeWheel.hidden)return;
     const node=window.boardNodes()[typeWheel.dataset.node];
-    if(!node||node.owner!==player()){closeWheel();return;}
+    if(over||!node||node.owner!==player()){closeWheel();return;}
     typeWheel.querySelectorAll('button[data-type]').forEach(button=>{
       const i=Number(button.dataset.type),selected=(node.pend??node.ut)===i;
-      button.disabled=false;
+      const transforming=node.cd>0&&node.pend===i;
+      const cancels=node.cd>0&&(transforming||node.ut===i);
       button.setAttribute('aria-pressed',String(selected));
-      button.setAttribute('aria-label',`Produce ${T[i][1]}`);
+      button.setAttribute('aria-label',cancels?`Cancel transformation to ${T[node.pend][1]}`:`Produce ${T[i][1]}`);
       button.classList.toggle('on',selected);
-      button.innerHTML=icon(i);
+      const ring=transforming?`<svg class="wheel-progress" viewBox="0 0 44 44" aria-hidden="true"><circle cx="22" cy="22" r="20"/><circle cx="22" cy="22" r="20" pathLength="100" stroke-dasharray="${transformationProgress(node)*100} 100" transform="rotate(-90 22 22)"/></svg>`:'';
+      button.innerHTML=icon(i)+ring;
     });
   };
   window.refreshTypeWheel=refreshWheel;
