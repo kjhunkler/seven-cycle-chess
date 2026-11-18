@@ -150,6 +150,7 @@ function routeCommand(data){
     if(a==='cancel'){routeCommand({kind:'cancel',node:sel});return;}
     baseAct(a);
   };
+  const tapSlop=6;
   let wheelNode=null;
   closeWheel=function(){typeWheel.hidden=true;wheelNode=null;};
   openWheel=function(id,x,y){
@@ -172,9 +173,29 @@ function routeCommand(data){
       b.setAttribute('aria-pressed',String((n.pend??n.ut)===i));
       b.disabled=false;
       if(((n.pend??n.ut)===i))b.className='on';
-      b.onclick=()=>{if(N[id].owner===myPlayer()){
-        select(id);act('p'+i);
-      }closeWheel();pl=0;};typeWheel.append(b);
+      const choose=()=>{
+        if(wheelNode!==id||!typeWheel.contains(b)||N[id]?.owner!==myPlayer())return;
+        select(id);act('p'+i);closeWheel();pl=0;
+      };
+      let press=null;
+      b.addEventListener('pointerdown',e=>{
+        if(e.button!==0||!e.isPrimary)return;
+        press={id:e.pointerId,x:e.clientX,y:e.clientY};
+        b.setPointerCapture(e.pointerId);
+      });
+      b.addEventListener('pointerup',e=>{
+        if(press?.id!==e.pointerId)return;
+        const nearPress=Math.hypot(e.clientX-press.x,e.clientY-press.y)<=tapSlop;
+        const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('button');
+        press=null;
+        if(hit===b||(nearPress&&!typeWheel.contains(hit)))choose();
+      });
+      b.addEventListener('lostpointercapture',e=>{
+        if(press?.id===e.pointerId)press=null;
+      });
+      // Keyboard activation and the board's hold-and-drag release both use click.
+      b.onclick=e=>{if(e.detail===0)choose();};
+      typeWheel.append(b);
     });
     const marker=map.querySelector(`[data-id="${id}"] circle:nth-child(2)`)||map.querySelector(`[data-id="${id}"] circle`);
     const rect=marker?.getBoundingClientRect(),cx=rect?rect.left+rect.width/2:x,cy=rect?rect.top+rect.height/2:y;
@@ -196,6 +217,7 @@ function routeCommand(data){
   };
   document.addEventListener('pointerdown',e=>{if(!typeWheel.hidden&&!typeWheel.contains(e.target)&&!e.target.closest('[data-id]'))closeWheel();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeWheel();});
+  typeWheel.addEventListener('dragstart',e=>e.preventDefault());
   map.addEventListener('contextmenu',e=>e.preventDefault());
   map.addEventListener('pointerdown',e=>{
     if(e.button!==0||drag)return;e.preventDefault();
@@ -213,7 +235,7 @@ function routeCommand(data){
       const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');
       typeWheel.querySelectorAll('button').forEach(b=>b.classList.toggle('hover',b===hit));return;
     }
-    if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>6){drag.moved=true;clearTimeout(holdTimer);}
+    if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>tapSlop){drag.moved=true;clearTimeout(holdTimer);}
     if(drag.moved){if(!N[drag.from]?.shop)select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
