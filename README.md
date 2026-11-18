@@ -17,6 +17,8 @@ On the public site, SpacetimeDB Maincloud publishes the online player list and d
 
 The Pages workflow builds the SpacetimeDB client from the checked-in TypeScript bindings. Set the repository variable `FRUIT_WARS_SPACETIME_DB` to a different database name to use that Maincloud deployment, or set it to `off` and dispatch **Deploy to GitHub Pages** to use the MQTT lobby. A configured private HTTP lobby takes precedence. See [SpacetimeDB module setup](spacetime-lobby/README.md) for publishing and regenerating the client bindings.
 
+Open **Match history** in the Friends panel to see your 30 most recent completed online rounds and head-to-head totals. History follows your browser profile when you change your display name. Clearing site data or switching browsers starts a separate history. In matches with more than two seats, each pair earns a shared match and only the winning player earns a win. Results are reported by the host, and unfinished matches do not count.
+
 Active matches send heartbeats every three seconds and attempt relay recovery after twelve seconds without incoming traffic. Public matches use the encrypted broker relay; private matches can relay through the HTTP lobby. After twenty seconds without a guest, a bot controls that seat until the same tab reconnects. A host outage retains each guest’s board while waiting to resume. Transport replacement preserves the simulation and ready state. There is no host migration or resume after a page refresh; the host must keep the game tab open. The underlying solo game pauses while multiplayer is open, including production rotation, and its defeat dialog cannot cover the multiplayer board.
 
 ## Enabling TURN on GitHub Pages

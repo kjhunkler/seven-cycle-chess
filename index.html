@@ -20,6 +20,12 @@ svg{width:100%;max-height:68vh;display:block;touch-action:none;user-select:none}
 button{font:inherit;background:var(--bg);color:var(--fg);border:1px solid var(--bd);border-radius:8px;padding:5px 9px;cursor:pointer}
 button.on{border-color:var(--p1);box-shadow:0 0 0 2px var(--p1)}
 small{color:var(--mut)}
+#match-history{border-top:1px solid var(--bd);margin-top:12px;padding-top:8px}
+#match-history summary{cursor:pointer;font-weight:700}
+#match-history h3{font-size:1em;margin:10px 0 4px}
+#match-history ul{margin:4px 0 8px;padding-inline-start:22px}
+#match-history li{margin-bottom:6px;overflow-wrap:anywhere}
+#match-history li small{display:block}
 .editions{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}
 .editions a{color:inherit;display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border:1px solid var(--bd);border-radius:8px;text-decoration:none}
 .editions a[aria-current="page"]{background:var(--card);font-weight:700}
@@ -46,6 +52,13 @@ small{color:var(--mut)}
   </form>
   <p role="status">Connecting to players…</p>
   <strong>Online players</strong><ul id="friends"></ul>
+  <details id="match-history" hidden>
+    <summary>Match history</summary>
+    <small>Casual results reported by the host. Your history is linked to this browser.</small>
+    <p id="history-status" role="status"></p>
+    <h3>Recent matches</h3><ul id="recent-matches"></ul>
+    <h3>Head-to-head</h3><ul id="head-to-head"></ul>
+  </details>
 </section></details><div id="invite-toasts" aria-live="assertive"></div></main>
 <script src="./production-cycle.js?v=21"></script><script src="./duel-maps.js?v=1"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};

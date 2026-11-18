@@ -71,6 +71,7 @@ const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
+let historyReportedRound=-1;
 // Guests predict known territory; the host owns combat, bots, fog and victory.
 const PREDICTION_LIMIT=1500, SYNC_INTERVAL=250;
 let pendingCommands=[],roundTrip=0,nextPing=0,pingToken=0,pingSentAt=0,awaitingPing=false;
@@ -288,7 +289,7 @@ function updateLobbyUI(){
   const roster=$("match-roster");roster.replaceChildren();
   for(const member of lobbyMembers){const row=document.createElement("p");row.textContent=`Player ${member.seat}: ${member.name}${connectedPlayers.includes(member.seat)?"":" (reconnecting)"}`;if(localPlayer===1&&member.seat!==1&&!gameStarted){const remove=document.createElement("button");remove.type="button";remove.textContent="Remove";remove.onclick=()=>parent.postMessage({kind:"remove-player",seat:member.seat},location.origin);row.append(remove)}roster.append(row)}
 }
-function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a node to send fruit.";sendLobby()}
+function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a node to send fruit.";parent.postMessage({kind:"match-history-start",round:matchRound,rules:lobbyConfig,seats:humanPlayers},location.origin);sendLobby()}
 function resetMatchLobby(){
   gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyReady=[false,false,false,false];
   pendingCommands=[];unitCorrections.clear();last=performance.now();nextSync=0;
@@ -313,6 +314,7 @@ $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.or
 window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
+    historyReportedRound=-1;
     localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
@@ -443,6 +445,11 @@ function loop(now){
       if(!countingDown){
       if(lobbyConfig.productionRotation){productionCycle??=startProductionCycle(N,G,T.length,now);if(!over)advanceProductionCycle(productionCycle,N,G,T.length,now)}else productionCycle=null;
       step(dt);
+      if(over&&historyReportedRound!==matchRound){
+        historyReportedRound=matchRound;
+        const durationSeconds=Math.max(0,Math.round((now-countdownSyncedAt-5000)/1000));
+        parent.postMessage({kind:"match-history-finish",round:matchRound,winner:over,durationSeconds},location.origin);
+      }
       }
       if(now>=nextSync){nextSync=now+SYNC_INTERVAL;for(const viewer of humanPlayers)if(viewer!==1)peerSend(snapshot(viewer),viewer)}
     }

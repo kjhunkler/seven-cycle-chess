@@ -6,6 +6,8 @@ const nameInput = form.elements.namedItem("name");
 const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
 const endpoint = window.FRUIT_WARS_LOBBY || (local && !window.FRUIT_WARS_SPACETIME_DB ? "http://localhost:8787/lobby" : "");
 const turnEndpoint = endpoint ? "" : window.FRUIT_WARS_TURN_ENDPOINT;
+const historyPanel = !endpoint && window.FRUIT_WARS_SPACETIME_DB && document.querySelector("#match-history");
+if(historyPanel)historyPanel.hidden=false;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 // Connections are per tab, so two tabs in one browser can occupy different seats.
 const token = crypto.randomUUID();
@@ -17,6 +19,7 @@ labelProfile(document.querySelector("#friend-summary"),savedName+" · player pro
 let name=savedName, player=1, frame, editionURL, session=false, leaving=false, inviting=false;
 let iceServers=[], lastFriends=[], incoming=[], turnServers=[],turnCacheUntil=0,turnRequest;
 const links=new Map(),pendingInvites=new Map();
+let historyRound,historyNotice="";
 function loadTurnServers() {
   if (!turnEndpoint || Date.now() < turnCacheUntil) return Promise.resolve(turnServers);
   turnRequest ??= fetch(turnEndpoint, { cache: "no-store", signal: AbortSignal.timeout(2500) })
@@ -126,6 +129,7 @@ function removeLink(link,message){
 }
 function reset(message,notify=true){
   leaving=true;
+  historyRound=undefined;
   for(const link of links.values()){clearTimeout(link.timer);closePeer(link);if(notify)void request("leave",{room:link.room}).catch(()=>{})}
   links.clear();incoming=[];session=false;player=1;
   if(frame){frame.onload=null;frame.remove();frame=null;document.querySelector("main").inert=false;if(history.state?.fruitWarsMatch)history.replaceState(null,"",editionURL)}
@@ -234,12 +238,58 @@ async function handleEvent(event){
     else removeLink(link,"A player left or declined the match.");
   }
 }
+
+function renderMatchHistory(data) {
+  if(!historyPanel)return;
+  const historyStatus=historyPanel.querySelector("#history-status");
+  historyStatus.textContent=historyNotice||(data?.saveError??(data?.pending?"Saving match result…":data?"":"Connecting to match history…"));
+  if(!historyPanel.open||!data)return;
+
+  const recent=historyPanel.querySelector("#recent-matches");
+  const rivalries=historyPanel.querySelector("#head-to-head");
+  const mapNames={2:"Expanded orchard",3:"Three groves",4:"Grand orchard",5:"Twin branches",6:"Expanded three groves"};
+  const dateFormat=new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"});
+  const item=(label,detail)=>{
+    const li=document.createElement("li");
+    li.textContent=label;
+    if(detail){
+      const small=document.createElement("small");
+      small.textContent=detail;
+      li.append(small);
+    }
+    return li;
+  };
+
+  const matches=data.matches.sort((a,b)=>a.finishedAt>b.finishedAt?-1:1).map(match=>{
+    const winner=match.players.find(player=>player.seat===match.winner);
+    const map=mapNames[match.rules.map]||TWO_PLAYER_MAPS[match.rules.map].name;
+    const outcome=winner?.profile===data.profile?"Won":winner?winner.name+" won":"Bot "+match.winner+" won";
+    const opponents=match.players.filter(player=>player.profile!==data.profile).map(player=>player.name);
+    const players=opponents.length?" vs "+opponents.join(", "):" · shared browser";
+    const duration=Math.floor(match.durationSeconds/60)+":"+String(match.durationSeconds%60).padStart(2,"0");
+    const rules=match.rules;
+    const speed=rules.speed===.5?"Relaxed":rules.speed===1?"Standard":"Fast";
+    const extras=[
+      rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
+      rules.productionRotation&&"Production rotation",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
+    ].filter(Boolean);
+    const date=dateFormat.format(Number(match.finishedAt/1000n));
+    return item(outcome+players,[map,duration,date,speed,...extras].join(" · "));
+  });
+  recent.replaceChildren(...(matches.length?matches:[item("No completed online matches yet.")]));
+
+  const records=data.rivalries.sort((a,b)=>b.played-a.played||a.name.localeCompare(b.name)).map(record=>
+    item(record.name,record.played+(record.played===1?" match":" matches")+" · "+record.wins+" your wins · "+record.opponentWins+" their wins"));
+  rivalries.replaceChildren(...(records.length?records:[item("No head-to-head records yet.")]));
+}
+
 async function poll(){
   try{
     const data=await request("poll");iceServers=data.iceServers||[];
     for(const event of data.events)await handleEvent(event);
     const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
     renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
+    renderMatchHistory(data.matchHistory);
     if(!session)status(data.directoryUnavailable?"Lobby is unreachable. Retrying…":"You’re online.");
   }catch{status(session?"Lobby unavailable. Retrying; your match is retained.":"Lobby is unreachable. Retrying…")}
   finally{setTimeout(poll,endpoint&&session?180:900)}
@@ -259,6 +309,18 @@ setInterval(()=>{
 },3000);
 addEventListener("message",event=>{
   if(event.origin!==location.origin||event.source!==frame?.contentWindow)return;
+  if(historyPanel&&player===1&&event.data?.kind==="match-history-start"){
+    const {round,rules,seats}=event.data;
+    const guests=[...links.values()].filter(link=>seats.includes(link.seat))
+      .map(({room,seat,name})=>({room,seat,name}));
+    historyRound={round,id:crypto.randomUUID(),hostName:name,guests,rules};
+  }
+  if(historyPanel&&player===1&&event.data?.kind==="match-history-finish"&&historyRound?.round===event.data.round){
+    const {round,...result}=historyRound;
+    historyRound=undefined;
+    const {winner,durationSeconds}=event.data;
+    void request("record-match",{...result,winner,durationSeconds}).catch(()=>{historyNotice="A match result could not be saved."});
+  }
   if(event.data?.kind==="leave-match")reset("You left the match.");
   if(event.data?.kind==="rename"){rename(event.data.name);status("Name saved.")}
   if(event.data?.kind==="invite-player")void invitePlayer(event.data.to).catch(error=>status(error.message));

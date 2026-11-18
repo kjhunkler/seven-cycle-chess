@@ -6,10 +6,16 @@
 import { type Infer as __Infer } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AcceptHistoryInviteReducer from "../accept_history_invite_reducer";
 import AcknowledgeInvitationReducer from "../acknowledge_invitation_reducer";
 import AnnounceReducer from "../announce_reducer";
+import RecordMatchReducer from "../record_match_reducer";
+import RegisterHistoryReducer from "../register_history_reducer";
 import SendInvitationReducer from "../send_invitation_reducer";
 
+export type AcceptHistoryInviteParams = __Infer<typeof AcceptHistoryInviteReducer>;
 export type AcknowledgeInvitationParams = __Infer<typeof AcknowledgeInvitationReducer>;
 export type AnnounceParams = __Infer<typeof AnnounceReducer>;
+export type RecordMatchParams = __Infer<typeof RecordMatchReducer>;
+export type RegisterHistoryParams = __Infer<typeof RegisterHistoryReducer>;
 export type SendInvitationParams = __Infer<typeof SendInvitationReducer>;

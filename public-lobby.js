@@ -64,6 +64,7 @@ const publicLobby = (() => {
   return async (action,name,fields) => {
     opening ??= open().catch(error => {opening=undefined;throw error});
     await opening;
+    if (action === "record-match") return directory?.record(fields);
     if (!ready) throw new Error("Connecting to the public signaling service.");
     const now = Date.now();
     if (action === "poll") {
@@ -82,7 +83,7 @@ const publicLobby = (() => {
       }
       for (const [key,room] of rooms) if (!room.accepted&&now-room.seen > 30_000) {rooms.delete(key);inbox.push({kind:"expired",room:key})}
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],
-        friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0),directoryUnavailable};
+        friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0),directoryUnavailable,matchHistory:directory?.history()};
     }
     if (action === "invite") {
       const friend = friends.get(fields.to);
@@ -100,7 +101,10 @@ const publicLobby = (() => {
     }
     const room = rooms.get(fields.room);
     if (!room) throw new Error("Invitation expired.");
-    if(action==="accept")room.accepted=true;
+    if(action==="accept"){
+      room.accepted=true;
+      void directory?.accept(fields.room).catch(() => {});
+    }
     room.seen=now;
     const iv = crypto.getRandomValues(new Uint8Array(12));
     const message = encode(JSON.stringify({kind:action,name,description:fields.description,candidate:fields.candidate,game:fields.game}));

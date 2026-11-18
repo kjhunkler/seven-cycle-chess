@@ -10,6 +10,38 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const GuestSeat = __t.object("GuestSeat", {
+  room: __t.string(),
+  seat: __t.u8(),
+  name: __t.string(),
+});
+export type GuestSeat = __Infer<typeof GuestSeat>;
+
+export const HistoryGuest = __t.object("HistoryGuest", {
+  room: __t.string(),
+  host: __t.u64(),
+  guest: __t.u64(),
+  acceptedAt: __t.u64(),
+});
+export type HistoryGuest = __Infer<typeof HistoryGuest>;
+
+export const HistoryIdentity = __t.object("HistoryIdentity", {
+  identity: __t.identity(),
+  profile: __t.u64(),
+});
+export type HistoryIdentity = __Infer<typeof HistoryIdentity>;
+
+export const HistoryProfile = __t.object("HistoryProfile", {
+  id: __t.u64(),
+  credential: __t.string(),
+});
+export type HistoryProfile = __Infer<typeof HistoryProfile>;
+
+export const HistoryProfileReference = __t.object("HistoryProfileReference", {
+  profile: __t.u64(),
+});
+export type HistoryProfileReference = __Infer<typeof HistoryProfileReference>;
+
 export const Invitation = __t.object("Invitation", {
   room: __t.string(),
   sender: __t.identity(),
@@ -22,6 +54,56 @@ export const Invitation = __t.object("Invitation", {
 });
 export type Invitation = __Infer<typeof Invitation>;
 
+export const MatchEntry = __t.object("MatchEntry", {
+  id: __t.u64(),
+  profile: __t.u64(),
+  matchId: __t.string(),
+});
+export type MatchEntry = __Infer<typeof MatchEntry>;
+
+export const MatchPlayer = __t.object("MatchPlayer", {
+  profile: __t.u64(),
+  seat: __t.u8(),
+  name: __t.string(),
+});
+export type MatchPlayer = __Infer<typeof MatchPlayer>;
+
+export const MatchResult = __t.object("MatchResult", {
+  id: __t.string(),
+  host: __t.u64(),
+  finishedAt: __t.u64(),
+  durationSeconds: __t.u32(),
+  winner: __t.u8(),
+  get rules() {
+    return MatchRules;
+  },
+  get players() {
+    return __t.array(MatchPlayer);
+  },
+});
+export type MatchResult = __Infer<typeof MatchResult>;
+
+export const MatchRules = __t.object("MatchRules", {
+  map: __t.u8(),
+  speed: __t.f64(),
+  shops: __t.bool(),
+  fullElimination: __t.bool(),
+  portionControl: __t.bool(),
+  productionRotation: __t.bool(),
+  transformationWave: __t.bool(),
+  transformationTime: __t.f64(),
+});
+export type MatchRules = __Infer<typeof MatchRules>;
+
+export const MyHistoryProfile = __t.object("MyHistoryProfile", {});
+export type MyHistoryProfile = __Infer<typeof MyHistoryProfile>;
+
+export const MyMatches = __t.object("MyMatches", {});
+export type MyMatches = __Infer<typeof MyMatches>;
+
+export const MyRivalries = __t.object("MyRivalries", {});
+export type MyRivalries = __Infer<typeof MyRivalries>;
+
 export const PendingInvitations = __t.object("PendingInvitations", {});
 export type PendingInvitations = __Infer<typeof PendingInvitations>;
 
@@ -31,6 +113,17 @@ export const Player = __t.object("Player", {
   key: __t.string(),
 });
 export type Player = __Infer<typeof Player>;
+
+export const Rivalry = __t.object("Rivalry", {
+  id: __t.string(),
+  profile: __t.u64(),
+  opponent: __t.u64(),
+  name: __t.string(),
+  played: __t.u32(),
+  wins: __t.u32(),
+  opponentWins: __t.u32(),
+});
+export type Rivalry = __Infer<typeof Rivalry>;
 
 export const Session = __t.object("Session", {
   identity: __t.identity(),

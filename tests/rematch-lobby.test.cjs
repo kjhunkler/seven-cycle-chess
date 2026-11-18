@@ -46,3 +46,25 @@ test('requesting a return during an active match leaves it running',async()=>{
  host.match.run('matchGame.returnToLobby();lobbyAction(2,{action:"rematch",round:0})');
  assert.equal(host.match.run('gameStarted'),true);assert.equal(host.match.run('matchRound'),0);
 });
+
+test('only the host reports each completed round once, including after a rematch',async()=>{
+ const hub=lobbyHarness(),host=hub.add('Host'),guest=hub.add('Guest');await hub.pump();
+ const hostEvents=[],guestEvents=[];
+ host.match.context.parent.postMessage=event=>hostEvents.push(event);
+ guest.match.context.parent.postMessage=event=>guestEvents.push(event);
+ await host.run('invitePlayer(lastFriends[0].id)');await hub.pump();
+ await guest.run('acceptInvite([...pendingInvites.values()][0])');await hub.pump();
+ for(const round of [0,1]){
+  host.match.elements.get('ready-button').onclick();guest.match.elements.get('ready-button').onclick();await hub.pump();
+  const winner=round+1,loser=3-winner;
+  host.match.run(`countdownRemaining=0;eliminatePlayer(${loser},${winner});loop(10100);loop(10200)`);
+  await hub.pump();
+  guest.match.run('loop(10200)');
+  host.match.run('matchGame.returnToLobby()');await hub.pump();
+ }
+ assert.equal(guestEvents.filter(event=>event.kind.startsWith('match-history')).length,0);
+ assert.deepEqual(hostEvents.filter(event=>event.kind.startsWith('match-history')).map(({kind,round,winner})=>[kind,round,winner]),[
+  ['match-history-start',0,undefined],['match-history-finish',0,1],
+  ['match-history-start',1,undefined],['match-history-finish',1,2],
+ ]);
+});

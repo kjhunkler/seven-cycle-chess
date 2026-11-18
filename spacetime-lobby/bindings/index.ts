@@ -34,13 +34,19 @@ import {
 } from "spacetimedb";
 
 // Import all reducer arg schemas
+import AcceptHistoryInviteReducer from "./accept_history_invite_reducer";
 import AcknowledgeInvitationReducer from "./acknowledge_invitation_reducer";
 import AnnounceReducer from "./announce_reducer";
+import RecordMatchReducer from "./record_match_reducer";
+import RegisterHistoryReducer from "./register_history_reducer";
 import SendInvitationReducer from "./send_invitation_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import MyHistoryProfileRow from "./my_history_profile_table";
+import MyMatchesRow from "./my_matches_table";
+import MyRivalriesRow from "./my_rivalries_table";
 import PendingInvitationsRow from "./pending_invitations_table";
 import PlayerRow from "./player_table";
 
@@ -59,6 +65,27 @@ const tablesSchema = __schema({
       { name: 'player_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PlayerRow),
+  myHistoryProfile: __table({
+    name: 'my_history_profile',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyHistoryProfileRow),
+  myMatches: __table({
+    name: 'my_matches',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyMatchesRow),
+  myRivalries: __table({
+    name: 'my_rivalries',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyRivalriesRow),
   pendingInvitations: __table({
     name: 'pending_invitations',
     indexes: [
@@ -70,8 +97,11 @@ const tablesSchema = __schema({
 
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
+  __reducerSchema("accept_history_invite", AcceptHistoryInviteReducer),
   __reducerSchema("acknowledge_invitation", AcknowledgeInvitationReducer),
   __reducerSchema("announce", AnnounceReducer),
+  __reducerSchema("record_match", RecordMatchReducer),
+  __reducerSchema("register_history", RegisterHistoryReducer),
   __reducerSchema("send_invitation", SendInvitationReducer),
 );
 
