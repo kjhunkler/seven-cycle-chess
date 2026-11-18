@@ -79,6 +79,11 @@ function applyRouteCommand(owner,data){
 function routeCommand(data){
   if(typeof command==='function')command(data);else applyRouteCommand(1,data);
 }
+function bounceTroop(g,progress){
+  [g.from,g.to]=[g.to,g.from];
+  g.t=g.previous=progress;
+  if(typeof unitCorrections!=='undefined')unitCorrections.delete(g.id);
+}
 (()=>{
   const baseInit=init;
   init=function(){
@@ -111,8 +116,7 @@ function routeCommand(data){
     const target=N[g.to];if(!target)return;
     if(target.disabled)return;
     if(!target.shop&&target.owner===g.owner&&!canEnter(target,g.owner,g.type)){
-      [g.from,g.to]=[g.to,g.from];g.t=0;g.previous=0;
-      if(typeof unitCorrections!=='undefined')unitCorrections.delete(g.id);
+      bounceTroop(g,0);
       G.push(g);return;
     }
     const owner=target.owner,home=target.home;baseArrive(g);

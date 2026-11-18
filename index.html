@@ -64,7 +64,7 @@ small{color:var(--mut)}
     <h3>Head-to-head</h3><ul id="head-to-head"></ul>
   </details>
 </section></details><div id="invite-toasts" aria-live="assertive"></div></main>
-<script src="./production-cycle.js?v=21"></script><script src="./duel-maps.js?v=1"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=1"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
@@ -133,7 +133,7 @@ function shopCapacity(target,includeOrders=true){
 function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
-  return target.owner!==owner||(target.cd<=0&&target.ut===type);
+  return target.owner!==owner||target.ut===type;
 }
 function dispatch(source,to,type,count){
   const target=N[to];
@@ -178,14 +178,16 @@ function arrive(g){
 function step(dt){
   if(over)return;
   transformationClock+=dt;
+  const transformed=[];
   for(const n of Object.values(N)){
     if(n.boost>0)n.boost=Math.max(0,n.boost-dt);
     if(n.boost<1e-8)n.boost=0;
     if(!n.owner)continue;
     if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
-    if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){n.cd=0;const o=tot(n);n.stock.fill(0);n.stock[n.pend]=o;n.ut=n.pend;n.pend=null}}
+    if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){finishTransformation(n);transformed.push(n)}}
     else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
   }
+  if(transformed.length)bounceTransformedTroops(transformed);
   G.forEach(g=>{g.previous=g.t;g.t+=dt/CONFIG.travel});
   for(const a of G)for(const b of G){
     if(a===b||a.dead||b.dead||a.owner===b.owner||a.from!==b.to||a.to!==b.from||a.previous+b.previous>=1||a.t+b.t<1)continue;
@@ -347,4 +349,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=23"></script><script src="./board-ui.js?v=27"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=24"></script><script src="./board-ui.js?v=28"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

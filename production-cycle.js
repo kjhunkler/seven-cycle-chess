@@ -14,6 +14,22 @@ function advanceTransformation(node,dt){
  node.cd=node.transformAt!=null?Math.max(0,node.transformAt-transformationClock):Math.max(0,node.cd-dt);
  if(node.cd<1e-8)node.cd=0;
 }
+function finishTransformation(node){
+ const count=tot(node);
+ node.ut=node.pend;
+ node.pend=null;
+ node.transformAt=null;
+ node.stock.fill(0);
+ node.stock[node.ut]=count;
+}
+function bounceTransformedTroops(transformed){
+ for(const group of G){
+  const target=N[group.to];
+  if(transformed.includes(target)&&survivingOwner(group.owner)===target.owner&&group.type!==target.ut){
+   bounceTroop(group,1-group.t);
+  }
+ }
+}
 function transformationProgress(node){
  const duration=transformationConfig().transformationWave?transformationPeriod():CONFIG.cooldown;
  return Math.max(0,Math.min(1,1-node.cd/duration));
