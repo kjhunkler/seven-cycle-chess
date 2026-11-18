@@ -29,7 +29,7 @@ The lobby keeps active presence and invitations in memory. Run one process for t
 
 ## Board experience
 
-All four editions load `board-ui.css` and `board-ui.js`, a shared presentation layer over their existing simulation. It includes custom fruit illustrations, route and capture effects, production progress, keyboard commands, and locally saved feedback preferences. The service worker caches both assets.
+All four editions load `board-ui.css` and `board-ui.js`, a shared presentation layer over their existing simulation. It includes custom fruit illustrations, route and capture effects, production progress, keyboard commands, and locally saved feedback preferences. The service worker caches both assets. Selected-node matchup markers use one chevron for a soft counter and two for a hard counter: green points up for an advantage, red points down for a disadvantage, and a horizontal line means even. Hover for the combat-strength ratio. Very faint clockwise chevrons between radial-menu fruits show the counter cycle: each fruit hard counters the next fruit and soft counters the one two steps ahead.
 
 - Select a node with Enter or Space; focus a connected destination and press Enter to send. Arrow keys cycle through nodes and Escape clears selection.
 - Motion can be disabled, and the OS reduced-motion preference always takes priority. Troops and production indicators continue to show actual game progress.

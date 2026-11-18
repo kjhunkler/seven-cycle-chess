@@ -174,9 +174,21 @@
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
       if(source?.owner===me&&!source.shop&&!n.shop&&source.adj.includes(n.id)){
         const type=source.castle?castleRouteFruit(source,n):canEnter(n,me,sendType)?sendType:-1;
-        let color='var(--mut)',mark='';if(v&&n.owner!==me&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){const d=mult(type,k)-mult(k,type);color=d>0?'#71bc91':d<0?'#ee8792':'var(--mut)';mark=d>0?'+':d<0?'−':'=';}
+        let color='var(--mut)',matchup='';
+        if(v&&n.owner!==me&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){
+          const ratio=mult(type,k)/mult(k,type),advantage=ratio>1+CONFIG.strengthEpsilon,disadvantage=ratio<1-CONFIG.strengthEpsilon;
+          const hard=Math.max(ratio,1/ratio)>=3,levels=hard?2:1;
+          color=advantage?'#71bc91':disadvantage?'#ee8792':'var(--mut)';
+          const label=`${advantage||disadvantage?(hard?'Hard':'Soft')+' '+(advantage?'advantage':'disadvantage'):'Even matchup'} · ${Number(ratio.toFixed(2))}× combat strength`;
+          let paths='M-1 0H1';
+          if(advantage||disadvantage){
+            const direction=advantage?1:-1;
+            paths=Array.from({length:levels},(_,i)=>{const y=(i-(levels-1)/2)*1.5;return `M-1.1 ${y+direction*.5}L0 ${y-direction*.5}L1.1 ${y+direction*.5}`}).join(' ');
+          }
+          matchup=`<g class="counter-indicator counter-${advantage||disadvantage?hard?'hard':'soft':'even'}" role="img" aria-label="${escape(label)}" transform="translate(${n.x+r+1} ${n.y-r})"><title>${escape(label)}</title><circle r="2.2" fill="var(--card)"/><path d="${paths}" fill="none" stroke="${color}" stroke-width=".55" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+        }
         h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.7}" fill="none" stroke="${color}" stroke-width=".55" stroke-dasharray="1 1"/>`;
-        if(mark)h+=`<circle cx="${n.x+r+1}" cy="${n.y-r}" r="2" fill="var(--card)"/><text x="${n.x+r+1}" y="${n.y-r+1.1}" text-anchor="middle" font-size="3.6" font-weight="800" fill="${color}">${mark}</text>`;
+        h+=matchup;
       }
       if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="10" opacity=".25" pointer-events="none">🛡️</text>`;
       if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else{const fruit=queuedCastle(n)?castleFruit(n):k>=0?k:n.ut,size=n.castle?8:7,flash=n.cd>0&&animated()?.6+.4*(transformationConfig().transformationWave?Math.cos(2*Math.PI*transformationProgress(n)):Math.sin(now/100)):1;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}

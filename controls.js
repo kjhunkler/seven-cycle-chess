@@ -198,6 +198,14 @@ function routeCommand(data){
     select(id);wheelNode=id;typeWheel.dataset.node=id;
     if(drag)drag.held=true;
     typeWheel.innerHTML='';
+    typeWheel.setAttribute('aria-description','Clockwise: each fruit hard counters the next fruit and soft counters the fruit two steps ahead.');
+    T.forEach((_,i)=>{
+      const hint=document.createElement('div'),angle=2*Math.PI*(i+.5)/T.length-Math.PI/2;
+      hint.className='wheel-counter-direction';hint.textContent='›';hint.setAttribute('aria-hidden','true');
+      hint.style.left=102+75*Math.cos(angle)+'px';hint.style.top=102+75*Math.sin(angle)+'px';
+      hint.style.transform=`translate(-50%,-50%) rotate(${angle*180/Math.PI+90}deg)`;
+      typeWheel.append(hint);
+    });
     T.forEach(([emoji,name],i)=>{
       const b=document.createElement('button'),a=2*Math.PI*i/T.length-Math.PI/2;
       b.style.left=102+75*Math.cos(a)+'px';b.style.top=102+75*Math.sin(a)+'px';

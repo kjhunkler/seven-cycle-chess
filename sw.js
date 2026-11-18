@@ -1,4 +1,4 @@
-const CACHE = "fruit-wars-v41-separate-three-player-maps";
+const CACHE = "fruit-wars-v42-counter-strength-hints";
 const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css", "board-ui.css", "board-ui.js", "controls.js", "production-cycle.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png"].map(path => new URL(path, self.registration.scope).href);
 

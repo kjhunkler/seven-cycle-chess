@@ -70,6 +70,7 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 .queued-fruit{display:grid;place-items:center;min-width:30px;min-height:28px;padding:2px;border:0;background:transparent}.queued-fruit svg{pointer-events:none}
 .queue-icon{flex-shrink:0}.transform-status{display:flex;align-items:center;justify-content:space-between;font-size:12px}
 .type-wheel button.hover{border-color:var(--fg);box-shadow:0 0 0 3px var(--p1)}
+.type-wheel .wheel-counter-direction{position:absolute;pointer-events:none;color:var(--fg);opacity:.14;font-size:20px;font-weight:400;line-height:1;user-select:none}
 .type-wheel button small{font-size:10px;color:var(--fg);font-variant-numeric:tabular-nums}
 .battle-shell{position:relative}
 .match-countdown{position:absolute;inset:0;z-index:8;display:grid;place-items:center;background:#10141099;color:#fff;font-size:clamp(28px,5vw,64px);font-weight:800;text-shadow:0 2px 12px #000;cursor:wait;touch-action:none}.match-countdown[hidden]{display:none}

@@ -98,7 +98,7 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(vm.runInContext('N.P1.selectedType', context), 1, 'castle selects the next available fruit');
     assert.equal(vm.runInContext('N.P1.routes.length', context), 1, 'routes remain when the selected fruit runs out');
     vm.runInContext('N.P1.stock=[0,3,0,0,0,0,0];N.P1.selectedType=0;N.C1.owner=0;select("P1");render()', context);
-    assert.match(get('map').innerHTML, /data-id="C1"[^]*?>(?:\+|−|=)<\/text>/, 'a depleted selection still shows the next fruit matchup');
+    assert.match(get('map').innerHTML, /class="counter-indicator/, 'a depleted selection still shows the next fruit matchup');
     vm.runInContext('N.P1.stock.fill(0);N.P1.routes=[]', context);
     const map = get('map');
     const target = id => ({closest: () => ({dataset: {id}})});
