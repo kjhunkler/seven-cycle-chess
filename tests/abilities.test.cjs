@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
 for(const page of ['index.html','match.html'])for(const target of ['C1','P1'])test(page+': speed ability counts down, boosts production, expires, and loses its icon on '+target,()=>{
  const h=createGame(page);
- h.run(page==='index.html'?'botConfig.shops=true;init();aiT=999':'lobbyConfig.shops=true;online=true;gameStarted=true;init();connectedPlayers=[1,2,3,4];botThink=999');
+ h.run(page==='index.html'?'botConfig.shops=true;botConfig.noQueue=false;init();aiT=999':'lobbyConfig.shops=true;lobbyConfig.noQueue=false;online=true;gameStarted=true;init();connectedPlayers=[1,2,3,4];botThink=999');
  h.run(`globalThis.target=N.${target};target.owner=1;target.ut=0;target.stock=[6,0,0,0,0,0,0];target.tm=0;target.q=[0,0,0,0,0];N.S1B.abilityReady=true;`);
  h.run(page==='index.html'?'applyRouteCommand(1,{kind:"ability",from:"S1B",to:target.id})':'applyCommand(1,{kind:"ability",from:"S1B",to:target.id})');
  assert.equal(h.run('target.boost'),7);

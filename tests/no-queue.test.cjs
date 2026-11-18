@@ -2,9 +2,9 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
 for(const page of ['index.html','match.html']){
- test(page+': optional game settings default off',()=>{
+ test(page+': no queue defaults on and other optional settings default off',()=>{
   const h=createGame(page);
-  assert.equal(h.run(page==='index.html'?'!botConfig.noQueue&&!botConfig.shops&&!botConfig.productionRotation':'!lobbyConfig.noQueue&&!lobbyConfig.shops&&!lobbyConfig.productionRotation'),true);
+  assert.equal(h.run(page==='index.html'?'botConfig.noQueue&&!botConfig.shops&&!botConfig.productionRotation':'lobbyConfig.noQueue&&!lobbyConfig.shops&&!lobbyConfig.productionRotation'),true);
   assert.equal(h.run('productionCycle'),null);
   assert.equal(h.run('Object.values(N).some(n=>n.shop)'),false);
  });

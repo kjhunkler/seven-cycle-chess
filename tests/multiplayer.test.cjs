@@ -5,7 +5,7 @@ for(const count of [2,3,4]){
   const games=Array.from({length:count},()=>createGame()),queue=[];
   games.forEach((h,i)=>{h.context.send=(data,target)=>{const packet=JSON.parse(JSON.stringify(data));if(i===0){for(let p=2;p<=count;p++)if(target===undefined||target===p)queue.push([p,packet,1])}else queue.push([1,packet,i+1])};h.run(`matchGame.start(${i+1},send,${JSON.stringify(Array.from({length:count},(_,j)=>j+1))})`)});
   const drain=()=>{let limit=100;while(queue.length){assert.ok(limit-->0);const [target,data,source]=queue.shift();games[target-1].context.packet=data;games[target-1].context.source=source;games[target-1].run('matchGame.receive(packet,source)')}};
-  drain();for(const h of games)h.elements.get('ready-button').onclick();drain();
+  drain();games[0].run('lobbyAction(1,{action:"config",config:{...lobbyConfig,noQueue:false}})');drain();for(const h of games)h.elements.get('ready-button').onclick();drain();
   for(const h of games)assert.equal(h.run('gameStarted'),true);
   for(let p=2;p<=count;p++){games[p-1].run('act("q0")');games[p-1].run('routeCommand({kind:"route",node:"P1",to:"C1"})')};drain();
   for(let p=2;p<=count;p++)assert.equal(games[0].run(`N.P${p}.q[0]`),0);
@@ -42,8 +42,8 @@ test('solo four-player mode uses the same elimination rules',()=>{const h=create
 for(const page of ['index.html','match.html'])test(page+': triangular map preserves nodes and edges under rotation',()=>{
  const h=createGame(page);
  h.run(page==='index.html'?'botConfig.map=3;botConfig.shops=false;init()':'lobbyConfig.map=3;lobbyConfig.shops=false;init()');
- assert.equal(h.run('Object.keys(N).length'),10);
- assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),24);
+ assert.equal(h.run('Object.keys(N).length'),22);
+ assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),66);
  assert.equal(h.run(`Object.values(N).every(n=>{
  const p=rotateBoardPoint(n,2*Math.PI/3);
  const rotated=Object.values(N).find(b=>Math.hypot(p.x-b.x,p.y-b.y)<1e-8);

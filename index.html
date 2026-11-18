@@ -59,14 +59,21 @@ const FOUR_EDGES="P1-A1 P1-A2 P2-A3 P2-A4 P3-C1 P3-C2 P4-C3 P4-C4 A1-A2 A3-A4 C1
 const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
 const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 B2-C2 B2-C3 C1-C2 C2-C3 C1-P1 C3-P1".split(" ").map(e=>e.split("-"));
 const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
-const THREE_EDGES="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
+// Expand the original triangle with a node on every path and symmetric bypasses.
+const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
+const THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
+  const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
+  THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
+  return [[a,id],[id,b]];
+});
+THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
 const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
-let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:false,portionControl:false,transformationWave:false,transformationTime:10};
+let botConfig={map:1,speed:1,shops:false,productionRotation:false,noQueue:true,portionControl:false,transformationWave:false,transformationTime:10};
 const extraMaps={
   1:{nodes:{},edges:[]},
   2:{nodes:{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]},edges:[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
@@ -86,7 +93,7 @@ function init(){
     if(n.castle){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;aiT=2;
   productionCycle=botConfig.productionRotation?startProductionCycle(N,G,T.length,performance.now()):null;
-  msg="Queue units in your castle (bottom). Then drag from the castle to a connected outpost.";
+  msg=noQueueMode()?"Your castle produces fruit automatically. Drag to a connected outpost to send it.":"Queue units in your castle (bottom). Then drag from the castle to a connected outpost.";
 }
 const mult=(a,d)=>CONFIG.mult[((d-a)%7+7)%7];
 const big=n=>{let b=-1,m=0;n.stock.forEach((c,i)=>{if(c>m){m=c;b=i}});return b};

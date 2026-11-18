@@ -6,6 +6,8 @@ for(const count of [2,3,4])test(`${count} browsers join one room, start together
  }
  assert.equal(host.run('links.size'),count-1);
  clients.forEach((c,i)=>assert.equal(c.run('player'),i+1));
+ assert.equal(host.match.run('lobbyConfig.noQueue'),true);
+ host.match.run('lobbyAction(1,{action:"config",config:{...lobbyConfig,noQueue:false}})');await hub.pump();
  for(const c of clients)c.match.elements.get('ready-button').onclick();await hub.pump();
  for(const c of clients)assert.equal(c.match.run('gameStarted'),true);
  for(let i=1;i<count;i++)clients[i].match.run('act("q1")');await hub.pump();

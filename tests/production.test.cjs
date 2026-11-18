@@ -4,6 +4,7 @@ const {createGame}=require('./game-harness.cjs');
 for(const page of ['index.html','match.html']){
   test(`${page}: castle queue uses each fruit's production modifier and shows indicators`,()=>{
     const game=createGame(page),{run,elements}=game;
+    run(page==='index.html'?'botConfig.noQueue=false;init()':'lobbyConfig.noQueue=false;init()');
     run(`productionCycle={active:{buff:0,debuff:1}};G=[];N.P1.q=[0,1];N.P1.tm=0;N.P1.routes=[];N.P1.orders=[];N.P1.boost=0;N.P1.stock.fill(0);panel();render()`);
     assert.match(elements.get('panel').innerHTML,/queued-fruit[^]*production-badge production-buff/);
     assert.match(elements.get('panel').innerHTML,/fruit-button[^]*production-badge production-debuff/);
