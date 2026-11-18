@@ -2,6 +2,32 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
 for(const page of ['index.html','match.html']){
+ test(page+': compact profile setting preserves combat comparisons and node progress',()=>{
+  const game=createGame(page);
+  const profile=game.elements.get('profile-compact-board');
+  const markup=()=>game.elements.get('map').innerHTML;
+  const setMode=value=>{profile.value=value;profile.onchange();};
+  const saved=new Map();
+  game.context.localStorage.setItem=(key,value)=>saved.set(key,value);
+  game.run(`N.P1.ut=0;N.P1.stock=[6,0,0,0,0,0,0];
+    N.C1.owner=2;N.C1.stock=[0,5,0,0,0,0,0];
+    N.P1.tm=CONFIG.outpostRate/2;select('P1');render();`);
+  assert.doesNotMatch(markup(),/compact-troop-count/);
+  setMode('on');
+  assert.equal(saved.get('fw-compact-board'),'on');
+  assert.match(markup(),/stroke="var\(--p1\)" stroke-width="0\.75"[^]*?r="3\.6" fill="#ee6976"/);
+  assert.match(markup(),/class="compact-troop-count"[^>]*>6<\/text>/);
+  assert.match(markup(),/stroke-dasharray="50 100"/);
+  assert.match(markup(),/Hard advantage · 4×/);
+  game.run('N.C1.home=3;N.C2.home=4;N.C3.home=5;render()');
+  setMode('auto');
+  assert.match(markup(),/compact-troop-count/);
+  game.run('N.C3.home=0;eliminatedBy={5:1};render()');
+  assert.match(markup(),/compact-troop-count/);
+  setMode('off');
+  assert.doesNotMatch(markup(),/compact-troop-count/);
+  assert.match(markup(),/Hard advantage · 4×/);
+ });
  test(page+': all seven fruits show hard, soft and neutral counter strengths in both directions',()=>{
   const h=createGame(page);
   for(let attacker=0;attacker<7;attacker++)for(let offset=0;offset<7;offset++){

@@ -50,6 +50,7 @@ small{color:var(--mut)}
     <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
     <button>Save</button>
   </form>
+  <label>Compact board <select id="profile-compact-board" aria-label="Compact board"></select></label>
   <div id="profile-account" hidden>
     <button type="button" id="account-action">Sign in with email</button>
     <small id="account-status" role="status"></small>
@@ -340,4 +341,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=27"></script><script src="./board-ui.js?v=32"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js?v=2"></script><script src="./map-library.js?v=3"></script><script src="./lobby.js?v=2"></script></body></html>
+</script><script src="./controls.js?v=27"></script><script src="./board-ui.js?v=33"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js?v=2"></script><script src="./map-library.js?v=3"></script><script src="./lobby.js?v=2"></script></body></html>
