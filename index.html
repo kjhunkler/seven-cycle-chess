@@ -32,7 +32,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=30"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=31"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
@@ -66,8 +66,8 @@ small{color:var(--mut)}
 </section></details><button type="button" id="open-maps">Map library</button>
 <dialog id="map-library" aria-labelledby="library-title">
   <div class="map-heading"><h2 id="library-title">Map library</h2><button type="button" data-close>Close</button></div>
-  <label>Map <select id="library-select"></select></label>
-  <div id="library-preview"></div>
+  <fieldset class="map-player-count"><legend>Players</legend></fieldset><label>Map <select id="library-select" name="map"></select></label>
+  <div id="library-preview" class="map-navigation"></div>
   <p id="library-meta"></p>
   <div class="map-actions"><button id="play-map">Play solo</button><button id="share-map">Copy link</button><button id="edit-map">Edit map</button><button id="new-map">Create map</button></div>
   <p id="map-auth-hint">Sign in from Friends to publish maps, vote, and comment.</p><section id="map-discussion"><div class="map-actions"><button id="upvote" aria-label="Vote up">▲</button><output id="vote-total"></output><button id="downvote" aria-label="Vote down">▼</button></div>
@@ -83,7 +83,7 @@ small{color:var(--mut)}
   <div id="editor-board"></div><p id="editor-help"></p>
   <div class="map-actions"><button id="editor-undo">Undo</button><button id="publish-map">Publish map</button></div><p role="status" id="editor-status"></p>
 </dialog><div id="invite-toasts" aria-live="assertive"></div></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=2"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=3"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let productionCycle;
@@ -340,4 +340,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=26"></script><script src="./board-ui.js?v=30"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./map-library.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=26"></script><script src="./board-ui.js?v=31"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./map-library.js?v=2"></script><script src="./lobby.js"></script></body></html>

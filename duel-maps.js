@@ -161,33 +161,69 @@ function drawMapPreview(layout,editable=false,selected=''){
   });
   return '<svg class="map-preview" viewBox="-4 -4 108 108" '+(editable?'tabindex="0" role="application" aria-label="Map editor board"':'role="img" aria-label="'+layout.players+'-player map preview"')+'>'+lines.join('')+dots.join('')+'</svg>';
 }
-function fillMapSelect(select) {
-  const current=select.value;
-  const maps=[...latestMaps.values()].sort((a,b)=>a.players-b.players||a.id-b.id);
-  select.replaceChildren(...maps.map(m=>{
-    const option=document.createElement('option');option.value=String(m.id);option.textContent=m.name+' · '+m.players+' players';return option;
-  }));
-  if(latestMaps.has(Number(current)))select.value=current;
-}
-function setupMapPicker(select, preview, config) {
-  function refresh(){
-    fillMapSelect(select);
-    select.value=String(config().map);
-    show();
+function setupMapPicker(container, config, {minimum=()=>2, showDetails=true}={}) {
+  const select=container.querySelector('[name="map"]');
+  const counts=container.querySelector('.map-player-count');
+  const navigation=container.querySelector('.map-navigation');
+  const preview=document.createElement('div'), info=document.createElement('small');
+  let pool=[], poolSize;
+  function setPool(players){
+    poolSize=players;
+    pool=[...latestMaps.values()].filter(m=>m.players===players).sort((a,b)=>a.id-b.id);
+    select.replaceChildren(...pool.map(m=>{
+      const option=document.createElement('option');
+      option.value=String(m.id);option.textContent=m.name;
+      return option;
+    }));
+    previous.disabled=next.disabled=pool.length<=1;
   }
+  function choose(id){
+    select.value=String(id);
+    select.dispatchEvent(new Event('change',{bubbles:true}));
+  }
+  function arrow(step,label,glyph){
+    const button=document.createElement('button');
+    button.type='button';button.className='map-step';button.textContent=glyph;
+    button.setAttribute('aria-label',label);
+    button.onclick=()=>{
+      const index=pool.findIndex(m=>m.id===Number(select.value));
+      if(pool.length>1)choose(pool[(index+step+pool.length)%pool.length].id);
+    };
+    return button;
+  }
+  const previous=arrow(-1,'Previous map','‹'),next=arrow(1,'Next map','›');
+  navigation.append(previous,preview,next);
+  if(showDetails)navigation.append(info);
+  const radios=[2,3,4].map(players=>{
+    const label=document.createElement('label'),radio=document.createElement('input');
+    radio.type='radio';radio.name='map-players';radio.value=String(players);
+    radio.onchange=event=>{
+      // Notify the enclosing settings form once, through its normal map change.
+      event.stopPropagation();
+      if(radio.checked){setPool(players);choose(pool[0].id)}
+    };
+    label.append(radio,String(players));counts.append(label);
+    return radio;
+  });
   function show(){
-    const m=latestMaps.get(Number(select.value));
-    const pinned=config();
+    const m=latestMaps.get(Number(select.value)),pinned=config();
     const layout=pinned.map===m?.id && pinned.mapRevision ? selectedLayout(pinned) : m;
     preview.innerHTML=drawMapPreview(layout);
-    if(m?.plays!==undefined){
-      const info=document.createElement('small');
-      info.textContent=m.plays+' plays · Updated '+new Date(Number(m.updatedAt/1000n)).toLocaleDateString();
-      preview.append(info);
+    info.hidden=m?.plays===undefined;
+    if(showDetails && !info.hidden)info.textContent=m.plays+' plays · Updated '+new Date(Number(m.updatedAt/1000n)).toLocaleDateString();
+  }
+  function sync(rebuild=false){
+    const id=config().map,players=mapPlayerCount(id);
+    if(rebuild || players!==poolSize)setPool(players);
+    select.value=String(id);
+    for(const radio of radios){
+      radio.checked=Number(radio.value)===players;
+      radio.disabled=Number(radio.value)<minimum();
     }
+    show();
   }
   select.addEventListener('change',show);
-  addEventListener('map-catalog',refresh);
-  refresh();
-  return show;
+  addEventListener('map-catalog',()=>sync(true));
+  sync();
+  return sync;
 }

@@ -2,7 +2,8 @@ const mapLibrary=(()=>{
   const get=id=>document.getElementById(id);
   const library=get('map-library'),editor=get('map-editor'),select=get('library-select');
   let catalog,profile,requested=Number(new URL(location.href).searchParams.get('map'));
-  let published;
+  let published, selectedId=botConfig.map;
+  const syncPicker=setupMapPicker(library,()=>({map:selectedId}),{showDetails:false});
   let draft,editing,baseRevision,first,undo=[],cursor=[50,50],keyboard=false;
   const date=value=>new Date(Number(value/1000n)).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
   const message=text=>{get('library-status').textContent=text};
@@ -11,12 +12,11 @@ const mapLibrary=(()=>{
     if(!published)return;
     const m=[...latestMaps.values()].find(row=>row.owner===profile && row.name===published.name &&
       (published.id?row.id===published.id && row.revision>published.revision:!published.known.has(row.id)));
-    if(m){select.value=String(m.id);published=undefined}
+    if(m){selectedId=m.id;published=undefined}
   }
   function renderLibrary(){
     const m=latestMaps.get(Number(select.value));
     if(!m)return;
-    get('library-preview').innerHTML=drawMapPreview(m);
     const info=[m.players+' players',Object.keys(m.nodes).length+' nodes'];
     if(m.revision)info.push('By '+(catalog?.names.get(m.owner)??'Original creator'),m.plays+' plays','Updated '+date(m.updatedAt));
     get('library-meta').textContent=info.join(' · ');
@@ -39,12 +39,12 @@ const mapLibrary=(()=>{
     get('map-auth-hint').hidden=profile!==undefined;
   }
   function openLibrary(id){
-    fillMapSelect(select);
-    select.value=String(latestMaps.has(id)?id:botConfig.map);
+    selectedId=latestMaps.has(id)?id:botConfig.map;
+    syncPicker();
     renderLibrary();message('');if(!library.open)library.showModal();
   }
   get('open-maps').onclick=()=>openLibrary(botConfig.map);
-  select.onchange=()=>{message('');renderLibrary()};
+  select.onchange=()=>{selectedId=Number(select.value);message('');renderLibrary()};
   for(const dialog of [editor,library])dialog.querySelector('[data-close]').onclick=()=>dialog.close();
   get('play-map').onclick=()=>{
     delete botConfig.mapRevision;Object.assign(botConfig,selectionConfig(Number(select.value)));
@@ -170,7 +170,7 @@ const mapLibrary=(()=>{
       const known=new Set(latestMaps.keys());
       await request('save-map',{mapId:editing,revision:baseRevision,name,layout:JSON.stringify(draft)});
       published={id:editing,revision:baseRevision,known,name};
-      fillMapSelect(select);selectPublished();renderLibrary();editor.close();message('Map published.');
+      selectPublished();syncPicker();renderLibrary();editor.close();message('Map published.');
     }catch(e){editorMessage(e.message)}finally{button.disabled=false}
   };
   if(requested && defaultMaps[requested]){openLibrary(requested);requested=0}
@@ -181,6 +181,6 @@ const mapLibrary=(()=>{
       if(latestMaps.has(requested))openLibrary(requested);
       else{openLibrary(1);message('This map could not be found.')}
       requested=0;
-    }else if(library.open){fillMapSelect(select);selectPublished();renderLibrary()}
+    }else if(library.open){selectPublished();syncPicker();renderLibrary()}
   }};
 })();
