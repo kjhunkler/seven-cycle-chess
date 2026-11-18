@@ -278,7 +278,12 @@ function panel(){
 }
 let last=performance.now(),pl=0;
 function loop(now){
-  const dt=Math.min(.1,(now-last)/1e3)*CONFIG.timeScale;last=now;
+  const elapsed=Math.max(0,now-last),dt=Math.min(.1,elapsed/1e3)*CONFIG.timeScale;last=now;
+  // The multiplayer iframe covers this solo board; keep its simulation paused.
+  if(document.querySelector('main').inert){
+    if(productionCycle)productionCycle.endsAt+=elapsed;
+    requestAnimationFrame(loop);return;
+  }
   if(productionCycle&&!over)advanceProductionCycle(productionCycle,N,G,T.length,now);
   step(dt);render();
   renderProductionCycle(productionCycle,T);
@@ -328,4 +333,4 @@ function openWheel(id,x,y){
 }
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=21"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=22"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>

@@ -70,6 +70,7 @@ function launchGame(){
 }
 function showMatch(){
   if(frame)return;
+  document.querySelector('.endgame-dialog')?.close();
   editionURL=location.href;const page=new URL("./match.html",editionURL);frame=document.createElement("iframe");frame.title="Fruit Wars multiplayer match";
   frame.style.cssText="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100;background:var(--bg)";
   frame.onload=()=>{status(statusText.textContent);frame.contentDocument.querySelector("#match-name").value=name;launchGame()};frame.src=page.href;

@@ -13,7 +13,7 @@ Open http://localhost:8000/ in two to four tabs or browser profiles. Each tab ha
 
 The public site defaults to the free EMQX public test broker. Display names and presence are public. Connection descriptions and ICE candidates are encrypted between browsers. When TURN is configured, WebRTC can connect directly or through Cloudflare. If WebRTC setup stalls, the public lobby falls back to encrypted game messages over the same broker. The broker is shared and has no availability guarantee.
 
-Active matches send heartbeats every three seconds and attempt relay recovery after twelve seconds without incoming traffic. Public matches use the encrypted broker relay; private matches can relay through the HTTP lobby. After twenty seconds without a guest, a bot controls that seat until the same tab reconnects. A host outage retains each guest’s board while waiting to resume. Transport replacement preserves the simulation and ready state. There is no host migration or resume after a page refresh; the host must keep the game tab open.
+Active matches send heartbeats every three seconds and attempt relay recovery after twelve seconds without incoming traffic. Public matches use the encrypted broker relay; private matches can relay through the HTTP lobby. After twenty seconds without a guest, a bot controls that seat until the same tab reconnects. A host outage retains each guest’s board while waiting to resume. Transport replacement preserves the simulation and ready state. There is no host migration or resume after a page refresh; the host must keep the game tab open. The underlying solo game pauses while multiplayer is open, including production rotation, and its defeat dialog cannot cover the multiplayer board.
 
 ## Enabling TURN on GitHub Pages
 

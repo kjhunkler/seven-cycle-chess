@@ -129,6 +129,7 @@
   });
   window.boardNodes=()=>N;
   render=function(){
+    if(typeof online==='undefined'&&document.querySelector('main')?.inert){closeEndgame();return;}
     portionControl.hidden=!portionControlEnabled();
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
