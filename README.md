@@ -2,6 +2,8 @@
 
 GitHub Pages hosts all game editions and the online lobby. The lobby uses a small, separate Node HTTP service for presence, invitations, and exchanging WebRTC connection descriptions. The host runs the game simulation and connects independently to each guest over WebRTC, with a relay fallback. Rooms support two, three, or four human players.
 
+Guests apply their own actions immediately and simulate local production, transformations, departures, friendly arrivals, and visible troop movement between host updates. The host remains authoritative for combat, fog, bots, and victory. Snapshots normally arrive every 250ms, with an earlier update after player actions. They acknowledge processed inputs so guests can restore the host board and replay only pending actions. Round-trip measurements compensate for snapshot travel time, and troop position corrections blend over 120ms. Prediction stops after 1.5 seconds without a snapshot and resumes from the host board on recovery. No hidden opponent state is sent to enable prediction.
+
 ## Local setup
 
 Run the following in separate terminals from the repository root:
