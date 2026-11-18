@@ -32,15 +32,18 @@
     if(!owner || !transformationConfig().teams)return ['var(--neu)','var(--p1)','var(--p2)','#a56bd4','#df9b3e'][owner] ?? `hsl(${(owner*137.508)%360} 70% 62%)`;
     const viewer=player();
     if(owner===viewer)return '#62a8ff';
-    if(allies(owner,viewer))return '#65cd85';
-    return owner%2?'#ee857e':'#eeb251';
+    const seats=Array.from({length:selectedLayout(transformationConfig()).players},(_,i)=>i+1);
+    const friends=seats.filter(seat=>seat!==viewer&&allies(seat,viewer));
+    const enemies=seats.filter(seat=>!allies(seat,viewer));
+    if(allies(owner,viewer))return ['#65cd85','#8bd5ff','#53c9ba'][friends.indexOf(owner)];
+    return ['#ee857e','#eeb251','#f5d565','#ed91c4','#f16b49','#dbafd9'][enemies.indexOf(owner)];
   };
   const art = i => compactBoard ? `<circle cx="12" cy="12" r="9" fill="${troopColors[i]}"/>` : `<g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g>`;
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
-  shell.innerHTML = '<div class="battle-tools"><button type="button" class="battle-settings-button" aria-label="Battle settings" title="Battle settings">⚙</button></div>';
+  shell.innerHTML = '<div class="battle-tools"><button type="button" class="battle-fit-button" title="Fit the whole board">Fit board</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button><button type="button" class="battle-settings-button" aria-label="Battle settings" title="Battle settings">⚙</button></div>';
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
@@ -60,22 +63,56 @@
   shell.append(portionControl);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><label class="shop-setting"><input name="teams" type="checkbox"> 2v2 teams</label><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
-  const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>botConfig.teams?4:2,maximum:()=>botConfig.teams?4:8});
+  const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
   settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
+  const fullscreenButton=shell.querySelector('.battle-fullscreen-button');
+  let boardFullscreen=false,nativeFullscreen=false;
+  const setBoardFullscreen=active=>{
+    boardFullscreen=active;
+    document.documentElement.classList.toggle('board-fullscreen',active);
+    fullscreenButton.textContent=active?'Exit full screen':'Full screen';
+    fullscreenButton.setAttribute('aria-pressed',String(active));
+    window.boardViewport.fit();
+  };
+  fullscreenButton.onclick=async()=>{
+    const active=!boardFullscreen;setBoardFullscreen(active);
+    try{
+      // Keep dialogs and the fruit wheel in the fullscreen tree too.
+      if(active&&!document.fullscreenElement&&document.documentElement.requestFullscreen){
+        await document.documentElement.requestFullscreen();
+        nativeFullscreen=true;
+        if(!boardFullscreen)await document.exitFullscreen();
+      }else if(!active&&nativeFullscreen&&document.fullscreenElement)await document.exitFullscreen();
+    }catch{/* The fixed viewport remains available when native fullscreen is unsupported or denied. */}
+  };
+  document.addEventListener('fullscreenchange',()=>{
+    if(document.fullscreenElement===document.documentElement)nativeFullscreen=true;
+    else if(nativeFullscreen){nativeFullscreen=false;setBoardFullscreen(false);}
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&boardFullscreen&&!document.querySelector('dialog[open]')){
+      setBoardFullscreen(false);
+      if(nativeFullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
+    }
+  });
+  shell.querySelector('.battle-fit-button').onclick=()=>window.boardViewport.fit();
+  if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>window.boardViewport.resize()).observe(board);
+  window.addEventListener('resize',()=>window.boardViewport.resize());
+  window.boardViewport.fit();
   board.setAttribute('role','group');
-  board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
+  board.setAttribute('aria-label','Battlefield. Use two fingers to zoom and pan. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
   const footer = document.createElement('div');
   footer.className = 'battle-footer';
-  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Tap to stop</span>';
+  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Two fingers to zoom / pan</span>';
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,fullElimination,teams}=settingsDialog.querySelector('form').elements;
-      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
-      const reset=restart||next.teams!==!!botConfig.teams||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,speed,shops,productionRotation,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
+      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
+      const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
       showSoloPreview();
       if(reset){
@@ -185,7 +222,8 @@
     if(over!==modalWinner){
       modalWinner=over;
       if(over){
-        endgameMessage.textContent=transformationConfig().teams?(allies(over,me)?'Victory. Your team won.':'Your team was defeated.'):over===me?'Victory. The orchard is yours.':transformationConfig().fullElimination?'All your nodes were captured.':'Your named node was captured.';
+        endgameMessage.textContent=me===0?(transformationConfig().teams?'Team '+teamNumber(over,transformationConfig().teamSize??2):'Player '+over)+' won the match.':transformationConfig().teams?(allies(over,me)?'Victory. Your team won.':'Your team was defeated.'):over===me?'Victory. The orchard is yours.':transformationConfig().fullElimination?'All your nodes were captured.':'Your named node was captured.';
+        retryButton.hidden=me===0;
         retryButton.textContent=typeof online==='undefined'?'Play again':'Return to lobby';
         if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
       }else closeEndgame();
@@ -249,7 +287,14 @@
       if(!allies(a.owner,me)||a.disabled)continue;
       const routes=[...(a.routes||[])];if(drag?.from===a.id&&drag.to&&!routes.includes(drag.to))routes.push(drag.to);
       for(const to of routes){const b=N[to],angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
-        h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${ownerColor(a.owner)}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+        if(compactBoard){
+          // Keep the direction at the source rim, moving inward on crowded routes.
+          const clearance=Math.hypot(b.x-a.x,b.y-a.y)-(b.shop?5.7:4.4)-.5;
+          const tip=Math.max(3.6,Math.min(6,clearance));
+          h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M${tip-1.5} -.85L${tip} 0L${tip-1.5} .85Z" fill="#fff"/></g>`;
+        }else{
+          h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${ownerColor(a.owner)}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+        }
       }
     }
     if(drag?.moved&&N[drag.from]?.shop&&drag.to){const a=N[drag.from],b=N[drag.to],mx=(a.x+b.x)/2+(b.y-a.y)*.16,my=(a.y+b.y)/2-(b.x-a.x)*.16;h+=`<path d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${a.shop==='shield'?'#63e4ff':'#ffd34e'}" stroke-width="1.3" stroke-dasharray="2 1" class="ability-arc" pointer-events="none"/>`;}

@@ -4,8 +4,9 @@ let soloPlayId;
 function portionControlEnabled(){return !!transformationConfig().portionControl}
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let eliminatedBy={};
-function allies(a,b){return sameSide(a,b,!!transformationConfig().teams)}
+function allies(a,b){return sameSide(a,b,transformationConfig().teams?(transformationConfig().teamSize??2):false)}
 function visibleNodes(viewer){
+  if(viewer===0)return new Set(Object.keys(N));
   if(transformationConfig().teams ? over : isEliminated(viewer))return new Set(Object.keys(N));
   const visible=new Set();
   for(const n of Object.values(N))if(allies(viewer,n.owner)){
@@ -18,6 +19,7 @@ function visibleNodes(viewer){
 function boardViewPoint(p,owner,inverse=false){
  const players=selectedLayout(transformationConfig())?.players;
  if(players>4)return rotateBoardPoint(p,(inverse?1:-1)*radialSeatAngle(owner||1,players));
+ if(owner===0)owner=1;
  if(N.P4 && transformationConfig().teams)return {x:p.x,y:N['P'+owner].y<50?100-p.y:p.y};
  if(N.P4)return {x:owner===2||owner===4?100-p.x:p.x,y:owner===1||owner===2?100-p.y:p.y};
  if(N.P3)return rotateBoardPoint(p,(inverse?-1:1)*(owner-1)*2*Math.PI/3);
@@ -50,6 +52,24 @@ function removeDefeatedShops(owner){
 }
 function playerHome(owner){return Object.values(N).find(n=>n.home===owner)}
 function isEliminated(owner){return !!eliminatedBy[owner]}
+// Count fruit wherever it is: garrisons, queued departures, and moving troops.
+function bestOpenBot(humans=[1]){
+  if(over)return null;
+  const total=owner=>Object.values(N).reduce((sum,n)=>sum+(n.owner===owner&&!n.shop?tot(n):0)+n.orders.reduce((s,o)=>s+(o.owner===owner?o.count:0),0),0)+G.reduce((sum,g)=>sum+(g.owner===owner?g.n:0),0);
+  return Object.values(N).filter(n=>n.home&&!humans.includes(n.home)&&(!transformationConfig().teams||allies(n.home,1)))
+    .map(n=>n.home).sort((a,b)=>total(b)-total(a)||a-b)[0]??null;
+}
+// The solo board stays live for spectators. Only a joining player triggers a handoff.
+window.botGame={
+  get active(){return typeof botConfig!=='undefined'&&!over},
+  bestBot(){return bestOpenBot([1])},
+  exportState(){
+    if(typeof botConfig==='undefined')return null;
+    return JSON.parse(JSON.stringify({nodes:N,units:G,over,config:botConfig,conquests:eliminatedBy,
+      transformationClock,productionCycle,portionPercent,selection:sel,sendType,soloPlayId}));
+  },
+  retire(){soloPlayId=undefined}
+};
 function eliminatePlayer(loser,winner){
   removeDefeatedShops(loser);
   eliminatedBy[loser]=winner;
@@ -166,6 +186,48 @@ function bounceTroop(g,progress){
     baseAct(a);
   };
   const tapSlop=6;
+  // Move the SVG camera, so rendering and screen-to-board hit testing share a transform.
+  const touches=new Map(),bounds={x:-5,y:-7,width:110,height:116};
+  let camera={x:50,y:51,zoom:1},view={...bounds},gesture=null,navigating=false;
+  const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
+  const cameraSize=()=>{
+    const rect=map.getBoundingClientRect();
+    if(!rect.width||!rect.height)return null;
+    const unit=Math.max(bounds.width/rect.width,bounds.height/rect.height)/camera.zoom;
+    return {rect,width:rect.width*unit,height:rect.height*unit};
+  };
+  const paintCamera=()=>{
+    const size=cameraSize();if(!size)return;
+    const {width,height}=size;
+    camera.x=width>=bounds.width?50:clamp(camera.x,bounds.x+width/2,bounds.x+bounds.width-width/2);
+    camera.y=height>=bounds.height?51:clamp(camera.y,bounds.y+height/2,bounds.y+bounds.height-height/2);
+    view={x:camera.x-width/2,y:camera.y-height/2,width,height};
+    map.setAttribute('viewBox',`${view.x} ${view.y} ${width} ${height}`);
+  };
+  const cancelBoardInput=()=>{clearTimeout(holdTimer);drag=null;closeWheel();pl=0;};
+  const touchPair=()=>{
+    const [a,b]=[...touches.values()];
+    return a&&b?{x:(a.x+b.x)/2,y:(a.y+b.y)/2,distance:Math.max(1,Math.hypot(a.x-b.x,a.y-b.y))}:null;
+  };
+  const beginGesture=()=>{
+    const pair=touchPair(),size=cameraSize();
+    gesture=pair&&size?{...pair,zoom:camera.zoom,anchorX:view.x+(pair.x-size.rect.left)*view.width/size.rect.width,anchorY:view.y+(pair.y-size.rect.top)*view.height/size.rect.height}:null;
+  };
+  const endTouch=e=>{
+    if(!touches.delete(e.pointerId))return false;
+    const consumed=navigating;
+    if(touches.size<2)gesture=null;else beginGesture();
+    if(!touches.size)navigating=false;
+    if(consumed){e.preventDefault();cancelBoardInput();}
+    return consumed;
+  };
+  window.boardViewport={
+    fit(){cancelBoardInput();camera={x:50,y:51,zoom:1};paintCamera();beginGesture();},
+    resize(){cancelBoardInput();paintCamera();beginGesture();}
+  };
+  const resetInput=()=>{touches.clear();gesture=null;navigating=false;cancelBoardInput();};
+  window.addEventListener('blur',resetInput);
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});
   let wheelNode=null;
   closeWheel=function(){typeWheel.hidden=true;wheelNode=null;};
   openWheel=function(id,x,y){
@@ -238,7 +300,13 @@ function bounceTroop(g,progress){
   typeWheel.addEventListener('dragstart',e=>e.preventDefault());
   map.addEventListener('contextmenu',e=>e.preventDefault());
   map.addEventListener('pointerdown',e=>{
-    if(e.button!==0||drag)return;e.preventDefault();
+    if(e.pointerType==='touch'){
+      touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+      map.setPointerCapture(e.pointerId);
+      if(touches.size>=2){navigating=true;cancelBoardInput();paintCamera();beginGesture();}
+      if(navigating){e.preventDefault();return;}
+    }
+    if(myPlayer()===0||e.button!==0||drag)return;e.preventDefault();
     const id=e.target.closest('[data-id]')?.dataset.id;
     if(!id){closeWheel();sel=null;return;}
     if(over||N[id].owner!==myPlayer()){closeWheel();return;}
@@ -248,6 +316,18 @@ function bounceTroop(g,progress){
     holdTimer=setTimeout(()=>{if(drag&&!drag.moved){if(!(N[id]?.cd>0))routeCommand({kind:'stop',node:id});openWheel(id,e.clientX,e.clientY);}},CONFIG.holdMs);
   });
   map.addEventListener('pointermove',e=>{
+    if(touches.has(e.pointerId))touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
+    if(navigating){
+      e.preventDefault();const pair=touchPair();
+      if(gesture&&pair){
+        camera.zoom=clamp(gesture.zoom*pair.distance/gesture.distance,1,4);
+        const size=cameraSize();if(!size)return;
+        camera.x=gesture.anchorX-(pair.x-size.rect.left-size.rect.width/2)*size.width/size.rect.width;
+        camera.y=gesture.anchorY-(pair.y-size.rect.top-size.rect.height/2)*size.height/size.rect.height;
+        paintCamera();
+      }
+      return;
+    }
     if(drag?.id!==e.pointerId)return;e.preventDefault();
     if(drag.held){
       const hit=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');
@@ -257,6 +337,7 @@ function bounceTroop(g,progress){
     if(drag.moved){if(!N[drag.from]?.shop)select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
+    if(endTouch(e))return;
     if(drag?.id!==e.pointerId)return;e.preventDefault();clearTimeout(holdTimer);
     const d=drag;
     if(d.held){const b=document.elementFromPoint(e.clientX,e.clientY)?.closest('[data-type]');if(b&&typeWheel.contains(b))b.click();}
@@ -265,7 +346,7 @@ function bounceTroop(g,progress){
     else {const selected=sel===d.from;routeCommand({kind:'stop',node:d.from});select(d.from);if(selected&&!d.wasOpen)openWheel(d.from,e.clientX,e.clientY);}
     drag=null;pl=0;
   });
-  const abort=()=>{clearTimeout(holdTimer);if(drag?.held)closeWheel();drag=null;};
+  const abort=e=>{endTouch(e);if(drag?.id===e.pointerId)cancelBoardInput();};
   map.addEventListener('pointercancel',abort);map.addEventListener('lostpointercapture',abort);
   init();
 })();

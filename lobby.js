@@ -25,6 +25,15 @@ let name=savedName, player=1, frame, editionURL, session=false, leaving=false, i
 let iceServers=[], lastFriends=[], incoming=[], turnServers=[],turnCacheUntil=0,turnRequest;
 const links=new Map(),pendingInvites=new Map();
 let historyRound,historyNotice="";
+let pendingEntry, handoff, convertedPlayId, openSequence=0, adopting=false;
+const deferredEntries=[];
+function openActivity(){
+  if(player!==1||adopting)return null;
+  const active=frame?game()?.active:window.botGame?.active;
+  if(!active)return null;
+  return {join:!!(frame?game()?.bestBot():window.botGame?.bestBot())};
+}
+function nextBot(){return frame?game()?.bestBot():window.botGame?.bestBot()}
 function loadTurnServers() {
   if (!turnEndpoint || Date.now() < turnCacheUntil) return Promise.resolve(turnServers);
   turnRequest ??= fetch(turnEndpoint, { cache: "no-store", signal: AbortSignal.timeout(2500) })
@@ -87,19 +96,31 @@ async function request(action,fields={}){
 function availableFriends(){return lastFriends.filter(f=>f.online!==false&&![...links.values()].some(l=>l.id===f.id))}
 function updateMembers(){
   if(!game()||!frame.dataset.started)return;
-  if(player===1)game().setMembers([{seat:1,name,connected:true},...[...links.values()].map(l=>({seat:l.seat,name:l.name,connected:l.connected&&!l.left}))]);
+  if(player===1){
+    game().setMembers([{seat:1,name,connected:true},...[...links.values()].filter(l=>l.seat>0).map(l=>({seat:l.seat,name:l.name,connected:l.connected&&!l.left}))]);
+    game().setSpectators([...links.values()].some(l=>l.seat===0&&!l.left));
+  }
   game().setFriends(availableFriends());
 }
 function launchGame(){
-  if(!game()||!session||!player)return;
-  if(!frame.dataset.started){frame.dataset.started="true";if(currentCatalog)game().setCatalog(currentCatalog);game().start(player,transmit,player===1?[1,...[...links.values()].map(l=>l.seat)]:[1,player])}
+  if(!game()||!session||player===null)return;
+  if(!frame.dataset.started){frame.dataset.started="true";if(currentCatalog)game().setCatalog(currentCatalog);
+    if(handoff){convertedPlayId=handoff.soloPlayId;game().adopt(handoff,transmit);handoff=null;adopting=false;window.botGame?.retire()}
+    else game().start(player,transmit,player===1?[1,...[...links.values()].filter(l=>l.seat>0).map(l=>l.seat)]:player===0?[1]:[1,player]);
+  }
   updateMembers();
+  if(player===1&&[...links.values()].some(l=>l.seat>0&&l.connected))game().reportParticipants();
   for(const [link,data]of incoming.splice(0))if(links.get(link.room)===link)game().receive(data,player===1?link.seat:1);
+  if(player===1&&!adopting)for(const entry of deferredEntries.splice(0)){
+    if(entry.link){if(links.get(entry.link.room)===entry.link)joinSpectatedGame(entry.link)}
+    else void admitEntry(entry);
+  }
 }
 function showMatch(){
   if(frame)return;
   document.querySelector('.endgame-dialog')?.close();
   editionURL=location.href;const page=new URL("./match.html",editionURL);frame=document.createElement("iframe");frame.title="Fruit Wars multiplayer match";
+  frame.allowFullscreen=true;
   frame.style.cssText="position:fixed;inset:0;width:100%;height:100%;border:0;z-index:100;background:var(--bg)";
   frame.onload=()=>{status(statusText.textContent);frame.contentDocument.querySelector("#match-name").value=name;launchGame()};frame.src=page.href;
   document.querySelector("main").inert=true;document.body.append(frame);history.pushState({fruitWarsMatch:true},"",page.href);
@@ -125,20 +146,56 @@ function renderRoster(friends){
       (friend.played!==undefined?" · "+statsLine(friend,friend.solo):"");
     row.append(dot,identity,detail);
     if(friend.online===false){roster.append(row);continue}
+    if(friend.activity){
+      const watch=addAction("Spectate",()=>enterGame(friend.id,"spectate"));watch.disabled=session;row.append(watch);
+      if(friend.activity.join){const join=addAction("Join game",()=>enterGame(friend.id,"join"));join.disabled=session;row.append(join)}
+    }
     const invite=[...pendingInvites.values()].find(i=>i.from===friend.id);
     const button=invite?addAction("Accept",()=>acceptInvite(invite)):addAction("Invite",()=>invitePlayer(friend.id));
-    button.disabled=session&&(player!==1||links.size>=3||game()?.started||[...links.values()].some(l=>l.id===friend.id));row.append(button);roster.append(row);
+    button.disabled=session&&(player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started||[...links.values()].some(l=>l.id===friend.id));row.append(button);roster.append(row);
   }
   if(!friends.length){const row=document.createElement("li");row.textContent="No other players yet.";roster.append(row)}
   game()?.setFriends(availableFriends());
 }
 function makeLink(room,seat,id,name){const link={room,seat,id,name,created:Date.now(),seen:Date.now(),connected:false,accepted:false,relay:false,pc:null,channel:null,state:null,candidates:[],outgoing:Promise.resolve(),lastState:0};links.set(room,link);return link}
+async function enterGame(id,mode){
+  if(session||pendingEntry||inviting)return;
+  pendingEntry={id,mode,at:Date.now()};
+  try{await request("enter",{to:id,mode});status(mode==="join"?"Joining the game…":"Opening spectator view…")}
+  catch(error){pendingEntry=null;throw error}
+}
+async function admitEntry(event){
+  if(player!==1)return;
+  if(adopting){if(deferredEntries.length<100)deferredEntries.push(event);return}
+  if(!openActivity()||!["join","spectate"].includes(event.mode)||[...links.values()].some(l=>l.id===event.from&&!l.left))return;
+  const seat=event.mode==="join"?nextBot():0;
+  if(seat===null||seat===undefined)return;
+  // Reserve synchronously before signaling; concurrent joins cannot claim the same bot.
+  const reservation=makeLink("pending:"+crypto.randomUUID(),seat,event.from,event.name);
+  session=true;
+  if(seat>0&&!frame){handoff=window.botGame.exportState();handoff.sequence=openSequence;adopting=true;showMatch();launchGame()}
+  updateMembers();
+  try{
+    const {room}=await request("invite",{to:event.from});
+    if(links.get(reservation.room)!==reservation){void request("leave",{room}).catch(()=>{});return}
+    links.delete(reservation.room);reservation.room=room;links.set(room,reservation);
+  }catch(error){removeLink(reservation,error.message)}
+}
+function joinSpectatedGame(link){
+  if(player!==1||link.seat!==0)return;
+  if(adopting){if(deferredEntries.length<100)deferredEntries.push({link});return}
+  if(!openActivity())return;
+  const seat=nextBot();if(!seat){sendLink(link,{kind:"join-unavailable"});return}
+  link.seat=seat;link.welcomed=false;
+  if(!frame){handoff=window.botGame.exportState();handoff.sequence=openSequence;adopting=true;showMatch();launchGame()}
+  updateMembers();sendLink(link,{kind:"welcome",seat});game()?.rebind(transmit);game()?.reportParticipants();
+}
 async function invitePlayer(id){
-  if(inviting||player!==1||links.size>=3||game()?.started)return;
+  if(inviting||player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started)return;
   const friend=lastFriends.find(f=>f.id===id);if(!friend||friend.online===false||[...links.values()].some(l=>l.id===id))return;
   inviting=true;let reservation;
   try{
-    const seat=[2,3,4].find(p=>![...links.values()].some(l=>l.seat===p));
+    const seat=[2,3,4,5,6,7,8].find(p=>![...links.values()].some(l=>l.seat===p));
     // Reserve the seat before awaiting the service so ready-up cannot race an invite.
     reservation=makeLink("pending:"+crypto.randomUUID(),seat,id,friend.name);session=true;showMatch();launchGame();updateMembers();
     const result=await request("invite",{to:id});
@@ -151,7 +208,7 @@ async function acceptInvite(invite){
   if(session||inviting)return;inviting=true;
   try{
     await request("accept",{room:invite.room});
-    player=0;session=true;const link=makeLink(invite.room,1,invite.from,invite.name);link.accepted=true;
+    player=null;session=true;const link=makeLink(invite.room,1,invite.from,invite.name);link.accepted=true;
     for(const other of pendingInvites.values())if(other.room!==invite.room)void request("leave",{room:other.room}).catch(()=>{});
     pendingInvites.clear();renderInvitations();showMatch();status("Connecting to the host…");await connect(link,false);
   }finally{inviting=false}
@@ -159,11 +216,13 @@ async function acceptInvite(invite){
 function closePeer(link){const pc=link.pc;link.pc=null;if(link.channel){link.channel.onclose=null;link.channel.onopen=null}link.channel=link.state=null;pc?.close()}
 function removeLink(link,message){
   if(!links.has(link.room))return;clearTimeout(link.timer);closePeer(link);links.delete(link.room);incoming=incoming.filter(([l])=>l!==link);
-  if(player===1){updateMembers();status(message)}else reset(message,false);
+  if(player===1){if(!frame&&!links.size)session=false;updateMembers();status(message)}else reset(message,false);
 }
 function reset(message,notify=true){
   leaving=true;
   historyRound=undefined;
+  pendingEntry=null;handoff=null;convertedPlayId=null;adopting=false;
+  deferredEntries.length=0;
   for(const link of links.values()){clearTimeout(link.timer);closePeer(link);if(notify)void request("leave",{room:link.room}).catch(()=>{})}
   links.clear();incoming=[];session=false;player=1;
   if(frame){frame.onload=null;frame.remove();frame=null;document.querySelector("main").inert=false;if(history.state?.fruitWarsMatch)history.replaceState(null,"",editionURL)}
@@ -196,8 +255,8 @@ function transmit(data,target){
 function linkOpened(link){
   if(links.get(link.room)!==link)return;
   const reconnect=!link.connected;link.connected=true;link.seen=Date.now();
-  if(player===1){sendLink(link,{kind:"welcome",seat:link.seat});updateMembers();if(reconnect)game()?.rebind(transmit)}
-  status("Match connected. Host can invite up to three friends before starting.");
+  if(player===1){sendLink(link,{kind:"welcome",seat:link.seat});updateMembers();if(reconnect){game()?.rebind(transmit);if(link.seat>0)game()?.reportParticipants()}}
+  status(player===0?"Spectating the game.":"Match connected.");
 }
 function receiveRelayGame(room,data){const link=links.get(room);if(link?.accepted){if(!link.relay)startRelay(link);receiveGame(link,data)}}
 function receiveGame(link,data){
@@ -211,14 +270,18 @@ function receiveGame(link,data){
     return;
   }
   link.seen=Date.now();
+  if(data.kind==="join-game"&&player===1){joinSpectatedGame(link);return}
+  if(data.kind==="join-unavailable"){status("No eligible teammate or bot is available to join.");return}
   if(data.kind==="welcome"&&player!==1){
-    if(![2,3,4].includes(data.seat)||player&&player!==data.seat)return;
+    if(!Number.isInteger(data.seat)||data.seat<0||data.seat===1||data.seat>8||(player!==null&&player!==0&&player!==data.seat))return;
+    if(player===0&&data.seat>0)game()?.takeSeat(data.seat);
     player=data.seat;link.connected=true;launchGame();sendLink(link,{kind:"welcome-ack"});return;
   }
   if(data.kind==="welcome-ack"&&player===1){link.welcomed=true;game()?.rebind(transmit);return}
   if(!link.connected){link.connected=true;updateMembers();if(player===1){sendLink(link,{kind:"welcome",seat:link.seat});game()?.rebind(transmit)}}
   if(data.kind==="heartbeat")return;
-  if(!player||!game()||!frame.dataset.started){if(incoming.length<100)incoming.push([link,data]);return}
+  if(player===1&&link.seat===0&&!frame){if(data.kind==="ping"&&Number.isSafeInteger(data.token))sendLink(link,{kind:"pong",token:data.token});return}
+  if(player===null||!game()||!frame.dataset.started){if(incoming.length<100)incoming.push([link,data]);return}
   game().receive(data,player===1?link.seat:1);
 }
 function startRelay(link){if(links.get(link.room)!==link||link.relay)return;clearTimeout(link.timer);closePeer(link);link.relay=true;linkOpened(link)}
@@ -256,7 +319,9 @@ async function receiveSignal(link,description){
   }catch{void fallback(link)}
 }
 async function handleEvent(event){
+  if(event.kind==="entry-request"){await admitEntry(event);return}
   if(event.kind==="invite"){
+    if(pendingEntry?.id===event.from){pendingEntry=null;await acceptInvite(event);return}
     if(session){void request("leave",{room:event.room}).catch(()=>{});return}
     pendingInvites.set(event.room,{...event,expiresAt:event.expiresAt||Date.now()+30000});renderInvitations();lobby.closest("details").open=true;return;
   }
@@ -268,7 +333,7 @@ async function handleEvent(event){
   else if(event.kind==="relay")startRelay(link);
   else if(event.kind==="game")receiveRelayGame(link.room,event.game);
   else if(event.kind==="leave"||event.kind==="expired"){
-    if(player===1&&game()?.started){link.left=true;link.connected=false;closePeer(link);updateMembers();status(link.name+" left. A bot now controls their fruit.")}
+    if(player===1&&link.seat>0&&game()?.started){link.left=true;link.connected=false;closePeer(link);updateMembers();status(link.name+" left. A bot now controls their fruit.")}
     else removeLink(link,"A player left or declined the match.");
   }
 }
@@ -301,21 +366,21 @@ function renderMatchHistory(data) {
   const matches=data.matches.sort((a,b)=>a.finishedAt>b.finishedAt?-1:1).map(match=>{
     const winner=match.players.find(player=>player.seat===match.winner);
     const map=data.maps?.get(match.id) || defaultMaps[match.rules.map]?.name || "Community map";
-    const teams=data.teamMatches?.has(match.id)??false;
+    const teams=data.teamMatches?.has(match.id)?match.rules.teamSize??2:false;
     const seats=match.players.filter(p=>p.profile===data.profile);
     const won=seats.some(p=>sameSide(p.seat,match.winner,teams));
     const outcome=won?"Won":"Lost";
-    const opponents=match.players.filter(player=>player.profile!==data.profile && (!teams || !seats.some(p=>sameSide(p.seat,player.seat,true)))).map(player=>player.name);
+    const opponents=match.players.filter(player=>player.profile!==data.profile && (!teams || !seats.some(p=>sameSide(p.seat,player.seat,teams)))).map(player=>player.name);
     const players=opponents.length?" vs "+opponents.join(", "):" · shared browser";
     const duration=Math.floor(match.durationSeconds/60)+":"+String(match.durationSeconds%60).padStart(2,"0");
     const rules=match.rules;
     const speed=rules.speed===.5?"Relaxed":rules.speed===1?"Standard":"Fast";
     const extras=[
-      teams&&"2v2 teams",rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
+      teams&&"Teams of "+teams,rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
       rules.productionRotation&&"Production rotation",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
     ].filter(Boolean);
     const date=dateFormat.format(Number(match.finishedAt/1000n));
-    const winnerLabel=won?"":teams?"Team "+teamNumber(match.winner)+" won":(winner?.name||"Bot "+match.winner)+" won";
+    const winnerLabel=won?"":teams?"Team "+teamNumber(match.winner,teams||2)+" won":(winner?.name||"Bot "+match.winner)+" won";
     return item(outcome+players,[winnerLabel,map,duration,date,speed,...extras].filter(Boolean).join(" · "));
   });
   recent.replaceChildren(...(matches.length?matches:[item("No completed online matches yet.")]));
@@ -344,7 +409,8 @@ function renderAccount(data) {
 
 async function poll(){
   try{
-    const data=await request("poll");iceServers=data.iceServers||[];
+    const data=await request("poll",{activity:openActivity()});iceServers=data.iceServers||[];
+    if(pendingEntry&&Date.now()-pendingEntry.at>15000){pendingEntry=null;status("That game is no longer available. Try another game.")}
     for(const event of data.events)await handleEvent(event);
     const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
     renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.filter(f=>f.online!==false).length+" players online");
@@ -375,19 +441,26 @@ setInterval(()=>{
     if(link.accepted){
       sendLink(link,{kind:"heartbeat"});
       if(now-link.seen>12000&&!link.relay)void fallback(link);
-      if(now-link.seen>20000&&link.connected){link.connected=false;updateMembers();status(player===1?link.name+" disconnected. A bot controls their fruit until they reconnect.":"Host disconnected. Waiting to resume; you can leave from your profile.")}
+      if(now-link.seen>20000&&link.connected){link.connected=false;updateMembers();status(player===1?link.name+(link.seat===0?" stopped spectating.":" disconnected. A bot controls their fruit until they reconnect."):"Host disconnected. Waiting to resume; you can leave from your profile.")}
       if(player===1&&!link.welcomed)sendLink(link,{kind:"welcome",seat:link.seat});
     }
   }
 },3000);
+setInterval(()=>{
+  if(player!==1||frame||!window.botGame||![...links.values()].some(l=>l.seat===0&&l.accepted&&!l.left))return;
+  const state=window.botGame.exportState();if(!state)return;
+  transmit({...state,kind:"state",round:0,sequence:openSequence++,ack:-1,gameStarted:true,countdownRemaining:0,
+    humans:[1],connected:[1],members:[{seat:1,name,connected:true}]},0);
+},250);
 addEventListener("message",event=>{
   if(event.origin!==location.origin||event.source!==frame?.contentWindow)return;
   if(historyPanel&&player===1&&event.data?.kind==="match-history-start"){
     const {round,rules,seats}=event.data;
-    const guests=[...links.values()].filter(link=>seats.includes(link.seat))
+    const guests=[...links.values()].filter(link=>link.accepted&&link.seat>0&&seats.includes(link.seat))
       .map(({room,seat,name})=>({room,seat,name}));
-    historyRound={round,id:crypto.randomUUID(),hostName:name,guests,rules};
-    if(currentCatalog)void request("start-map-play",{id:historyRound.id,mapId:rules.map}).catch(()=>{});
+    const existing=historyRound?.round===round;
+    historyRound={round,id:existing?historyRound.id:convertedPlayId||crypto.randomUUID(),hostName:name,guests,rules};convertedPlayId=null;
+    if(currentCatalog&&!existing)void request("start-map-play",{id:historyRound.id,mapId:rules.map}).catch(()=>{});
   }
   if(historyPanel&&player===1&&event.data?.kind==="match-history-finish"&&historyRound?.round===event.data.round){
     const {round,...result}=historyRound;
@@ -396,6 +469,7 @@ addEventListener("message",event=>{
     void request("record-match",{...result,winner,durationSeconds}).catch(()=>{historyNotice="A match result could not be saved."});
   }
   if(event.data?.kind==="leave-match")reset("You left the match.");
+  if(event.data?.kind==="join-game"&&player===0)transmit({kind:"join-game"});
   if(event.data?.kind==="rename")void saveName(event.data.name);
   if(event.data?.kind==="invite-player")void invitePlayer(event.data.to).catch(error=>status(error.message));
   if(event.data?.kind==="remove-player"&&player===1&&!game()?.started){const link=[...links.values()].find(l=>l.seat===event.data.seat);if(link){void request("leave",{room:link.room}).catch(()=>{});removeLink(link,"Player removed from setup.")}}

@@ -16,3 +16,21 @@ test('encrypted public signaling supports three independent guests and deduplica
   b.advance(601000);await host.call('poll');await people[i].call('poll');await host.call('game',{room,game:{kind:'state',large:'x'.repeat(150000)}});await b.settle();assert.equal(people[i].games.at(-1).game.large.length,150000,'long direct match retains relay credentials and large snapshots encode');
  }
 });
+
+test('public games advertise joinability, route entry requests, and expire stale activity',async()=>{
+ const b=broker(),host=b.add('Host'),guest=b.add('Guest');
+ for(const p of [host,guest])await p.call('poll').catch(()=>{});await b.settle();
+ await host.call('poll',{activity:{join:true}});await guest.call('poll');await b.settle();
+ const friend=(await guest.call('poll')).friends.find(f=>f.name==='Host');assert.equal(friend.activity.join,true);
+ await guest.call('enter',{to:friend.id,mode:'spectate'});await b.settle();
+ const entry=(await host.call('poll',{activity:{join:true}})).events.find(e=>e.kind==='entry-request');
+ assert.equal(entry.mode,'spectate');assert.equal(entry.name,'Guest');
+ // Reuse the ordinary encrypted invitation path, including history registration.
+ const {room}=await host.call('invite',{to:entry.from});await b.settle();
+ assert.equal((await guest.call('poll')).events.find(e=>e.kind==='invite').room,room);
+ await guest.call('accept',{room});await b.settle();
+ await host.call('game',{room,game:{kind:'welcome',seat:0}});await b.settle();assert.equal(guest.games.at(-1).game.seat,0);
+ await host.call('poll',{activity:{join:false}});await b.settle();assert.equal((await guest.call('poll')).friends.find(f=>f.id===friend.id).activity.join,false);
+ await host.call('poll',{activity:null});await b.settle();assert.equal((await guest.call('poll')).friends.find(f=>f.id===friend.id).activity,null);
+ b.advance(16000);assert.equal((await guest.call('poll')).friends.some(f=>f.id===friend.id),false);
+});

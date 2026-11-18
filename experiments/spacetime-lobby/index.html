@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fruit Wars Lobby Prototype</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <main>
+    <h1>Fruit Wars Lobby Prototype</h1>
+    <form id="join">
+      <label for="name">Display name</label>
+      <input id="name" maxlength="24" required autocomplete="off">
+      <button id="join-button">Join lobby</button>
+      <button id="disconnect" type="button" disabled>Disconnect</button>
+    </form>
+    <p id="status" role="status">Disconnected</p>
+    <section><h2>Online players</h2><ul id="players"></ul></section>
+    <section><h2>Received invitations</h2><ul id="incoming"></ul></section>
+    <section><h2>Sent invitations</h2><ul id="outgoing"></ul></section>
+  </main>
+  <script type="module" src="/main.js"></script>
+</body>
+</html>

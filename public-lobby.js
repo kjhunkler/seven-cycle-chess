@@ -4,6 +4,8 @@ const publicLobby = (() => {
   const presence = root + "/presence", address = root + "/inbox/";
   const database = window.FRUIT_WARS_SPACETIME_DB;
   const friends = new Map(), rooms = new Map(), inbox = [];
+  const activities = new Map();
+  let lastActivity;
   let client, ready, opening, directory, lastSeen = 0, lastName, keys, publicKey;
   const valid = value => typeof value === "string" && /^[a-f0-9-]{36}$/.test(value);
   const b64 = value => {const bytes=new Uint8Array(value);let raw="";for(let i=0;i<bytes.length;i+=8192)raw+=String.fromCharCode(...bytes.subarray(i,i+8192));return btoa(raw)};
@@ -26,7 +28,12 @@ const publicLobby = (() => {
     const data = JSON.parse(payload.toString());
     if (!valid(data.id) || data.id === id) return;
     if (route === presence) {
+      if(activities.size<1000||activities.has(data.id))activities.set(data.id,{activity:data.activity&&typeof data.activity.join==="boolean"?{join:data.activity.join}:null,seen:Date.now()});
       if (!database && typeof data.name === "string" && data.key) friends.set(data.id,{name:data.name.slice(0,32),key:data.key,seen:Date.now()});
+      return;
+    }
+    if(data.kind==="entry-request"){
+      if(["join","spectate"].includes(data.mode)&&typeof data.name==="string"&&inbox.length<100)inbox.push({kind:"entry-request",from:data.id,name:data.name.slice(0,32),mode:data.mode});
       return;
     }
     if (!valid(data.room)) return;
@@ -55,7 +62,7 @@ const publicLobby = (() => {
     publicKey = await crypto.subtle.exportKey("jwk",keys.publicKey);
     if(directory && !window.mqtt)return;
     client = window.mqtt.connect("wss://broker.emqx.io:8084/mqtt",{reconnectPeriod:2000,connectTimeout:6000});
-    client.on("connect",() => client.subscribe(database ? [address+id] : [presence,address+id],{qos:1},error => {ready=!error;lastSeen=0}));
+    client.on("connect",() => client.subscribe([presence,address+id],{qos:1},error => {ready=!error;lastSeen=0}));
     client.on("close",() => {ready=false});
     client.on("error",() => {ready=false});
     let chain = Promise.resolve();
@@ -72,6 +79,11 @@ const publicLobby = (() => {
     const now = Date.now();
     if (action === "poll") {
       let directoryUnavailable = false;
+      const activity=fields.activity??null;
+      if(ready&&(now-lastSeen>=4000||name!==lastName||JSON.stringify(activity)!==lastActivity)){
+        await publish(presence,{name,key:publicKey,activity});lastSeen=now;lastName=name;lastActivity=JSON.stringify(activity);
+      }
+      for(const [key,value]of activities)if(now-value.seen>15000)activities.delete(key);
       if (directory) {
         friends.clear();
         try {
@@ -81,13 +93,17 @@ const publicLobby = (() => {
           directoryUnavailable = true;
         }
       } else {
-        if (now-lastSeen >= 4000 || name!==lastName) {await publish(presence,{name,key:publicKey});lastSeen=now;lastName=name}
         for (const [key,friend] of friends) if (now-friend.seen > 15_000) friends.delete(key);
       }
       for (const [key,room] of rooms) if (!room.accepted&&now-room.seen > 30_000) {rooms.delete(key);inbox.push({kind:"expired",room:key})}
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],
-        friends:[...friends].map(([id,{key,seen,...friend}]) => ({id,...friend})),events:inbox.splice(0),directoryUnavailable,
+        friends:[...friends].map(([id,{key,seen,...friend}]) => ({id,...friend,activity:activities.get(id)?.activity??null})),events:inbox.splice(0),directoryUnavailable,
         community:directory?.community(),matchHistory:directory?.history(),account:directory?.account()};
+    }
+    if(action==="enter"){
+      const friend=friends.get(fields.to);
+      if(!friend||friend.online===false||!["join","spectate"].includes(fields.mode))throw new Error("Game is unavailable.");
+      await publish(address+fields.to,{kind:"entry-request",name,mode:fields.mode},1);return {};
     }
     if (action === "invite") {
       const friend = friends.get(fields.to);

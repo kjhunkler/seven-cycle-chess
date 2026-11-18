@@ -92,6 +92,7 @@ const historyGuest = table({}, {
 
 const matchRules = t.object('MatchRules', {
   map: t.u8(),
+  teamSize: t.option(t.u8()),
   speed: t.f64(),
   shops: t.bool(),
   fullElimination: t.bool(),
@@ -175,10 +176,10 @@ function refreshProfile(ctx:Context, profile:bigint, seen?:bigint) {
     if(ctx.db.liveProfile.id.find(row.id))ctx.db.liveProfile.id.update(row);else ctx.db.liveProfile.insert(row);
   }
 }
-function winningProfiles(players:{profile:bigint,seat:number}[],winner:number,teams:boolean){
+function winningProfiles(players:{profile:bigint,seat:number}[],winner:number,teams:boolean|number){
   return new Set(players.filter(p=>sameSide(p.seat,winner,teams)).map(p=>p.profile));
 }
-function addResult(ctx:Context, players:{profile:bigint,seat:number}[],winner:number,teams=false) {
+function addResult(ctx:Context, players:{profile:bigint,seat:number}[],winner:number,teams:boolean|number=false) {
   const winning=winningProfiles(players,winner,teams);
   for(const profile of new Set(players.map(p=>p.profile))){
     const old=ctx.db.totals.profile.find(profile);
@@ -199,6 +200,13 @@ export const initializeCommunity = lobby.reducer(ctx=>{
   const configured=ctx.env.FRUIT_WARS_DEFAULT_MAP_OWNER;
   const owner=configured ? ctx.db.account.profile.find(BigInt(configured))?.profile : undefined;
   if(configured && owner===undefined)throw new SenderError('The configured default map owner must have an existing account.');
+  for(const m of Object.values(defaultMaps) as {id:number,name:string,players:number,mirror:boolean,nodes:object,edges:string[][]}[]){
+    if(m.id<2147483640 || ctx.db.communityMap.id.find(m.id))continue;
+    const {id,name,players,mirror,nodes,edges}=m;
+    if(ctx.db.communityMap.id.find(id))continue;
+    ctx.db.communityMap.insert({id,name,players,owner,revision:1,updatedAt:ctx.timestamp.microsSinceUnixEpoch,plays:0});
+    ctx.db.mapVersion.insert({key:id+'/1',mapId:id,revision:1,layout:JSON.stringify({players,mirror,nodes,edges,difficulty:{}})});
+  }
   if(ctx.db.migration.version.find(1)){
     if(owner!==undefined)for(const m of ctx.db.communityMap.iter())if(m.id<=11 && m.owner===undefined)
       ctx.db.communityMap.id.update({...m,owner});
@@ -212,7 +220,7 @@ export const initializeCommunity = lobby.reducer(ctx=>{
   const lastPlayed=new Map<bigint,bigint>();
   for(const match of ctx.db.matchResult.iter()){
     for(const p of match.players)if(match.finishedAt>(lastPlayed.get(p.profile)??0n))lastPlayed.set(p.profile,match.finishedAt);
-    addResult(ctx,match.players,match.winner,!!ctx.db.teamMatch.id.find(match.id));
+    addResult(ctx,match.players,match.winner,ctx.db.teamMatch.id.find(match.id)?match.rules.teamSize??2:false);
     countPlay(ctx,match.id,match.rules.map);
   }
   for(const user of ctx.db.account.iter())refreshProfile(ctx,user.profile,lastPlayed.get(user.profile));
@@ -501,7 +509,7 @@ const resultFields = {
   rules: matchRules, durationSeconds: t.u32(),
 };
 type Result = { id:string,hostName:string,guests:{room:string,seat:number,name:string}[],winner:number,rules:typeof matchRules.type,durationSeconds:number };
-function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSeconds}:Result,mapId:number,revision?:number,teams=false) {
+function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSeconds}:Result,mapId:number,revision?:number,teams:boolean|number=false) {
   const host = ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
   if (host === undefined || !uuid.test(id)) throw new SenderError('Match history is unavailable.');
   const existing = ctx.db.matchResult.id.find(id);
@@ -511,7 +519,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   const entry=ctx.db.communityMap.id.find(mapId);
   const version=revision && ctx.db.mapVersion.key.find(mapId+'/'+revision);
   const seatCount = entry?.players ?? (rules.map === 4 ? 4 : [3,6].includes(rules.map) ? 3 : 2);
-  if ((teams && (seatCount!==4 || !entry || rules.map!==(mapId<=11?mapId:0))) || (revision!==undefined ? !version || !entry : rules.map < 2 || rules.map > 11) || ![.5, 1, 1.5].includes(rules.speed) ||
+  if ((teams && (![4,6,8].includes(seatCount) || ![2,seatCount/2].includes(Number(teams)) || !entry || rules.map!==(mapId<=11?mapId:0))) || (revision!==undefined ? !version || !entry : !entry && (rules.map < 2 || rules.map > 11)) || ![.5, 1, 1.5].includes(rules.speed) ||
       !Number.isFinite(rules.transformationTime) || rules.transformationTime < 1 || rules.transformationTime > 120 ||
       winner < 1 || winner > seatCount || durationSeconds > 86400 || guests.length < 1 || guests.length >= seatCount ||
       !hostName.trim() || hostName.length > 32) {
@@ -568,7 +576,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
 export const recordMatch=lobby.reducer(resultFields,(ctx,result)=>storeResult(ctx,result,result.rules.map));
 export const recordCatalogMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>storeResult(ctx,result,result.mapId,result.revision));
 export const recordTeamMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>
-  storeResult(ctx,result,result.mapId,result.revision||undefined,true));
+  storeResult(ctx,result,result.mapId,result.revision||undefined,result.rules.teamSize??2));
 export const myTeamMatches=lobby.view({public:true},t.array(teamMatch.rowType),ctx=>{
   const profile=ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
   if(profile===undefined)return [];

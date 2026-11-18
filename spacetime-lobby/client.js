@@ -86,7 +86,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         if (entry.solo) await conn.reducers.finishSoloMatch(result);
         else {
           const {teams,mapRevision,map,...settings}=result.rules;
-          const rules={portionControl:false,transformationWave:false,transformationTime:10,...settings,map:map<=11?map:0};
+          const rules={teamSize:teams?(settings.teamSize??2):undefined,portionControl:false,transformationWave:false,transformationTime:10,...settings,map:map<=11?map:0};
           const payload={...result,rules};
           if(teams)await conn.reducers.recordTeamMatch({...payload,mapId:map,revision:mapRevision??0});
           else if(mapRevision)await conn.reducers.recordCatalogMatch({...payload,mapId:map,revision:mapRevision});

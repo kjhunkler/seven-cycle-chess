@@ -139,6 +139,14 @@ const defaultMaps=Object.fromEntries([
   [5,'Twin branches',2,BRANCH_POS,BRANCH_EDGES],[6,'Expanded three groves',3,LARGE_THREE_POS,LARGE_THREE_EDGES],
   ...Object.entries(TWO_PLAYER_MAPS).map(([id,m])=>[Number(id),m.name,2,m.nodes,m.edges])
 ].map(([id,name,players,nodes,edges])=>[id,{id,name,...mapLayout({players,nodes,edges,mirror:players!==3,difficulty:{}})}]));
+for(const players of [6,8]){
+ const homes=radialHomes(players),inner=radialHomes(players,[50,68]);
+ const nodes={J0:[50,50]},edges=[];
+ for(let i=0;i<players;i++){const p='P'+(i+1),j='J'+(i+1);nodes[p]=homes[i];nodes[j]=inner[i];edges.push([p,j],[j,'J0'],[j,'J'+((i+1)%players+1)])}
+ const id=2147483640+players;
+ defaultMaps[id]={id,name:players+'-player orchard',...mapLayout({players,mirror:false,nodes,edges,difficulty:{}})};
+}
+function mapForPlayers(players){return [...latestMaps.values()].find(m=>m.players===players)?.id??2}
 const mapVersions=new Map(), latestMaps=new Map(Object.values(defaultMaps).map(m=>[m.id,m]));
 function selectedLayout(config){
   return config.mapRevision ? mapVersions.get(config.map+'/'+config.mapRevision) : defaultMaps[config.map] || latestMaps.get(config.map);
@@ -149,9 +157,18 @@ function selectionConfig(id){
   return revision?{map:id,mapRevision:revision}:{map:id};
 }
 // Four-seat maps put P1/P2 on one edge and P3/P4 on the opposite edge.
-function teamNumber(seat){return seat>0 && seat<=4 ? Math.ceil(seat/2) : 0}
-function sameSide(a,b,teams){return a>0 && b>0 && (a===b || (teams && teamNumber(a)===teamNumber(b)))}
-function matchMapChoice(mapId,teams){return selectionConfig(teams && mapPlayerCount(mapId)!==4 ? 4 : mapId)}
+function teamNumber(seat,size=2){return seat>0 && seat<=8 ? Math.ceil(seat/size) : 0}
+function sameSide(a,b,teams){return a>0 && b>0 && (a===b || (teams && teamNumber(a,typeof teams==='number'?teams:2)===teamNumber(b,typeof teams==='number'?teams:2)))}
+function matchMapChoice(mapId,teams){return selectionConfig(teams && !teamSizes(mapPlayerCount(mapId)).length ? 4 : mapId)}
+function teamSizes(players){return players===4?[2]:players===6?[3,2]:players===8?[4,2]:[]}
+function validTeams(config){return (config.teams===undefined||typeof config.teams==='boolean')&&(!config.teams||teamSizes(mapPlayerCount(config.map)).includes(config.teamSize??2))}
+function teamSetting(container,players,config){
+ const sizes=teamSizes(players),field=container.querySelector('[name="teams"]'),size=container.querySelector('[name="teamSize"]');
+ container.querySelector('.team-settings').hidden=!sizes.length;
+ field.checked=!!config.teams&&sizes.includes(config.teamSize??2);
+ size.replaceChildren(...sizes.map(n=>{const o=document.createElement('option');o.value=String(n);o.textContent=Array(players/n).fill(n).join(' v ');return o}));
+ size.value=String(sizes.includes(config.teamSize??2)?config.teamSize??2:sizes[0]);
+}
 if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide,radialHomes};
 
 function loadMapCatalog(catalog) {
@@ -216,7 +233,7 @@ function setupMapPicker(container, config, {minimum=()=>2, maximum=()=>8, showDe
     radio.onchange=event=>{
       // Notify the enclosing settings form once, through its normal map change.
       event.stopPropagation();
-      if(radio.checked){setPool(players);if(pool.length)choose(pool[0].id)}
+      if(radio.checked){setPool(players);teamSetting(container,players,{...config(),teams:false});if(pool.length)choose(pool[0].id)}
     };
     label.append(radio,String(players));counts.append(label);
     return radio;
@@ -237,6 +254,7 @@ function setupMapPicker(container, config, {minimum=()=>2, maximum=()=>8, showDe
       const count=Number(radio.value);
       radio.disabled=count<minimum()||count>maximum()||![...latestMaps.values()].some(m=>m.players===count);
     }
+    teamSetting(container,players,config());
     show();
   }
   select.addEventListener('change',show);

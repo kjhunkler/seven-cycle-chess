@@ -1,0 +1,26 @@
+:root {
+  color-scheme: dark;
+  font: 1rem/1.5 system-ui, sans-serif;
+  background: #17231a;
+  color: #f4f2e6;
+}
+main {
+  width: min(92%, 38rem);
+  margin: 3rem auto;
+}
+h1 { font-size: clamp(1.6rem, 6vw, 2.3rem); }
+h2 { font-size: 1.1rem; }
+section {
+  border-top: 1px solid #708573;
+  padding-block: .5rem;
+}
+form { display: flex; flex-wrap: wrap; align-items: center; gap: .5rem; }
+input, button {
+  border: 1px solid #8da391;
+  border-radius: .4rem;
+  padding: .45rem .65rem;
+  font: inherit;
+}
+button:enabled { background: #e1eca6; color: #17231a; cursor: pointer; }
+li { margin-block: .35rem; }
+li button { margin-inline-start: .5rem; }

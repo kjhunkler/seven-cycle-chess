@@ -11,8 +11,8 @@ function layout(players, difficulty=5) {
     edges:homes.map(([id])=>[id,'J1']),difficulty:{J1:difficulty}};
 }
 
-test('database and playable fallback share eleven connected, seat-symmetric defaults', () => {
-  assert.equal(Object.keys(defaultMaps).length,11);
+test('database and playable fallback share thirteen connected, seat-symmetric defaults', () => {
+  assert.equal(Object.keys(defaultMaps).length,13);
   for (const map of Object.values(defaultMaps)) assert.deepEqual(mapLayout(map).startGroups,map.startGroups);
 });
 

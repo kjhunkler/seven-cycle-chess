@@ -46,18 +46,31 @@ createServer(async (req, res) => {
     players.set(id, player);
 
     if (body.action === "poll") {
+      player.activity=body.activity&&typeof body.activity.join==="boolean"?{join:body.activity.join}:null;
       const events=[...player.inbox.splice(0),...player.states.values()];player.states.clear();
       return reply(200, { id, iceServers, friends: [...players.values()].filter(p => p.id !== id && now-p.seen<=onlineFor)
-        .map(p => ({ id: p.id, name: p.name })), events });
+        .map(p => ({ id: p.id, name: p.name, activity:p.activity })), events });
+    }
+
+    if(body.action==="enter"){
+      const host=players.get(body.to);
+      if(!host||host.id===id||now-host.seen>onlineFor||!host.activity||!["join","spectate"].includes(body.mode))return reply(404,{error:"Game is unavailable"});
+      if(host.inbox.length>=40||player.lastEntry&&now-player.lastEntry<1000)return reply(429,{error:"Wait before joining again"});
+      player.lastEntry=now;
+      host.entries??=new Map();for(const [visitor,expires]of host.entries)if(expires<now)host.entries.delete(visitor);
+      host.entries.set(id,now+15000);
+      host.inbox.push({kind:"entry-request",from:id,name,mode:body.mode});return reply(200,{});
     }
 
     if (body.action === "invite") {
       const friend = players.get(body.to);
       if (!friend || friend.id === id || now-friend.seen>onlineFor) return reply(404, { error: "Friend is offline" });
-      if (player.lastInvite && now - player.lastInvite < 2000) return reply(429, { error: "Wait before inviting again" });
+      const entry=player.entries?.get(friend.id)>now;
+      if (!entry && player.lastInvite && now - player.lastInvite < 2000) return reply(429, { error: "Wait before inviting again" });
       if (friend.inbox.length >= 40) return reply(429, { error: "Friend inbox is full" });
       const room = randomUUID();
       player.lastInvite = now;
+      player.entries?.delete(friend.id);
       matches.set(room, { from: id, to: friend.id, created: now, accepted: false });
       friend.inbox.push({ kind: "invite", room, name, from:id, expiresAt:now+30_000 });
       return reply(200, { room });

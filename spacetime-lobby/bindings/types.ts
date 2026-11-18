@@ -160,6 +160,7 @@ export const MatchResult = __t.object("MatchResult", {
 export type MatchResult = __Infer<typeof MatchResult>;
 
 export const MatchRules = __t.object("MatchRules", {
+  teamSize: __t.option(__t.u8()),
   map: __t.u8(),
   speed: __t.f64(),
   shops: __t.bool(),

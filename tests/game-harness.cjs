@@ -2,6 +2,7 @@ const fs=require('node:fs'),vm=require('node:vm'),path=require('node:path');
 class Element{
  constructor(){this.listeners=new Map();this.fields=new Map();this.dataset={};this.style={};this.children=[];this.hidden=false;this.innerHTML='';this.classList={toggle(){}}}
  setAttribute(){} setPointerCapture(){} showModal(){this.open=true} close(){this.open=false}
+ getBoundingClientRect(){return {left:0,top:0,width:400,height:600}}
  addEventListener(type,fn){this.listeners.set(type,fn)} before(){} after(){} append(...nodes){this.children.push(...nodes)} replaceChildren(...nodes){this.children=nodes} contains(){return false}
  querySelector(selector){if(!this.fields.has(selector))this.fields.set(selector,new Element());return this.fields.get(selector)} querySelectorAll(){return []}
 }

@@ -64,3 +64,30 @@ test('enabling teams selects four seats, clears readiness and rejects smaller ma
   assert.equal(h.run('validConfig({...lobbyConfig,map:3})'),false);
   assert.equal(h.run('validConfig({...lobbyConfig,map:3,teams:false})'),true);
 });
+
+for(const [players,size] of [[6,3],[8,4],[6,2],[8,2]]){
+  test(`${players} players in teams of ${size}: validation, shared vision, reinforcement and victory`,()=>{
+    const h=createGame();
+    const {radialHomes}=require('../duel-maps.js');
+    const homes=radialHomes(players).map((point,i)=>['P'+(i+1),point]);
+    h.context.catalog={maps:[{id:403,revision:1,players,name:'Teams'}],versions:[{key:'403/1',layout:JSON.stringify({players,mirror:false,nodes:{...Object.fromEntries(homes),J1:[50,50]},edges:homes.map(([id])=>[id,'J1']),difficulty:{J1:5}})}]};
+    h.run(`loadMapCatalog(catalog);matchGame.start(1,()=>{});Object.assign(lobbyConfig,{...selectionConfig(403),teams:true,teamSize:${size}});init();gameStarted=true`);
+    assert.equal(h.run('validConfig(lobbyConfig)'),true);
+    assert.equal(h.run('validConfig({...lobbyConfig,teamSize:5})'),false);
+    for(let seat=1;seat<=players;seat++)assert.equal(h.run(`allies(1,${seat})`),seat<=size);
+    assert.equal(h.run('JSON.stringify([...vis(1)].sort())===JSON.stringify([...vis(2)].sort())'),true);
+    h.run('N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:3})');
+    assert.equal(h.run('N.P2.owner===2 && tot(N.P2)===3'),true);
+    for(let seat=size+1;seat<=players;seat++)h.run(`N.P${seat}.stock.fill(0);arrive({to:'P${seat}',owner:1,type:0,n:1})`);
+    assert.equal(h.run('over'),1);
+  });
+}
+
+test('team settings offer only formats matching the selected player count',()=>{
+  const h=createGame();
+  for(const [players,sizes] of [[2,[]],[3,[]],[4,[2]],[5,[]],[6,[3,2]],[7,[]],[8,[4,2]]]){
+    h.run(`teamSetting($('variant-form'),${players},{teams:false})`);
+    assert.equal(h.run(`$('variant-form').querySelector('.team-settings').hidden`),!sizes.length);
+    assert.deepEqual(Array.from(h.run('variantField("teamSize").children'),e=>Number(e.value)),sizes);
+  }
+});
