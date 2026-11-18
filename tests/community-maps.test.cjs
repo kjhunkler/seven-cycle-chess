@@ -1,11 +1,13 @@
 const { test } = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { createGame } = require('./game-harness.cjs');
-const { mapLayout, defaultMaps } = require('../duel-maps.js');
+const { mapLayout, defaultMaps, radialHomes } = require('../duel-maps.js');
 
 function layout(players, difficulty=5) {
-  const homes = Object.entries(defaultMaps[players].nodes).filter(([id]) => id.startsWith('P'));
-  return {players, mirror:players!==3, nodes:{...Object.fromEntries(homes),J1:[50,50]},
+  const homes = players>4 ? radialHomes(players).map((p,i)=>['P'+(i+1),p]) : Object.entries(defaultMaps[players].nodes).filter(([id]) => id.startsWith('P'));
+  return {players, mirror:players===2||players===4, nodes:{...Object.fromEntries(homes),J1:[50,50]},
     edges:homes.map(([id])=>[id,'J1']),difficulty:{J1:difficulty}};
 }
 
@@ -23,7 +25,7 @@ test('publishing rejects asymmetric neutral strength, missing paths, invalid sea
   assert.throws(()=>mapLayout({...map,difficulty:{D1:100}}),/between 1 and 99/);
 });
 
-for (const players of [2,3,4]) test(players+' seats can play a published revision with the same perspective and garrison', () => {
+for (const players of [2,3,4,5,6,7,8]) test(players+' seats can play a published revision with the same perspective and garrison', () => {
   const host=createGame();
   const catalog={maps:[{id:403,revision:1,players,name:'Canopy'}],
     versions:[{key:'403/1',layout:JSON.stringify(layout(players,17))}]};
@@ -42,6 +44,11 @@ for (const players of [2,3,4]) test(players+' seats can play a published revisio
   const solo=createGame('index.html');solo.context.catalog=catalog;
   solo.run('loadMapCatalog(catalog);Object.assign(botConfig,selectionConfig(403));init();render()');
   assert.equal(solo.run('tot(N.J1)'),21);
+  if(players>4){
+    assert.match(solo.elements.get('map').innerHTML,/compact-troop-count/);
+    assert.throws(()=>mapLayout({...layout(players),edges:layout(players).edges.slice(1)}),/Paths must match/);
+    assert.equal(host.run(`gameStarted=true;applyCommand(${players},{kind:'route',node:'P${players}',to:'J1'});N.P${players}.routes.includes('J1')`),true);
+  }
 });
 
 test('guests recover a lobby packet that arrived before its map subscription', () => {
@@ -52,4 +59,48 @@ test('guests recover a lobby packet that arrived before its map subscription', (
   guest.run('matchGame.setCatalog(catalog)');
   assert.equal(guest.run('lobbyConfig.map'),401);
   assert.equal(guest.run('configVersion'),3);
+});
+
+test('editor pinch zoom preserves the draft and guide changes preserve the zoom', () => {
+  const game=createGame('index.html'),get=game.context.document.getElementById;
+  const area=get('editor-board');
+  let view, guides;
+  area.firstChild={
+    setAttribute(name,value){if(name==='viewBox')view=value.split(' ').map(Number)},
+    insertAdjacentHTML(position,value){guides=value},
+    getScreenCTM(){return {inverse(){return view}}},
+  };
+  game.context.DOMPoint=class {
+    constructor(x,y){this.x=x;this.y=y}
+    matrixTransform([x,y,size]){return {x:x+this.x*size/108,y:y+this.y*size/108}}
+  };
+  game.context.URL=URL;
+  game.context.structuredClone=structuredClone;
+  game.context.location.href='http://localhost/';
+  game.run(fs.readFileSync(path.join(__dirname,'../map-library.js'),'utf8'));
+  get('new-map').onclick();
+  get('editor-players').onchange({target:{value:'8'}});
+  const touch=(pointerId,clientX,clientY)=>({pointerType:'touch',pointerId,clientX,clientY});
+  area.onpointerdown(touch(1,40,54));
+  area.onpointerdown(touch(2,68,54));
+  area.onpointermove(touch(1,12,54));
+  assert.equal(view[2],54);
+  area.onpointerup(touch(1,12,54));
+  area.onpointerup(touch(2,68,54));
+  const tap={clientX:80,clientY:70,target:{closest:()=>null,dataset:{}}};
+  const before=area.innerHTML;
+  area.onclick(tap);
+  assert.equal(area.innerHTML,before);
+  get('editor-grid').checked=true;
+  get('editor-guides').checked=true;
+  get('editor-grid').onchange();
+  assert.match(guides,/map-grid-line/);
+  assert.equal(guides.match(/map-symmetry-line/g).length,8);
+  assert.equal(view[2],54);
+  get('editor-reset-view').onclick();
+  assert.deepEqual(view,[-4,-4,108,108]);
+  area.onpointerdown(touch(3,80,70));
+  area.onpointerup(touch(3,80,70));
+  area.onclick(tap);
+  assert.equal((area.innerHTML.match(/data-node=/g)||[]).length,17);
 });

@@ -5,6 +5,9 @@ const mapLibrary=(()=>{
   let published, selectedId=botConfig.map;
   const syncPicker=setupMapPicker(library,()=>({map:selectedId}),{showDetails:false});
   let draft,editing,baseRevision,first,undo=[],cursor=[50,50],keyboard=false;
+  const fullView={x:-4,y:-4,size:108};
+  let view={...fullView},pinch,suppressTap=false;
+  const touches=new Map();
   const date=value=>new Date(Number(value/1000n)).toLocaleDateString(undefined,{year:'numeric',month:'short',day:'numeric'});
   const message=text=>{get('library-status').textContent=text};
   const editorMessage=text=>{get('editor-status').textContent=text};
@@ -70,18 +73,34 @@ const mapLibrary=(()=>{
   function starter(players){
     const homes=players===3?THREE_POS:players===4?FOUR_POS:POS;
     const nodes={J1:[50,50]},edges=[];
-    for(let i=1;i<=players;i++){const id='P'+i;nodes[id]=[...homes[id]];edges.push([id,'J1'])}
-    return {players,mirror:players!==3,nodes,edges,difficulty:{}};
+    const radial=players>4?radialHomes(players):null;
+    for(let i=1;i<=players;i++){const id='P'+i;nodes[id]=radial?radial[i-1]:[...homes[id]];edges.push([id,'J1'])}
+    return {players,mirror:players===2||players===4,nodes,edges,difficulty:{}};
   }
   function symmetryField(){
     const field=get('editor-symmetry');
-    const names=draft.players===3?['Threefold rotation','Rotation and reflection']:['Top and bottom','Both axes'];
+    const names=draft.players===3||draft.players>4?[`${draft.players}-fold rotation`,'Rotation and reflection']:['Top and bottom','Both axes'];
     field.replaceChildren(...names.map((name,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=name;return option}));
     field.value=String(Number(draft.mirror));field.disabled=draft.players===4;
   }
   function draw(){
     const area=get('editor-board');
     area.innerHTML=drawMapPreview(draft,true,first);
+    updateView();
+    const grid=get('editor-grid').checked, symmetry=get('editor-guides').checked;
+    let guides='';
+    if(grid)for(let n=0;n<=100;n+=10)guides+=`<path class="map-grid-line" d="M0 ${n}H100 M${n} 0V100"/>`;
+    if(symmetry){
+      const {players,mirror}=draft;
+      if(players===2||players===4){
+        guides+='<path class="map-symmetry-line" d="M0 50H100"/>';
+        if(players===4||mirror)guides+='<path class="map-symmetry-line" d="M50 0V100"/>';
+      }else{
+        const rays=players*(mirror?2:1);
+        for(const [x,y] of radialHomes(rays,[50,100]))guides+=`<path class="map-symmetry-line" d="M50 50L${x} ${y}"/>`;
+      }
+    }
+    if(guides)area.firstChild.insertAdjacentHTML('afterbegin',`<g class="map-guides" aria-hidden="true">${guides}</g>`);
     if(keyboard){
       const mark=document.createElementNS('http://www.w3.org/2000/svg','circle');
       mark.setAttribute('cx',cursor[0]);mark.setAttribute('cy',cursor[1]);mark.setAttribute('r','4.5');mark.setAttribute('class','map-cursor');
@@ -93,6 +112,7 @@ const mapLibrary=(()=>{
   }
   function openEditor(m){
     editing=m?.id??0;baseRevision=m?.revision??0;undo=[];first=null;keyboard=false;
+    view={...fullView};touches.clear();pinch=null;suppressTap=false;
     draft=m?structuredClone({nodes:m.nodes,edges:m.edges,players:m.players,mirror:m.mirror,difficulty:m.difficulty}):starter(2);
     get('map-name').value=m?.name??'';get('editor-players').value=String(draft.players);get('editor-players').disabled=!!m;
     get('editor-tool').value='node';get('editor-difficulty').value=5;
@@ -151,8 +171,43 @@ const mapLibrary=(()=>{
     });
   }
   const area=get('editor-board');
+  function updateView(){area.firstChild.setAttribute('viewBox',`${view.x} ${view.y} ${view.size} ${view.size}`);}
+  function boardPoint(x,y){return new DOMPoint(x,y).matrixTransform(area.firstChild.getScreenCTM().inverse());}
+  function gesture(){
+    const [a,b]=touches.values();
+    return {x:(a.clientX+b.clientX)/2,y:(a.clientY+b.clientY)/2,distance:Math.hypot(a.clientX-b.clientX,a.clientY-b.clientY)};
+  }
+  area.onpointerdown=e=>{
+    if(e.pointerType!=='touch'){if(!touches.size)suppressTap=false;return}
+    if(!touches.size)suppressTap=false;
+    touches.set(e.pointerId,e);
+    if(touches.size===2){
+      const {x,y,distance}=gesture();
+      pinch={anchor:boardPoint(x,y),distance:Math.max(1,distance),size:view.size};
+      suppressTap=true;
+    }
+  };
+  area.onpointermove=e=>{
+    if(!touches.has(e.pointerId))return;
+    touches.set(e.pointerId,e);
+    if(!pinch)return;
+    const {x,y,distance}=gesture(),point=boardPoint(x,y);
+    const size=Math.max(27,Math.min(fullView.size,pinch.size*pinch.distance/Math.max(1,distance)));
+    const scale=size/view.size,limit=fullView.x+fullView.size-size;
+    const clamp=value=>Math.max(fullView.x,Math.min(limit,value));
+    view={x:clamp(pinch.anchor.x-(point.x-view.x)*scale),y:clamp(pinch.anchor.y-(point.y-view.y)*scale),size};
+    updateView();
+  };
+  area.onpointerup=area.onpointercancel=e=>{
+    if(!touches.delete(e.pointerId))return;
+    if(touches.size<2)pinch=null;
+    else{const {x,y,distance}=gesture();pinch={anchor:boardPoint(x,y),distance:Math.max(1,distance),size:view.size};}
+  };
+  get('editor-grid').onchange=get('editor-guides').onchange=draw;
+  get('editor-reset-view').onclick=()=>{view={...fullView};updateView();};
   area.onclick=e=>{
-    const svg=area.firstChild,p=new DOMPoint(e.clientX,e.clientY).matrixTransform(svg.getScreenCTM().inverse());
+    if(suppressTap)return;
+    const p=boardPoint(e.clientX,e.clientY);
     keyboard=false;operate([p.x,p.y],e.target.closest('[data-node]')?.dataset.node,e.target.dataset.edge);
   };
   area.onkeydown=e=>{

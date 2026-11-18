@@ -31,7 +31,7 @@ button{min-height:44px}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
-</style><link rel="stylesheet" href="./board-ui.css?v=31"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=32"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><label>Compact board <select id="profile-compact-board" aria-label="Compact board"></select></label><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><fieldset class="map-player-count"><legend>Players</legend></fieldset><label class="shop-toggle"><input name="teams" type="checkbox"> 2v2 teams</label><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
@@ -44,7 +44,7 @@ button{min-height:44px}
 <div class="card" id="panel"></div>
 
 </section></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=4"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
 const CONFIG={timeScale:0.5,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
@@ -73,7 +73,7 @@ function init(){
   const {nodes: positions, edges} = layout;
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
   for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,layout.players===3,layout.players===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,layout.players===3,layout.players===4,layout.players),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
     if(n.home){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=layout.difficulty[n.id] ?? CONFIG.neutralGarrison}}
@@ -172,7 +172,7 @@ function step(dt){
   }
   for(const n of Object.values(N))if(!predicting||n.owner===localPlayer)depart(n,dt);
   if(predicting)return;
-  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of [1,2,3,4]){const homeNode=playerHome(owner);if(!homeNode||connectedPlayers.includes(owner))continue;botShopTurn(owner);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(allies(t.owner,owner)||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
+  botThink-=dt;if(botThink<=0){botThink=1.5;for(const owner of Object.values(N).map(n=>n.home).filter(Boolean)){const homeNode=playerHome(owner);if(!homeNode||connectedPlayers.includes(owner))continue;botShopTurn(owner);for(const n of Object.values(N)){if(n.owner!==owner)continue;const type=big(n),amount=n.stock[type]-1;if(type<0||amount<2)continue;let target=null,best=0;for(const id of n.adj){const t=N[id];if(allies(t.owner,owner)||t.shop)continue;const d=big(t),score=d<0?20:amount*mult(type,d)/(Math.max(1,t.stock[d])*mult(d,type));if(score>best){best=score;target=id}}if(target&&best>1)dispatch(n,target,type,Math.min(amount,n.stock[type]))}}}
 
 }
 function select(id){
@@ -285,7 +285,7 @@ $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
 $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
 let pendingMapLobby;
-const showMapPreview=setupMapPicker($("variant-form"),()=>lobbyConfig,{minimum:()=>lobbyConfig.teams?4:Math.max(...humanPlayers)});
+const showMapPreview=setupMapPicker($("variant-form"),()=>lobbyConfig,{minimum:()=>lobbyConfig.teams?4:Math.max(...humanPlayers),maximum:()=>lobbyConfig.teams?4:8});
 window.matchGame={
   setCatalog(data){
     loadMapCatalog(data);dispatchEvent(new Event("map-catalog"));
@@ -508,4 +508,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=27"></script><script src="./board-ui.js?v=33"></script><script>requestAnimationFrame(loop);</script></body></html>
+</script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=34"></script><script>requestAnimationFrame(loop);</script></body></html>

@@ -56,18 +56,30 @@ const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
 });
 LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
-const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
+const MAP_SEAT_COUNTS=[2,3,4,5,6,7,8];
+const radialSeatAngle=(seat,players)=>(seat-1)*2*Math.PI/players;
+function radialHomes(players,point=[50,92]){
+  return Array.from({length:players},(_,i)=>{
+    const {x,y}=rotateBoardPoint({x:point[0],y:point[1]},radialSeatAngle(i+1,players));
+    return [x,y];
+  });
+}
+function shopPosition(c,kind,triangular,four=false,players=2){
+  const side=kind==='shield'?-1:1;
+  if(players>4){
+    const angle=Math.atan2(c.y-50,c.x-50);
+    return {x:Math.max(2,Math.min(98,c.x-side*12*Math.sin(angle))),y:Math.max(2,Math.min(98,c.y+side*12*Math.cos(angle)))};
+  }
+  return four?{x:c.x+side*15,y:c.y<50?2:98}:triangular?rotateBoardPoint({x:50+side*24,y:90},radialSeatAngle(Number(c.id.slice(1)),3)):{x:Math.max(8,Math.min(92,c.x+side*36)),y:c.y+(c.y<50?5:-5)};
+}
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 
 // These transforms match boardViewPoint in controls.js. Three-seat boards rotate
 // around the hub. Four-seat boards use both reflections to keep seats equivalent.
 function symmetryCopies(point, players, mirror) {
   const [x,y]=point;
-  if(players===3) {
-    const orbit=p=>[0,1,2].map(i=>{
-      const q=rotateBoardPoint({x:p[0],y:p[1]},i*2*Math.PI/3);
-      return [q.x,q.y];
-    });
+  if(players===3||players>4) {
+    const orbit=p=>radialHomes(players,p);
     return mirror ? [...orbit(point),...orbit([100-x,y])] : orbit(point);
   }
   return players===4 || mirror
@@ -80,20 +92,20 @@ function nodeAt(nodes,point) {
 function mapLayout(raw, requireConnected=true) {
   const {nodes,edges,players,mirror,difficulty={}}=raw;
   const fail=message=>{throw new Error(message)};
-  if(![2,3,4].includes(players)||typeof mirror!=='boolean'||!nodes||Array.isArray(nodes)||!Array.isArray(edges))
+  if(!MAP_SEAT_COUNTS.includes(players)||typeof mirror!=='boolean'||!nodes||Array.isArray(nodes)||!Array.isArray(edges))
     fail('Choose a valid map and seat count.');
   const ids=Object.keys(nodes);
   if(ids.length>96||edges.length>300)fail('Maps support up to 96 nodes and 300 paths.');
   for(const id of ids){
     const p=nodes[id];
-    if(!/^(?:P[1-4]|[A-OQ-RT-Z][0-9]{1,5})$/.test(id)||!Array.isArray(p)||p.length!==2||
+    if(!/^(?:P[1-8]|[A-OQ-RT-Z][0-9]{1,5})$/.test(id)||!Array.isArray(p)||p.length!==2||
       p.some(v=>!Number.isFinite(v)||v<1||v>99)||nodeAt(nodes,p)!==id)fail('Node positions must be distinct and on the board.');
   }
   const homes=Array.from({length:players},(_,i)=>'P'+(i+1));
   if(homes.some(id=>!nodes[id])||ids.filter(id=>id.startsWith('P')).length!==players)fail('Each seat needs one starting node.');
   // A seat always views its home in the same position as the other seats.
   const [hx,hy]=nodes.P1;
-  const seats=players===4?[[hx,hy],[100-hx,hy],[hx,100-hy],[100-hx,100-hy]]:
+  const seats=players>4?radialHomes(players,nodes.P1):players===4?[[hx,hy],[100-hx,hy],[hx,100-hy],[100-hx,100-hy]]:
     players===3?[0,2,1].map(i=>symmetryCopies(nodes.P1,3,false)[i]):[[hx,hy],[hx,100-hy]];
   if(seats.some((p,i)=>nodeAt(nodes,p)!==homes[i]))fail('Starting nodes must match the seat perspectives.');
   if(!difficulty||typeof difficulty!=='object'||Array.isArray(difficulty)||
@@ -140,7 +152,7 @@ function selectionConfig(id){
 function teamNumber(seat){return seat>0 && seat<=4 ? Math.ceil(seat/2) : 0}
 function sameSide(a,b,teams){return a>0 && b>0 && (a===b || (teams && teamNumber(a)===teamNumber(b)))}
 function matchMapChoice(mapId,teams){return selectionConfig(teams && mapPlayerCount(mapId)!==4 ? 4 : mapId)}
-if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide};
+if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide,radialHomes};
 
 function loadMapCatalog(catalog) {
   for(const version of catalog.versions){
@@ -165,7 +177,7 @@ function drawMapPreview(layout,editable=false,selected=''){
   });
   return '<svg class="map-preview" viewBox="-4 -4 108 108" '+(editable?'tabindex="0" role="application" aria-label="Map editor board"':'role="img" aria-label="'+layout.players+'-player map preview"')+'>'+lines.join('')+dots.join('')+'</svg>';
 }
-function setupMapPicker(container, config, {minimum=()=>2, showDetails=true}={}) {
+function setupMapPicker(container, config, {minimum=()=>2, maximum=()=>8, showDetails=true}={}) {
   const select=container.querySelector('[name="map"]');
   const counts=container.querySelector('.map-player-count');
   const navigation=container.querySelector('.map-navigation');
@@ -198,13 +210,13 @@ function setupMapPicker(container, config, {minimum=()=>2, showDetails=true}={})
   const previous=arrow(-1,'Previous map','‹'),next=arrow(1,'Next map','›');
   navigation.append(previous,preview,next);
   if(showDetails)navigation.append(info);
-  const radios=[2,3,4].map(players=>{
+  const radios=MAP_SEAT_COUNTS.map(players=>{
     const label=document.createElement('label'),radio=document.createElement('input');
     radio.type='radio';radio.name='map-players';radio.value=String(players);
     radio.onchange=event=>{
       // Notify the enclosing settings form once, through its normal map change.
       event.stopPropagation();
-      if(radio.checked){setPool(players);choose(pool[0].id)}
+      if(radio.checked){setPool(players);if(pool.length)choose(pool[0].id)}
     };
     label.append(radio,String(players));counts.append(label);
     return radio;
@@ -222,7 +234,8 @@ function setupMapPicker(container, config, {minimum=()=>2, showDetails=true}={})
     select.value=String(id);
     for(const radio of radios){
       radio.checked=Number(radio.value)===players;
-      radio.disabled=Number(radio.value)<minimum();
+      const count=Number(radio.value);
+      radio.disabled=count<minimum()||count>maximum()||![...latestMaps.values()].some(m=>m.players===count);
     }
     show();
   }

@@ -140,8 +140,13 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 .map-preview text{font:bold 3.4px system-ui;text-anchor:middle;dominant-baseline:central;fill:var(--fg);pointer-events:none}
 .map-preview .map-home circle{fill:var(--p1)}
 .map-preview .map-selected circle,.map-preview .map-cursor{fill:none;stroke:var(--p1);stroke-width:1.3;pointer-events:none}
-#editor-board .map-preview{height:min(43dvh,380px);cursor:crosshair}
+#editor-board .map-preview{height:min(43dvh,380px);cursor:crosshair;touch-action:none}
 #editor-board line{stroke-width:1.6;cursor:pointer}
+.map-guides{pointer-events:none;fill:none}
+.map-grid-line,.map-symmetry-line{vector-effect:non-scaling-stroke}
+.map-grid-line{stroke:var(--mut);stroke-opacity:.35;stroke-width:1px}
+.map-symmetry-line{stroke:var(--p1);stroke-width:1.5px;stroke-dasharray:5 4}
+.editor-view-tools label{display:inline-flex;align-items:center;gap:5px;min-height:44px}
 #map-comments{max-height:150px;overflow:auto;padding-left:18px}
 #map-comments p{white-space:pre-wrap;overflow-wrap:anywhere;margin:0 0 6px}
 #comment-form textarea{width:100%;box-sizing:border-box}
@@ -149,7 +154,7 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 #editor-status,#library-status{color:var(--fg);overflow-wrap:anywhere}
 #map-editor [hidden],#map-library [hidden]{display:none}
 
-.map-player-count{display:flex;gap:6px;margin:0;padding:0;border:0}
+.map-player-count{display:flex;flex-wrap:wrap;gap:6px;margin:0;padding:0;border:0}
 .map-player-count legend{padding:0;margin-bottom:5px;font-weight:650}
 :is(.battle-settings-form,#variant-form,#map-library) .map-player-count label{
   display:inline-flex;align-items:center;justify-content:center;gap:7px;min-height:40px;
