@@ -1,0 +1,14 @@
+{
+  "name": "fruit-wars-spacetime-lobby",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "esbuild client.js --bundle --format=esm --minify --outfile=dist/spacetime-lobby-client.js"
+  },
+  "dependencies": {
+    "spacetimedb": "2.15.0"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2"
+  }
+}

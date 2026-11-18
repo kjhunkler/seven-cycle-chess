@@ -3,7 +3,8 @@ const form = lobby.querySelector("form");
 const statusText = lobby.querySelector("[role=status]");
 const roster = lobby.querySelector("#friends");
 const nameInput = form.elements.namedItem("name");
-const endpoint = window.FRUIT_WARS_LOBBY || (location.hostname === "localhost" || location.hostname === "127.0.0.1" ? "http://localhost:8787/lobby" : "");
+const local = location.hostname === "localhost" || location.hostname === "127.0.0.1";
+const endpoint = window.FRUIT_WARS_LOBBY || (local && !window.FRUIT_WARS_SPACETIME_DB ? "http://localhost:8787/lobby" : "");
 const turnEndpoint = endpoint ? "" : window.FRUIT_WARS_TURN_ENDPOINT;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 // Connections are per tab, so two tabs in one browser can occupy different seats.
@@ -239,7 +240,7 @@ async function poll(){
     for(const event of data.events)await handleEvent(event);
     const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
     renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
-    if(!session)status("You’re online.");
+    if(!session)status(data.directoryUnavailable?"Lobby is unreachable. Retrying…":"You’re online.");
   }catch{status(session?"Lobby unavailable. Retrying; your match is retained.":"Lobby is unreachable. Retrying…")}
   finally{setTimeout(poll,endpoint&&session?180:900)}
 }

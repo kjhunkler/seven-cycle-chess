@@ -24,9 +24,13 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24.22.3'
       - name: Test game startup and commands
         run: node --test tests/*.test.cjs
+      - name: Build SpacetimeDB lobby client
+        run: |
+          npm --prefix spacetime-lobby ci
+          npm --prefix spacetime-lobby run build
       - uses: actions/configure-pages@v5
         with:
           enablement: true
@@ -34,10 +38,12 @@ jobs:
         env:
           FRUIT_WARS_LOBBY: ${{ vars.FRUIT_WARS_LOBBY }}
           FRUIT_WARS_TURN_ENDPOINT: ${{ vars.FRUIT_WARS_TURN_ENDPOINT }}
+          FRUIT_WARS_SPACETIME_DB: ${{ vars.FRUIT_WARS_SPACETIME_DB || 'fruit-wars-kjhunkler-lobby' }}
         run: |
           mkdir site
           cp index.html orchard.html signal.html match.html editions.css board-ui.css board-ui.js controls.js production-cycle.js duel-maps.js manifest.webmanifest sw.js icon-192.png icon-512.png lobby.js public-lobby.js site/
-          node -e 'require("node:fs").writeFileSync("site/lobby-config.js", ["FRUIT_WARS_LOBBY", "FRUIT_WARS_TURN_ENDPOINT"].map(key => "window." + key + " = " + JSON.stringify(process.env[key] || "") + ";\n").join(""))'
+          cp spacetime-lobby/dist/spacetime-lobby-client.js site/
+          node -e 'require("node:fs").writeFileSync("site/lobby-config.js", ["FRUIT_WARS_LOBBY", "FRUIT_WARS_TURN_ENDPOINT", "FRUIT_WARS_SPACETIME_DB"].map(key => "window." + key + " = " + JSON.stringify(process.env[key] === "off" && key === "FRUIT_WARS_SPACETIME_DB" ? "" : process.env[key] || "") + ";\n").join(""))'
       - uses: actions/upload-pages-artifact@v3
         with:
           path: site
