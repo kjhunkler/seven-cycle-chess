@@ -43,6 +43,7 @@ import FinishSoloMatchReducer from "./finish_solo_match_reducer";
 import InitializeCommunityReducer from "./initialize_community_reducer";
 import RecordCatalogMatchReducer from "./record_catalog_match_reducer";
 import RecordMatchReducer from "./record_match_reducer";
+import RecordTeamMatchReducer from "./record_team_match_reducer";
 import RegisterHistoryReducer from "./register_history_reducer";
 import RenameAccountReducer from "./rename_account_reducer";
 import RequestAccountLinkReducer from "./request_account_link_reducer";
@@ -66,6 +67,7 @@ import MyHistoryProfileRow from "./my_history_profile_table";
 import MyMatchesRow from "./my_matches_table";
 import MyPlayedMapsRow from "./my_played_maps_table";
 import MyRivalriesRow from "./my_rivalries_table";
+import MyTeamMatchesRow from "./my_team_matches_table";
 import PendingInvitationsRow from "./pending_invitations_table";
 import PlayerRow from "./player_table";
 import SoloStandingRow from "./solo_standing_table";
@@ -197,6 +199,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyRivalriesRow),
+  myTeamMatches: __table({
+    name: 'my_team_matches',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyTeamMatchesRow),
   pendingInvitations: __table({
     name: 'pending_invitations',
     indexes: [
@@ -217,6 +226,7 @@ const reducersSchema = __reducers(
   __reducerSchema("initialize_community", InitializeCommunityReducer),
   __reducerSchema("record_catalog_match", RecordCatalogMatchReducer),
   __reducerSchema("record_match", RecordMatchReducer),
+  __reducerSchema("record_team_match", RecordTeamMatchReducer),
   __reducerSchema("register_history", RegisterHistoryReducer),
   __reducerSchema("rename_account", RenameAccountReducer),
   __reducerSchema("request_account_link", RequestAccountLinkReducer),

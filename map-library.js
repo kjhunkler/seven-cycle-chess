@@ -48,6 +48,7 @@ const mapLibrary=(()=>{
   for(const dialog of [editor,library])dialog.querySelector('[data-close]').onclick=()=>dialog.close();
   get('play-map').onclick=()=>{
     delete botConfig.mapRevision;Object.assign(botConfig,selectionConfig(Number(select.value)));
+    if(mapPlayerCount(botConfig.map)!==4)botConfig.teams=false;
     act('restart');render();panel();library.close();
   };
   get('share-map').onclick=async()=>{

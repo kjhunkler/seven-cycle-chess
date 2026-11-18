@@ -4,8 +4,19 @@ let soloPlayId;
 function portionControlEnabled(){return !!transformationConfig().portionControl}
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let eliminatedBy={};
+function allies(a,b){return sameSide(a,b,!!transformationConfig().teams)}
+function visibleNodes(viewer){
+  if(transformationConfig().teams ? over : isEliminated(viewer))return new Set(Object.keys(N));
+  const visible=new Set();
+  for(const n of Object.values(N))if(allies(viewer,n.owner)){
+    visible.add(n.id);
+    if(!n.shop)for(const id of n.adj)visible.add(id);
+  }
+  return visible;
+}
 // Forward/inverse view transforms keep pointer directions aligned with the map.
 function boardViewPoint(p,owner,inverse=false){
+ if(N.P4 && transformationConfig().teams)return {x:p.x,y:N['P'+owner].y<50?100-p.y:p.y};
  if(N.P4)return {x:owner===2||owner===4?100-p.x:p.x,y:owner===1||owner===2?100-p.y:p.y};
  if(N.P3)return rotateBoardPoint(p,(inverse?-1:1)*(owner-1)*2*Math.PI/3);
  return {x:p.x,y:owner===2?100-p.y:p.y};
@@ -47,9 +58,9 @@ function eliminatePlayer(loser,winner){
   for(const g of G)g.owner=survivingOwner(g.owner);
   sel=null;drag=null;closeWheel();
   const remaining=Object.values(N).filter(n=>n.home);
-  over=remaining.length===1?remaining[0].home:0;
-  if(typeof botConfig!=='undefined' && soloPlayId && (loser===1 || over===1) && typeof finishSoloPlay==='function'){
-    finishSoloPlay(soloPlayId,botConfig.map,over===1);soloPlayId=undefined;
+  over=remaining.length && remaining.every(n=>allies(n.home,winner)) ? winner : 0;
+  if(typeof botConfig!=='undefined' && soloPlayId && (over || (loser===1 && !botConfig.teams)) && typeof finishSoloPlay==='function'){
+    finishSoloPlay(soloPlayId,botConfig.map,allies(over,1));soloPlayId=undefined;
   }
   msg=isEliminated(myPlayer())?'You were eliminated. Your fruit joined the captor. Spectating the remaining players.':'A player was eliminated. Keep playing.';
 }
@@ -109,6 +120,10 @@ function bounceTroop(g,progress){
     g.owner=survivingOwner(g.owner);
     const target=N[g.to];if(!target)return;
     if(target.disabled)return;
+    if(!target.shop && target.owner!==g.owner && allies(target.owner,g.owner)){
+      target.stock[target.ut]=Math.min(CONFIG.cap,target.stock[target.ut]+Math.ceil(g.n));
+      return;
+    }
     if(!target.shop&&target.owner===g.owner&&!canEnter(target,g.owner,g.type)){
       bounceTroop(g,0);
       G.push(g);return;

@@ -26,7 +26,13 @@
     '<path d="M12 6C1 1 0 21 11 22 23 23 23 4 15 5Z" fill="#b28be4"/><path d="M12 6c0-4 3-5 6-4-1 3-3 4-6 4" fill="#8fcba4"/><path d="M7 10c-1 2-1 4 0 6"/>',
     '<circle cx="12" cy="12" r="10" fill="#a67954"/><ellipse cx="12" cy="10" rx="8" ry="7" fill="#fff0cf"/><ellipse cx="12" cy="10" rx="4" ry="3" fill="#d9ba8b" stroke="none"/>'
   ];
-  const ownerColor = owner => ['var(--neu)','var(--p1)','var(--p2)','#a56bd4','#df9b3e'][owner];
+  const ownerColor = owner => {
+    if(!owner || !transformationConfig().teams)return ['var(--neu)','var(--p1)','var(--p2)','#a56bd4','#df9b3e'][owner];
+    const viewer=player();
+    if(owner===viewer)return '#62a8ff';
+    if(allies(owner,viewer))return '#65cd85';
+    return owner%2?'#ee857e':'#eeb251';
+  };
   const art = i => `<g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g>`;
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -52,10 +58,10 @@
   shell.append(portionControl);
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><label class="shop-setting"><input name="teams" type="checkbox"> 2v2 teams</label><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
   document.body.append(settingsDialog);
-  const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig);
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>botConfig.teams?4:2});
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   board.setAttribute('role','group');
   board.setAttribute('aria-label','Battlefield. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
@@ -65,10 +71,11 @@
   shell.append(footer);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,fullElimination}=settingsDialog.querySelector('form').elements;
-      const next={...selectionConfig(Number(map.value)),speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
-      const reset=restart||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,speed,shops,productionRotation,fullElimination,teams}=settingsDialog.querySelector('form').elements;
+      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
+      const reset=restart||next.teams!==!!botConfig.teams||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
+      showSoloPreview();
       if(reset){
         act('restart');
         previousNodes=null;
@@ -109,14 +116,14 @@
     applyRouteCommand=function(owner,data){if(data?.kind==='ability'){const shop=N[data.from],target=N[data.to];if(shop?.shop&&shop.owner===owner&&shop.abilityReady&&shop.abilityCd<=0&&target?.owner===owner&&!target.shop){if(shop.shop==='shield')target.shields=(target.shields||0)+1;else target.boost=Math.max(target.boost||0,7);shop.abilityReady=false;shop.charge=0;shop.abilityCd=10;}return true;}return baseRouteCommand(owner,data)};
   }
   const originalArrive=arrive;
-  arrive=function(g){const n=N[g.to];if(n&&n.owner!==g.owner&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
+  arrive=function(g){const n=N[g.to];if(n&&!allies(n.owner,g.owner)&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
   const originalSelect=select;
   select=function(id){if(sel!==id&&N[id]?.owner===player())vibrate(9);return originalSelect(id)};
   const originalSend=send;
   send=function(from,to){
     const a=N[from], b=N[to], ok=!over&&a?.owner===player()&&a.adj.includes(to)&&a.stock[sendType]>0&&canEnter(b,player(),sendType);
     const result=originalSend(from,to);vibrate(ok?[12,25,18]:[30,35,30]);
-    if(ok)burst(a,'var(--p1)');return result;
+    if(ok)burst(a,ownerColor(player()));return result;
   };
   document.addEventListener('click',e=>{if(e.target.closest('[data-act]'))vibrate(8)});
   board.addEventListener('keydown',e=>{
@@ -142,16 +149,16 @@
     footer.querySelector('.ally').style.background=ownerColor(me);
     const rivals=Object.values(N).filter(n=>n.home).map(n=>n.home).filter(owner=>owner!==me);
     const rivalKeys=footer.querySelector('.rival-keys');
-    const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> Rival${rivals.length>1?' '+(i+1):''}</span>`).join('');
+    const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> ${allies(owner,me)?'Teammate':transformationConfig().teams?'Opponent '+owner:'Rival'+(rivals.length>1?' '+(i+1):'')}</span>`).join('');
     if(rivalKeys.innerHTML!==legend)rivalKeys.innerHTML=legend;
     const snapshot=Object.fromEntries(Object.values(N).map(n=>[n.id,{owner:n.owner,visible:V.has(n.id)}]));
     if(previousNodes)for(const n of Object.values(N)){const old=previousNodes[n.id];if(old&&old.owner!==n.owner&&old.visible&&V.has(n.id)){burst(n,ownerColor(n.owner));vibrate(n.owner===me?[22,40,35]:[45,35,45]);}}
     previousNodes=snapshot;
-    if(over!==previousWinner){if(over)vibrate(over===me?[35,60,35,60,90]:[100,60,100]);previousWinner=over;}
+    if(over!==previousWinner){if(over)vibrate(allies(over,me)?[35,60,35,60,90]:[100,60,100]);previousWinner=over;}
     if(over!==modalWinner){
       modalWinner=over;
       if(over){
-        endgameMessage.textContent=over===me?'Victory. The orchard is yours.':transformationConfig().fullElimination?'All your nodes were captured.':'Your named node was captured.';
+        endgameMessage.textContent=transformationConfig().teams?(allies(over,me)?'Victory. Your team won.':'Your team was defeated.'):over===me?'Victory. The orchard is yours.':transformationConfig().fullElimination?'All your nodes were captured.':'Your named node was captured.';
         retryButton.textContent=typeof online==='undefined'?'Play again':'Return to lobby';
         if(typeof endgame.showModal==='function'&&!endgame.open)endgame.showModal();else endgame.setAttribute('open','');
       }else closeEndgame();
@@ -163,13 +170,13 @@
       if(n.disabled)continue;
       const v=V.has(n.id),r=n.shop?3.5:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
-      const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':'Node'} ${n.id}, ${n.owner===me?'yours':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
+      const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':'Node'} ${n.id}, ${n.owner===me?'yours':allies(n.owner,me)?'teammate':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${Math.round(tot(n))} troops`}`:`${n.id}, unexplored`;
       h+=`<g data-id="${n.id}" class="board-node ${n.shake>0||typeof shakeNodes!=='undefined'&&shakeNodes[n.id]>now?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+.7}" fill="var(--card)" stroke="${col}" stroke-width=".35"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${col}" opacity="${v?1:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
       if(source?.owner===me&&!source.shop&&!n.shop&&source.adj.includes(n.id)){
         const type=canEnter(n,me,source.ut)?source.ut:-1;
         let color='var(--mut)',matchup='';
-        if(v&&n.owner!==me&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){
+        if(v&&!allies(n.owner,me)&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){
           const ratio=mult(type,k)/mult(k,type),advantage=ratio>1+CONFIG.strengthEpsilon,disadvantage=ratio<1-CONFIG.strengthEpsilon;
           const hard=Math.max(ratio,1/ratio)>=3,levels=hard?2:1;
           color=advantage?'#71bc91':disadvantage?'#ee8792':'var(--mut)';
@@ -203,14 +210,14 @@
       h+=`<circle cx="${n.x}" cy="${n.y}" r="7.4" fill="transparent"/></g>`;
     }
     for(const a of Object.values(N)){
-      if(a.owner!==me||a.disabled)continue;
+      if(!allies(a.owner,me)||a.disabled)continue;
       const routes=[...(a.routes||[])];if(drag?.from===a.id&&drag.to&&!routes.includes(drag.to))routes.push(drag.to);
       for(const to of routes){const b=N[to],angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
-        h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${me===1?'var(--p1)':'var(--p2)'}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
+        h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M8 0H13M11 -2L13 0L11 2" fill="none" stroke="${ownerColor(a.owner)}" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/></g>`;
       }
     }
     if(drag?.moved&&N[drag.from]?.shop&&drag.to){const a=N[drag.from],b=N[drag.to],mx=(a.x+b.x)/2+(b.y-a.y)*.16,my=(a.y+b.y)/2-(b.x-a.x)*.16;h+=`<path d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${a.shop==='shield'?'#63e4ff':'#ffd34e'}" stroke-width="1.3" stroke-dasharray="2 1" class="ability-arc" pointer-events="none"/>`;}
-    for(const g of G){if(g.owner!==me&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],progress=typeof unitProgress==='function'?unitProgress(g,now):g.t,x=a.x+(b.x-a.x)*progress,y=a.y+(b.y-a.y)*progress,t=Math.max(0,progress-.065),color=ownerColor(g.owner);h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${color}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
+    for(const g of G){if(!allies(g.owner,me)&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],progress=typeof unitProgress==='function'?unitProgress(g,now):g.t,x=a.x+(b.x-a.x)*progress,y=a.y+(b.y-a.y)*progress,t=Math.max(0,progress-.065),color=ownerColor(g.owner);h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${color}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
     effects=effects.filter(e=>now-e.start<800);
     if(animated())for(const e of effects){const t=(now-e.start)/800;h+=`<g pointer-events="none" opacity="${1-t}"><circle cx="${e.x}" cy="${e.y}" r="${5+t*8}" fill="none" stroke="${e.color}" stroke-width="${.8*(1-t)}"/>`;for(let j=0;j<8;j++){const a=j*Math.PI/4;h+=`<circle cx="${e.x+Math.cos(a)*(5+t*10)}" cy="${e.y+Math.sin(a)*(5+t*10)}" r="${.65*(1-t)}" fill="${e.color}"/>`;}h+='</g>';}
     h+=countLabels;

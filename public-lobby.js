@@ -48,7 +48,7 @@ const publicLobby = (() => {
   }
   async function open() {
     if (database) {
-      const {createLobbyDirectory} = await import("./spacetime-lobby-client.js?v=community-1");
+      const {createLobbyDirectory} = await import("./spacetime-lobby-client.js?v=teams-1");
       directory = createLobbyDirectory(database, window.FRUIT_WARS_SPACETIME_HOST || undefined, window.FRUIT_WARS_AUTH_CLIENT);
     }
     keys = await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveKey"]);

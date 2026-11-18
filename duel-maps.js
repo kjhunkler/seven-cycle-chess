@@ -136,7 +136,11 @@ function selectionConfig(id){
   const revision=latestMaps.get(id)?.revision;
   return revision?{map:id,mapRevision:revision}:{map:id};
 }
-if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt};
+// Four-seat maps put P1/P2 on one edge and P3/P4 on the opposite edge.
+function teamNumber(seat){return seat>0 && seat<=4 ? Math.ceil(seat/2) : 0}
+function sameSide(a,b,teams){return a>0 && b>0 && (a===b || (teams && teamNumber(a)===teamNumber(b)))}
+function matchMapChoice(mapId,teams){return selectionConfig(teams && mapPlayerCount(mapId)!==4 ? 4 : mapId)}
+if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide};
 
 function loadMapCatalog(catalog) {
   for(const version of catalog.versions){

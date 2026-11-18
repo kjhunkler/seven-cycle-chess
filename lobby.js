@@ -301,19 +301,21 @@ function renderMatchHistory(data) {
   const matches=data.matches.sort((a,b)=>a.finishedAt>b.finishedAt?-1:1).map(match=>{
     const winner=match.players.find(player=>player.seat===match.winner);
     const map=data.maps?.get(match.id) || defaultMaps[match.rules.map]?.name || "Community map";
-    const won=winner?.profile===data.profile;
+    const teams=data.teamMatches?.has(match.id)??false;
+    const seats=match.players.filter(p=>p.profile===data.profile);
+    const won=seats.some(p=>sameSide(p.seat,match.winner,teams));
     const outcome=won?"Won":"Lost";
-    const opponents=match.players.filter(player=>player.profile!==data.profile).map(player=>player.name);
+    const opponents=match.players.filter(player=>player.profile!==data.profile && (!teams || !seats.some(p=>sameSide(p.seat,player.seat,true)))).map(player=>player.name);
     const players=opponents.length?" vs "+opponents.join(", "):" · shared browser";
     const duration=Math.floor(match.durationSeconds/60)+":"+String(match.durationSeconds%60).padStart(2,"0");
     const rules=match.rules;
     const speed=rules.speed===.5?"Relaxed":rules.speed===1?"Standard":"Fast";
     const extras=[
-      rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
+      teams&&"2v2 teams",rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
       rules.productionRotation&&"Production rotation",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
     ].filter(Boolean);
     const date=dateFormat.format(Number(match.finishedAt/1000n));
-    const winnerLabel=won?"":(winner?.name||"Bot "+match.winner)+" won";
+    const winnerLabel=won?"":teams?"Team "+teamNumber(match.winner)+" won":(winner?.name||"Bot "+match.winner)+" won";
     return item(outcome+players,[winnerLabel,map,duration,date,speed,...extras].filter(Boolean).join(" · "));
   });
   recent.replaceChildren(...(matches.length?matches:[item("No completed online matches yet.")]));

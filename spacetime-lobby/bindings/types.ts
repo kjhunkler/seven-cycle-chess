@@ -200,6 +200,9 @@ export type MyPlayedMaps = __Infer<typeof MyPlayedMaps>;
 export const MyRivalries = __t.object("MyRivalries", {});
 export type MyRivalries = __Infer<typeof MyRivalries>;
 
+export const MyTeamMatches = __t.object("MyTeamMatches", {});
+export type MyTeamMatches = __Infer<typeof MyTeamMatches>;
+
 export const PendingInvitations = __t.object("PendingInvitations", {});
 export type PendingInvitations = __Infer<typeof PendingInvitations>;
 
@@ -256,6 +259,11 @@ export const SoloTotals = __t.object("SoloTotals", {
   wins: __t.u32(),
 });
 export type SoloTotals = __Infer<typeof SoloTotals>;
+
+export const TeamMatch = __t.object("TeamMatch", {
+  id: __t.string(),
+});
+export type TeamMatch = __Infer<typeof TeamMatch>;
 
 export const Totals = __t.object("Totals", {
   profile: __t.u64(),

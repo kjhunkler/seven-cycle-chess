@@ -43,7 +43,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
           .onApplied(() => { synced = true; })
           .onError(() => conn.disconnect())
           .subscribe([
-            tables.player, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
+            tables.player, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.myTeamMatches, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
             ...(auth ? [tables.myAccount] : []),
           ]);
       })
@@ -84,10 +84,14 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         if (entry.profile && entry.profile !== active) continue;
         const result = entry.result ?? entry;
         if (entry.solo) await conn.reducers.finishSoloMatch(result);
-        else if (result.rules.mapRevision) {
-          const {mapRevision, map, ...settings} = result.rules;
-          await conn.reducers.recordCatalogMatch({...result, rules:{...settings,map:map<=11?map:0},mapId:map,revision:mapRevision});
-        } else await conn.reducers.recordMatch(result);
+        else {
+          const {teams,mapRevision,map,...settings}=result.rules;
+          const rules={portionControl:false,transformationWave:false,transformationTime:10,...settings,map:map<=11?map:0};
+          const payload={...result,rules};
+          if(teams)await conn.reducers.recordTeamMatch({...payload,mapId:map,revision:mapRevision??0});
+          else if(mapRevision)await conn.reducers.recordCatalogMatch({...payload,mapId:map,revision:mapRevision});
+          else await conn.reducers.recordMatch(payload);
+        }
       } catch (error) {
         if (error.name !== 'SenderError' && !(error instanceof SyntaxError)) return;
         saveError = 'A match result could not be saved.';
@@ -252,6 +256,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       return {
         profile,
         matches: [...connection.db.myMatches.iter()],
+        teamMatches:new Set([...connection.db.myTeamMatches.iter()].map(row=>row.id)),
         maps:new Map([...connection.db.myPlayedMaps.iter()].map(m=>[m.id,m.name])),
         rivalries: [...connection.db.myRivalries.iter()],
         pending: Object.keys(localStorage).some(key => key.startsWith(queuePrefix)),

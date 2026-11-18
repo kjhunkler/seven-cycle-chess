@@ -1,6 +1,6 @@
 import { schema, type ReducerCtx, SenderError, table, t } from 'spacetimedb/server';
 
-import { defaultMaps, mapLayout } from '../../../duel-maps.js';
+import { defaultMaps, mapLayout, sameSide } from '../../../duel-maps.js';
 
 const totals = table({}, {
   profile: t.u64().primaryKey(), played: t.u32(), wins: t.u32(),
@@ -29,6 +29,7 @@ const soloTotals = table({}, {profile:t.u64().primaryKey(), played:t.u32(), wins
 // Directory keys are transient lobby IDs for guests and stable profile keys for members.
 const soloStanding = table({public:true}, {id:t.string().primaryKey(), played:t.u32(), wins:t.u32()});
 const mapPlay = table({}, { id:t.string().primaryKey(), mapId:t.u32() });
+const teamMatch = table({}, {id:t.string().primaryKey()});
 const playedMap = table({}, { id:t.string().primaryKey(), mapId:t.u32(), name:t.string() });
 const migration = table({}, { version:t.u8().primaryKey() });
 
@@ -130,7 +131,7 @@ const rivalry = table({}, {
 
 const lobby = schema({
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
-  account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, migration, soloRound, soloTotals, soloStanding,
+  account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, teamMatch, migration, soloRound, soloTotals, soloStanding,
 }, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()), FRUIT_WARS_DEFAULT_MAP_OWNER:t.option(t.string()) } });
 export default lobby;
 
@@ -174,11 +175,14 @@ function refreshProfile(ctx:Context, profile:bigint, seen?:bigint) {
     if(ctx.db.liveProfile.id.find(row.id))ctx.db.liveProfile.id.update(row);else ctx.db.liveProfile.insert(row);
   }
 }
-function addResult(ctx:Context, players:{profile:bigint,seat:number}[],winner:number) {
-  const winning=players.find(p=>p.seat===winner)?.profile;
+function winningProfiles(players:{profile:bigint,seat:number}[],winner:number,teams:boolean){
+  return new Set(players.filter(p=>sameSide(p.seat,winner,teams)).map(p=>p.profile));
+}
+function addResult(ctx:Context, players:{profile:bigint,seat:number}[],winner:number,teams=false) {
+  const winning=winningProfiles(players,winner,teams);
   for(const profile of new Set(players.map(p=>p.profile))){
     const old=ctx.db.totals.profile.find(profile);
-    const row={profile,played:(old?.played??0)+1,wins:(old?.wins??0)+Number(winning===profile)};
+    const row={profile,played:(old?.played??0)+1,wins:(old?.wins??0)+Number(winning.has(profile))};
     if(old)ctx.db.totals.profile.update(row);else ctx.db.totals.insert(row);
     refreshProfile(ctx,profile);
   }
@@ -208,7 +212,7 @@ export const initializeCommunity = lobby.reducer(ctx=>{
   const lastPlayed=new Map<bigint,bigint>();
   for(const match of ctx.db.matchResult.iter()){
     for(const p of match.players)if(match.finishedAt>(lastPlayed.get(p.profile)??0n))lastPlayed.set(p.profile,match.finishedAt);
-    addResult(ctx,match.players,match.winner);
+    addResult(ctx,match.players,match.winner,!!ctx.db.teamMatch.id.find(match.id));
     countPlay(ctx,match.id,match.rules.map);
   }
   for(const user of ctx.db.account.iter())refreshProfile(ctx,user.profile,lastPlayed.get(user.profile));
@@ -497,7 +501,7 @@ const resultFields = {
   rules: matchRules, durationSeconds: t.u32(),
 };
 type Result = { id:string,hostName:string,guests:{room:string,seat:number,name:string}[],winner:number,rules:typeof matchRules.type,durationSeconds:number };
-function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSeconds}:Result,mapId:number,revision?:number) {
+function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSeconds}:Result,mapId:number,revision?:number,teams=false) {
   const host = ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
   if (host === undefined || !uuid.test(id)) throw new SenderError('Match history is unavailable.');
   const existing = ctx.db.matchResult.id.find(id);
@@ -507,7 +511,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   const entry=ctx.db.communityMap.id.find(mapId);
   const version=revision && ctx.db.mapVersion.key.find(mapId+'/'+revision);
   const seatCount = entry?.players ?? (rules.map === 4 ? 4 : [3,6].includes(rules.map) ? 3 : 2);
-  if ((revision!==undefined ? !version || !entry : rules.map < 2 || rules.map > 11) || ![.5, 1, 1.5].includes(rules.speed) ||
+  if ((teams && (seatCount!==4 || !entry || rules.map!==(mapId<=11?mapId:0))) || (revision!==undefined ? !version || !entry : rules.map < 2 || rules.map > 11) || ![.5, 1, 1.5].includes(rules.speed) ||
       !Number.isFinite(rules.transformationTime) || rules.transformationTime < 1 || rules.transformationTime > 120 ||
       winner < 1 || winner > seatCount || durationSeconds > 86400 || guests.length < 1 || guests.length >= seatCount ||
       !hostName.trim() || hostName.length > 32) {
@@ -531,13 +535,14 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   players.sort((a, b) => a.seat - b.seat);
   ctx.db.matchResult.insert({ id, host, finishedAt: now, durationSeconds, winner, rules, players });
 
+  if(teams)ctx.db.teamMatch.insert({id});
   if(ctx.db.migration.version.find(1)){
-    addResult(ctx,players,winner);
+    addResult(ctx,players,winner,teams);
     countPlay(ctx,id,mapId);
   }
   if(entry && revision)ctx.db.playedMap.insert({id,mapId,name:entry.name});
   const profiles = new Map(players.map(player => [player.profile, player]));
-  const winningProfile = players.find(player => player.seat === winner)?.profile;
+  const winning = winningProfiles(players,winner,teams);
   for (const player of profiles.values()) {
     const prior = [...ctx.db.matchEntry.profile.filter(player.profile)]
       .sort((a, b) => a.id < b.id ? -1 : 1);
@@ -546,14 +551,14 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
     }
     ctx.db.matchEntry.insert({ id: 0n, profile: player.profile, matchId: id });
     for (const opponent of profiles.values()) {
-      if (opponent.profile === player.profile) continue;
+      if (opponent.profile === player.profile || sameSide(player.seat,opponent.seat,teams)) continue;
       const key = `${player.profile}:${opponent.profile}`;
       const stats = ctx.db.rivalry.id.find(key)
         ?? { id: key, profile: player.profile, opponent: opponent.profile, name: opponent.name, played: 0, wins: 0, opponentWins: 0 };
       const row = {
         ...stats, name: opponent.name, played: stats.played + 1,
-        wins: stats.wins + Number(winningProfile === player.profile),
-        opponentWins: stats.opponentWins + Number(winningProfile === opponent.profile),
+        wins: stats.wins + Number(winning.has(player.profile)),
+        opponentWins: stats.opponentWins + Number(winning.has(opponent.profile)),
       };
       if (stats.played) ctx.db.rivalry.id.update(row);
       else ctx.db.rivalry.insert(row);
@@ -562,6 +567,16 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
 }
 export const recordMatch=lobby.reducer(resultFields,(ctx,result)=>storeResult(ctx,result,result.rules.map));
 export const recordCatalogMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>storeResult(ctx,result,result.mapId,result.revision));
+export const recordTeamMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>
+  storeResult(ctx,result,result.mapId,result.revision||undefined,true));
+export const myTeamMatches=lobby.view({public:true},t.array(teamMatch.rowType),ctx=>{
+  const profile=ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
+  if(profile===undefined)return [];
+  return [...ctx.db.matchEntry.profile.filter(profile)].flatMap(entry=>{
+    const row=ctx.db.teamMatch.id.find(entry.matchId);
+    return row?[row]:[];
+  });
+});
 export const myPlayedMaps=lobby.view({public:true},t.array(playedMap.rowType),ctx=>{
   const profile=ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
   if(profile===undefined)return [];

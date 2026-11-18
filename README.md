@@ -21,6 +21,8 @@ Signing in opens Friends with multiplayer wins, losses, games played, win rate, 
 
 Open **Map library** to preview a layout, see its creator, last edit and play count, or copy a link to it. Signed-in players can publish maps, vote, and comment. The creator can edit a published map. Each edit creates a revision so a match keeps the layout it started with. Solo battle settings and multiplayer setup both preview the selected map.
 
+Enable **2v2 teams** in solo or multiplayer setup to use a four-seat map. Seats 1 and 2 play together against seats 3 and 4, with bots filling open seats. Both teammates see their homes on the bottom edge. Your troops and nodes are blue and your teammate’s are green. Send troops along a path to an allied regular node to reinforce it in its current fruit type. Teammates share vision and win together when both opponents are eliminated. Head-to-head records count games against opposing players.
+
 The editor supports two, three, or four seats. Adding nodes, connecting paths, erasing, or changing a neutral garrison applies to all matching positions. Two-seat boards support top/bottom or both-axis reflection, three-seat boards support rotation with optional reflection, and four-seat boards use both axes. Neutral nodes start at difficulty 5. Every home and neutral node must be reachable before publication.
 
 Multiplayer plays count once when the ready countdown starts. A solo play counts once when the human creates their first route. Completing that solo round records a win or loss. The public database backfills completed multiplayer games recorded before the map library was introduced.
