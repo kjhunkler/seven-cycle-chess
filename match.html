@@ -31,9 +31,9 @@ button{min-height:44px}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
-</style><link rel="stylesheet" href="./board-ui.css?v=25"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=29"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="7">Hourglass · 2 players</option><option value="8">Twin rivers · 2 players</option><option value="9">Crown lattice · 2 players</option><option value="10">Ring road · 2 players</option><option value="11">Crossroads · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"></select></label><div id="setup-map-preview"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -44,31 +44,9 @@ button{min-height:44px}
 <div class="card" id="panel"></div>
 
 </section></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=1"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=2"></script><script>
 const CONFIG={timeScale:0.5,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
-const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
-// Threefold symmetric graph: starting nodes, triangle side nodes, vertices, and hub.
-// Twin branches follows the ten-node two-player sketch.
-// Axis-symmetric four-player schema; every starting-node pair is four edges apart.
-const FOUR_POS={P1:[25,8],P2:[75,8],P3:[25,92],P4:[75,92],D1:[50,18],D2:[50,82],A1:[12,32],A2:[38,32],A3:[62,32],A4:[88,32],B1:[12,50],B2:[50,50],B3:[88,50],C1:[12,68],C2:[38,68],C3:[62,68],C4:[88,68]};
-const FOUR_EDGES="P1-A1 P1-A2 P2-A3 P2-A4 P3-C1 P3-C2 P4-C3 P4-C4 A1-A2 A3-A4 C1-C2 C3-C4 D1-A2 D1-A3 D2-C2 D2-C3 A2-B2 A3-B2 C2-B2 C3-B2 A1-B1 B1-C1 A4-B3 B3-C4 B1-B2 B2-B3".split(" ").map(e=>e.split("-"));
-const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
-const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 B2-C2 B2-C3 C1-C2 C2-C3 C1-P1 C3-P1".split(" ").map(e=>e.split("-"));
-const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
-// Expand the original triangle with a node on every path and symmetric bypasses.
-const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
-const THREE_EDGES=THREE_PATHS;
-const LARGE_THREE_POS={...THREE_POS};
-const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
-  const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
-  LARGE_THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
-  return [[a,id],[id,b]];
-});
-LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
-const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
-const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
-const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
 let historyReportedRound=-1;
@@ -91,24 +69,14 @@ function init(){
   transformationClock=0;
   productionCycle=null;
   N={};shakeNodes={};botThink=0;
-  if(([3,4,5,6].includes(lobbyConfig.map)||TWO_PLAYER_MAPS[lobbyConfig.map])){
-    const positions=TWO_PLAYER_MAPS[lobbyConfig.map]?.nodes||(lobbyConfig.map===4?FOUR_POS:lobbyConfig.map===5?BRANCH_POS:lobbyConfig.map===6?LARGE_THREE_POS:THREE_POS),edges=TWO_PLAYER_MAPS[lobbyConfig.map]?.edges||(lobbyConfig.map===4?FOUR_EDGES:lobbyConfig.map===5?BRANCH_EDGES:lobbyConfig.map===6?LARGE_THREE_EDGES:THREE_EDGES);
-    for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
-    for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
-  }else{
-  for(const id in POS)N[id]={id,x:POS[id][0],y:POS[id][1],home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
-  EDGES.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
-  const extra=lobbyConfig.map===2?{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]}:lobbyConfig.map===3?{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]}:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]};
-  for(const [id,[x,y]] of Object.entries(extra))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
-  const links=lobbyConfig.map===2?[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]:lobbyConfig.map===3?[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]];
-  for(const[a,b]of links){N[a].adj.push(b);N[b].adj.push(a)}
-
-  }
-
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(lobbyConfig.map),lobbyConfig.map===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+  const layout = selectedLayout(lobbyConfig);
+  const {nodes: positions, edges} = layout;
+  for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
+  for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,layout.players===3,layout.players===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
-    if(n.home){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
+    if(n.home){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=layout.difficulty[n.id] ?? CONFIG.neutralGarrison}}
   for(const n of Object.values(N))if(n.home){const owner=Number(n.id.slice(1));n.owner=owner;n.stock.fill(0);n.stock[Math.random()*7|0]=CONFIG.startingPopulation}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;
   msg="Drag from your named node or another node to create a route.";
@@ -280,12 +248,13 @@ function snapshot(viewer=2){
   }));
   return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:eliminatedBy,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&[2,3,4,5,6,7,8,9,10,11].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&mapPlayerCount(config.map)>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&Number.isInteger(config.map)&&!!selectedLayout(config)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&selectedLayout(config).players>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",round:matchRound,config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
   const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
   variantField("map").value=String(lobbyConfig.map);variantField("speed").value=String(lobbyConfig.speed);variantField("transformationWave").checked=!!lobbyConfig.transformationWave;variantField("transformationTime").value=String(lobbyConfig.transformationTime??10);variantField("transformationTime").disabled=!lobbyConfig.transformationWave;variantField("shops").checked=lobbyConfig.shops;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("portionControl").checked=!!lobbyConfig.portionControl;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;
+  showMapPreview();
   $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
   f.querySelector(".variant-status").textContent=`${humanPlayers.filter(p=>lobbyReady[p-1]).length} of ${humanPlayers.length} players ready${gameStarted?" · Starting…":""}`;
   const roster=$("match-roster");roster.replaceChildren();
@@ -309,15 +278,23 @@ function lobbyAction(owner,data){
   sendLobby();updateLobbyUI();beginMatch();
 }
 function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields,round:matchRound};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
-$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{map:Number(variantField("map").value),speed:Number(variantField("speed").value),transformationWave:variantField("transformationWave").checked,transformationTime:Number(variantField("transformationTime").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,portionControl:variantField("portionControl").checked,productionRotation:variantField("productionRotation").checked}}));
+$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{...selectionConfig(Number(variantField("map").value)),speed:Number(variantField("speed").value),transformationWave:variantField("transformationWave").checked,transformationTime:Number(variantField("transformationTime").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,portionControl:variantField("portionControl").checked,productionRotation:variantField("productionRotation").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
 $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
+let pendingMapLobby;
+const showMapPreview=setupMapPicker(variantField("map"),$("setup-map-preview"),()=>lobbyConfig);
 window.matchGame={
+  setCatalog(data){
+    loadMapCatalog(data);dispatchEvent(new Event("map-catalog"));
+    if(pendingMapLobby && selectedLayout(pendingMapLobby.config)){
+      const packet=pendingMapLobby;pendingMapLobby=undefined;this.receive(packet,1);
+    }
+  },
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
     historyReportedRound=-1;
-    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};CONFIG.timeScale=.5;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=[false,false,false,false];humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:Math.max(2,...humans),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
   },
   rebind(send){peerSend=send;if(localPlayer===1){sendLobby();nextSync=0}},
@@ -327,7 +304,7 @@ window.matchGame={
     if(localPlayer!==1)return;
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
     lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
-    if(changed&&!gameStarted){if(Math.max(...seats)>mapPlayerCount(lobbyConfig.map))lobbyConfig.map=Math.max(...seats);configVersion++;lobbyReady=[false,false,false,false]}
+    if(changed&&!gameStarted){if(Math.max(...seats)>mapPlayerCount(lobbyConfig.map)){delete lobbyConfig.mapRevision;Object.assign(lobbyConfig,selectionConfig(Math.max(...seats)))}configVersion++;lobbyReady=[false,false,false,false]}
     sendLobby();updateLobbyUI();beginMatch();
   },
   setFriends(friends){
@@ -352,6 +329,10 @@ window.matchGame={
     const round=data.round??0;
     if(!Number.isSafeInteger(round)||round<matchRound)return;
     if(data?.kind==="lobby"){
+      if(data.config?.mapRevision && !selectedLayout(data.config)){
+        if(!pendingMapLobby || data.revision>pendingMapLobby.revision)pendingMapLobby=data;
+        return;
+      }
       if(!Number.isSafeInteger(data.revision)||data.revision<=lastLobbyRevision||!validConfig(data.config)||!Array.isArray(data.ready))return;
       if(round>matchRound){matchRound=round;resetMatchLobby()}
       lastLobbyRevision=data.revision;configVersion=data.configVersion;humanPlayers=data.humans;connectedPlayers=data.connected;lobbyMembers=data.members||[];lobbyConfig=data.config;lobbyReady=data.ready;
@@ -525,4 +506,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=24"></script><script src="./board-ui.js?v=28"></script><script>requestAnimationFrame(loop);</script></body></html>
+</script><script src="./controls.js?v=25"></script><script src="./board-ui.js?v=29"></script><script>requestAnimationFrame(loop);</script></body></html>

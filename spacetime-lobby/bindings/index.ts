@@ -37,28 +37,109 @@ import {
 import AcceptHistoryInviteReducer from "./accept_history_invite_reducer";
 import AcknowledgeInvitationReducer from "./acknowledge_invitation_reducer";
 import AnnounceReducer from "./announce_reducer";
+import CommentMapReducer from "./comment_map_reducer";
 import ConnectAccountReducer from "./connect_account_reducer";
+import FinishSoloMatchReducer from "./finish_solo_match_reducer";
+import InitializeCommunityReducer from "./initialize_community_reducer";
+import RecordCatalogMatchReducer from "./record_catalog_match_reducer";
 import RecordMatchReducer from "./record_match_reducer";
 import RegisterHistoryReducer from "./register_history_reducer";
 import RenameAccountReducer from "./rename_account_reducer";
 import RequestAccountLinkReducer from "./request_account_link_reducer";
+import SaveMapReducer from "./save_map_reducer";
 import SendInvitationReducer from "./send_invitation_reducer";
 import SignOutAccountReducer from "./sign_out_account_reducer";
+import StartMapPlayReducer from "./start_map_play_reducer";
+import VoteMapReducer from "./vote_map_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import CommunityMapRow from "./community_map_table";
+import LiveProfileRow from "./live_profile_table";
+import MapCommentRow from "./map_comment_table";
+import MapVersionRow from "./map_version_table";
+import MapVoteRow from "./map_vote_table";
+import MemberRow from "./member_table";
 import MyAccountRow from "./my_account_table";
 import MyHistoryProfileRow from "./my_history_profile_table";
 import MyMatchesRow from "./my_matches_table";
+import MyPlayedMapsRow from "./my_played_maps_table";
 import MyRivalriesRow from "./my_rivalries_table";
 import PendingInvitationsRow from "./pending_invitations_table";
 import PlayerRow from "./player_table";
+import SoloStandingRow from "./solo_standing_table";
 
 /** Type-only namespace exports for generated type groups. */
 
 /** The schema information for all tables in this module. This is defined the same was as the tables would have been defined in the server. */
 const tablesSchema = __schema({
+  communityMap: __table({
+    name: 'community_map',
+    indexes: [
+      { accessor: 'id', name: 'community_map_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'community_map_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, CommunityMapRow),
+  liveProfile: __table({
+    name: 'live_profile',
+    indexes: [
+      { accessor: 'id', name: 'live_profile_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'live_profile_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, LiveProfileRow),
+  mapComment: __table({
+    name: 'map_comment',
+    indexes: [
+      { accessor: 'id', name: 'map_comment_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'map_comment_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, MapCommentRow),
+  mapVersion: __table({
+    name: 'map_version',
+    indexes: [
+      { accessor: 'key', name: 'map_version_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'map_version_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, MapVersionRow),
+  mapVote: __table({
+    name: 'map_vote',
+    indexes: [
+      { accessor: 'key', name: 'map_vote_key_idx_btree', algorithm: 'btree', columns: [
+        'key',
+      ] },
+    ],
+    constraints: [
+      { name: 'map_vote_key_key', constraint: 'unique', columns: ['key'] },
+    ],
+  }, MapVoteRow),
+  member: __table({
+    name: 'member',
+    indexes: [
+      { accessor: 'profile', name: 'member_profile_idx_btree', algorithm: 'btree', columns: [
+        'profile',
+      ] },
+    ],
+    constraints: [
+      { name: 'member_profile_key', constraint: 'unique', columns: ['profile'] },
+    ],
+  }, MemberRow),
   player: __table({
     name: 'player',
     indexes: [
@@ -70,6 +151,17 @@ const tablesSchema = __schema({
       { name: 'player_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PlayerRow),
+  soloStanding: __table({
+    name: 'solo_standing',
+    indexes: [
+      { accessor: 'id', name: 'solo_standing_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'solo_standing_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, SoloStandingRow),
   myAccount: __table({
     name: 'my_account',
     indexes: [
@@ -91,6 +183,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyMatchesRow),
+  myPlayedMaps: __table({
+    name: 'my_played_maps',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyPlayedMapsRow),
   myRivalries: __table({
     name: 'my_rivalries',
     indexes: [
@@ -112,13 +211,20 @@ const reducersSchema = __reducers(
   __reducerSchema("accept_history_invite", AcceptHistoryInviteReducer),
   __reducerSchema("acknowledge_invitation", AcknowledgeInvitationReducer),
   __reducerSchema("announce", AnnounceReducer),
+  __reducerSchema("comment_map", CommentMapReducer),
   __reducerSchema("connect_account", ConnectAccountReducer),
+  __reducerSchema("finish_solo_match", FinishSoloMatchReducer),
+  __reducerSchema("initialize_community", InitializeCommunityReducer),
+  __reducerSchema("record_catalog_match", RecordCatalogMatchReducer),
   __reducerSchema("record_match", RecordMatchReducer),
   __reducerSchema("register_history", RegisterHistoryReducer),
   __reducerSchema("rename_account", RenameAccountReducer),
   __reducerSchema("request_account_link", RequestAccountLinkReducer),
+  __reducerSchema("save_map", SaveMapReducer),
   __reducerSchema("send_invitation", SendInvitationReducer),
   __reducerSchema("sign_out_account", SignOutAccountReducer),
+  __reducerSchema("start_map_play", StartMapPlayReducer),
+  __reducerSchema("vote_map", VoteMapReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

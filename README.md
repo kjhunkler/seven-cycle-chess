@@ -11,11 +11,19 @@ Run the following in separate terminals from the repository root:
     node lobby-server.mjs
     npx --yes http-server . -p 8000
 
-Open http://localhost:8000/ in two to four tabs or browser profiles. Each tab has its own connection identity. Each browser automatically joins with a random name on first visit. The Friends panel lets players change their name and invite other online players. Accepting an invite opens the dedicated match page. Everyone currently in the lobby appears in the online friends list.
+Open http://localhost:8000/ in two to four tabs or browser profiles. Each tab has its own connection identity. Each browser automatically joins with a random name on first visit. The Friends panel lets players change their name and invite other online players. Accepting an invite opens the dedicated match page. The public Friends directory includes every online guest and all signed-in members.
 
 On the public site, SpacetimeDB Maincloud publishes the online player list and delivers invitations only to their intended recipients. Display names and presence are public. After an invitation is received, the free EMQX public test broker carries encrypted responses, WebRTC connection descriptions and ICE candidates, and fallback game messages. When TURN is configured, WebRTC can connect directly or through Cloudflare. The broker is shared and has no availability guarantee.
 
 The Pages workflow builds the SpacetimeDB client from the checked-in TypeScript bindings. Set the repository variable `FRUIT_WARS_SPACETIME_DB` to a different database name to use that Maincloud deployment, or set it to `off` and dispatch **Deploy to GitHub Pages** to use the MQTT lobby. A configured private HTTP lobby takes precedence. See [SpacetimeDB module setup](spacetime-lobby/README.md) for publishing and regenerating the client bindings.
+
+Signing in opens Friends with multiplayer wins, losses, games played, win rate, and a separate solo record. A green dot marks an online player. Signed-in profiles remain listed with their last online time after their final session closes. Guests leave the directory when they disconnect.
+
+Open **Map library** to preview a layout, see its creator, last edit and play count, or copy a link to it. Signed-in players can publish maps, vote, and comment. The creator can edit a published map. Each edit creates a revision so a match keeps the layout it started with. Solo battle settings and multiplayer setup both preview the selected map.
+
+The editor supports two, three, or four seats. Adding nodes, connecting paths, erasing, or changing a neutral garrison applies to all matching positions. Two-seat boards support top/bottom or both-axis reflection, three-seat boards support rotation with optional reflection, and four-seat boards use both axes. Neutral nodes start at difficulty 5. Every home and neutral node must be reachable before publication.
+
+Multiplayer plays count once when the ready countdown starts. A solo play counts once when the human creates their first route. Completing that solo round records a win or loss. The public database backfills completed multiplayer games recorded before the map library was introduced.
 
 Open **Match history** in the Friends panel to see your 30 most recent completed online rounds and head-to-head totals. History follows your browser profile when you change your display name. Clearing site data or switching browsers starts a separate history. In matches with more than two seats, each pair earns a shared match and only the winning player earns a win. Results are reported by the host, and unfinished matches do not count.
 

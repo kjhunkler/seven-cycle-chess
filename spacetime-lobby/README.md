@@ -24,3 +24,7 @@ Enable SpacetimeAuth in the Maincloud dashboard. Use a public web OAuth client w
 Set `FRUIT_WARS_AUTH_CLIENT` to that client ID in the module publish environment. The module uses it to verify the audience of SpacetimeAuth ID tokens before connecting an account. GitHub Pages defaults to the Fruit Wars public client. Set the repository variable `FRUIT_WARS_AUTH_CLIENT` to override it, or set it to `off` to hide the email sign-in controls and keep the guest lobby available.
 
 Account sign-in attaches a private profile to the current lobby connection. An initial sign-in claims the current guest history. Signing into an existing account restores that account's records and leaves a different browser's guest records separate. Match seats still belong to the current tab, so restoring an account does not recreate an in-progress match after closing that tab.
+
+## Community map migration
+
+Set `FRUIT_WARS_DEFAULT_MAP_OWNER` to the confirmed numeric profile ID of an existing signed-in account when publishing the module. Run `spacetime call --server maincloud fruit-wars-kjhunkler-lobby initialize_community` using the same CLI configuration as the publish. The transaction creates all eleven default layouts, assigns ownership, and backfills counts from stored results. Repeating the migration preserves published edits, votes, comments, and counters. On a fresh development database, the client initializes the catalog on first connection. Setting the owner and repeating the migration later assigns any unowned defaults.

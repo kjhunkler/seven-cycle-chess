@@ -5,7 +5,8 @@ const historyCredentialKey = 'fruit-wars-history-profile';
 const pendingMatchPrefix = 'fruit-wars-pending-match:';
 
 export function createLobbyDirectory(database, host = 'https://maincloud.spacetimedb.com', authClient) {
-  let connection;
+  let connection, catalog, selfId;
+  let catalogRevision = 0;
   let token;
   let synced = false;
   let announcedName;
@@ -31,11 +32,18 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       .withAutomaticReconnect()
       .onConnect((conn, _identity, authToken) => {
         token = authToken;
+        const invalidate = () => { catalog = undefined; };
+        for (const table of [conn.db.communityMap, conn.db.mapVersion, conn.db.mapVote, conn.db.mapComment, conn.db.member]) {
+          table.onInsert(invalidate);
+          table.onUpdate(invalidate);
+          table.onDelete(invalidate);
+        }
+        invalidate();
         conn.subscriptionBuilder()
           .onApplied(() => { synced = true; })
           .onError(() => conn.disconnect())
           .subscribe([
-            tables.player, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
+            tables.player, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
             ...(auth ? [tables.myAccount] : []),
           ]);
       })
@@ -74,7 +82,12 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         const entry = JSON.parse(data);
         const active = [...conn.db.myHistoryProfile.iter()][0]?.profile?.toString();
         if (entry.profile && entry.profile !== active) continue;
-        await conn.reducers.recordMatch(entry.result ?? entry);
+        const result = entry.result ?? entry;
+        if (entry.solo) await conn.reducers.finishSoloMatch(result);
+        else if (result.rules.mapRevision) {
+          const {mapRevision, map, ...settings} = result.rules;
+          await conn.reducers.recordCatalogMatch({...result, rules:{...settings,map:map<=11?map:0},mapId:map,revision:mapRevision});
+        } else await conn.reducers.recordMatch(result);
       } catch (error) {
         if (error.name !== 'SenderError' && !(error instanceof SyntaxError)) return;
         saveError = 'A match result could not be saved.';
@@ -127,6 +140,8 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
   return {
     async poll(profile, receive) {
       const conn = connected();
+      selfId = profile.id;
+      if (conn.db.communityMap.count()===0n) await conn.reducers.initializeCommunity();
       if (announcedName !== profile.name) {
         await conn.reducers.announce({ ...profile, key: JSON.stringify(profile.key) });
         if (connection === conn && synced) announcedName = profile.name;
@@ -167,9 +182,40 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         await conn.reducers.acknowledgeInvitation({ room: row.room });
       }
 
-      return [...conn.db.player.iter()]
-        .filter(player => player.id !== profile.id)
-        .map(player => ({ id: player.id, name: player.name, key: JSON.parse(player.key) }));
+      const members = new Map([...conn.db.member.iter()].map(m => [m.profile,m]));
+      const self = conn.db.liveProfile.id.find(profile.id)?.member;
+      const represented = new Set([self]);
+      const people = [];
+      for (const player of conn.db.player.iter()) {
+        if (player.id === profile.id) continue;
+        const live = conn.db.liveProfile.id.find(player.id);
+        const account = members.get(live?.member);
+        if (account && represented.has(account.profile)) continue;
+        if (account) represented.add(account.profile);
+        people.push({id:player.id,solo:conn.db.soloStanding.id.find(player.id),name:account?.name ?? player.name,key:JSON.parse(player.key),online:true,
+          played:live?.played ?? 0,wins:live?.wins ?? 0});
+      }
+      for (const account of members.values()) if (!represented.has(account.profile)) {
+        people.push({id:'member-'+account.profile,solo:conn.db.soloStanding.id.find('member-'+account.profile),name:account.name,online:false,
+          lastOnline:Number(account.lastOnline/1000n),wins:account.wins,played:account.played});
+      }
+      return people.sort((a,b)=>Number(b.online)-Number(a.online)||a.name.localeCompare(b.name));
+    },
+    community() {
+      if (!synced) return;
+      if (!catalog) {
+        const db=connection.db;
+        catalog={revision:++catalogRevision,maps:[...db.communityMap.iter()],versions:[...db.mapVersion.iter()],
+          votes:[...db.mapVote.iter()],comments:[...db.mapComment.iter()],names:new Map([...db.member.iter()].map(m=>[m.profile,m.name]))};
+      }
+      return catalog;
+    },
+    mapAction(action, fields) {
+      const reducers=connected().reducers;
+      if(action==='save-map')return reducers.saveMap(fields);
+      if(action==='vote-map')return reducers.voteMap(fields);
+      if(action==='comment-map')return reducers.commentMap(fields);
+      if(action==='start-map-play')return reducers.startMapPlay(fields);
     },
     invite(to, room) {
       return connected().reducers.sendInvitation({ to, room });
@@ -177,9 +223,9 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     async accept(room) {
       if (historyRegistered) await connected().reducers.acceptHistoryInvite({ room });
     },
-    record(result) {
+    record(result,solo=false) {
       const profile = connection && [...connection.db.myHistoryProfile.iter()][0]?.profile?.toString();
-      localStorage.setItem(queuePrefix + result.id, JSON.stringify({ profile, result }));
+      localStorage.setItem(queuePrefix + result.id, JSON.stringify({ profile, result, solo }));
     },
     async accountAction(action, name) {
       if (action === 'sign-in') return auth.signIn();
@@ -197,7 +243,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     account() {
       if (!auth) return undefined;
       const row = synced && [...connection.db.myAccount.iter()][0];
-      return { profile: row?.profile, name: row?.name, message: auth.message() || accountError };
+      return { solo:synced && connection.db.soloStanding.id.find(selfId), stats:synced && connection.db.liveProfile.id.find(selfId), profile: row?.profile, name: row?.name, message: auth.message() || accountError };
     },
     history() {
       if (!synced || !historyRegistered) return undefined;
@@ -206,6 +252,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       return {
         profile,
         matches: [...connection.db.myMatches.iter()],
+        maps:new Map([...connection.db.myPlayedMaps.iter()].map(m=>[m.id,m.name])),
         rivalries: [...connection.db.myRivalries.iter()],
         pending: Object.keys(localStorage).some(key => key.startsWith(queuePrefix)),
         saveError,

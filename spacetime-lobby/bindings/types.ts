@@ -36,6 +36,17 @@ export const AccountSummary = __t.object("AccountSummary", {
 });
 export type AccountSummary = __Infer<typeof AccountSummary>;
 
+export const CommunityMap = __t.object("CommunityMap", {
+  id: __t.u32(),
+  name: __t.string(),
+  owner: __t.option(__t.u64()),
+  players: __t.u8(),
+  revision: __t.u32(),
+  updatedAt: __t.u64(),
+  plays: __t.u32(),
+});
+export type CommunityMap = __Infer<typeof CommunityMap>;
+
 export const GuestSeat = __t.object("GuestSeat", {
   room: __t.string(),
   seat: __t.u8(),
@@ -80,6 +91,45 @@ export const Invitation = __t.object("Invitation", {
 });
 export type Invitation = __Infer<typeof Invitation>;
 
+export const LiveProfile = __t.object("LiveProfile", {
+  id: __t.string(),
+  member: __t.option(__t.u64()),
+  played: __t.u32(),
+  wins: __t.u32(),
+});
+export type LiveProfile = __Infer<typeof LiveProfile>;
+
+export const MapComment = __t.object("MapComment", {
+  id: __t.u64(),
+  mapId: __t.u32(),
+  profile: __t.u64(),
+  body: __t.string(),
+  postedAt: __t.u64(),
+});
+export type MapComment = __Infer<typeof MapComment>;
+
+export const MapPlay = __t.object("MapPlay", {
+  id: __t.string(),
+  mapId: __t.u32(),
+});
+export type MapPlay = __Infer<typeof MapPlay>;
+
+export const MapVersion = __t.object("MapVersion", {
+  key: __t.string(),
+  mapId: __t.u32(),
+  revision: __t.u32(),
+  layout: __t.string(),
+});
+export type MapVersion = __Infer<typeof MapVersion>;
+
+export const MapVote = __t.object("MapVote", {
+  key: __t.string(),
+  mapId: __t.u32(),
+  profile: __t.u64(),
+  value: __t.i8(),
+});
+export type MapVote = __Infer<typeof MapVote>;
+
 export const MatchEntry = __t.object("MatchEntry", {
   id: __t.u64(),
   profile: __t.u64(),
@@ -121,6 +171,20 @@ export const MatchRules = __t.object("MatchRules", {
 });
 export type MatchRules = __Infer<typeof MatchRules>;
 
+export const Member = __t.object("Member", {
+  profile: __t.u64(),
+  name: __t.string(),
+  lastOnline: __t.u64(),
+  played: __t.u32(),
+  wins: __t.u32(),
+});
+export type Member = __Infer<typeof Member>;
+
+export const Migration = __t.object("Migration", {
+  version: __t.u8(),
+});
+export type Migration = __Infer<typeof Migration>;
+
 export const MyAccount = __t.object("MyAccount", {});
 export type MyAccount = __Infer<typeof MyAccount>;
 
@@ -130,11 +194,21 @@ export type MyHistoryProfile = __Infer<typeof MyHistoryProfile>;
 export const MyMatches = __t.object("MyMatches", {});
 export type MyMatches = __Infer<typeof MyMatches>;
 
+export const MyPlayedMaps = __t.object("MyPlayedMaps", {});
+export type MyPlayedMaps = __Infer<typeof MyPlayedMaps>;
+
 export const MyRivalries = __t.object("MyRivalries", {});
 export type MyRivalries = __Infer<typeof MyRivalries>;
 
 export const PendingInvitations = __t.object("PendingInvitations", {});
 export type PendingInvitations = __Infer<typeof PendingInvitations>;
+
+export const PlayedMap = __t.object("PlayedMap", {
+  id: __t.string(),
+  mapId: __t.u32(),
+  name: __t.string(),
+});
+export type PlayedMap = __Infer<typeof PlayedMap>;
 
 export const Player = __t.object("Player", {
   id: __t.string(),
@@ -160,3 +234,32 @@ export const Session = __t.object("Session", {
   id: __t.string(),
 });
 export type Session = __Infer<typeof Session>;
+
+export const SoloRound = __t.object("SoloRound", {
+  id: __t.string(),
+  profile: __t.u64(),
+  mapId: __t.u32(),
+  win: __t.bool(),
+});
+export type SoloRound = __Infer<typeof SoloRound>;
+
+export const SoloStanding = __t.object("SoloStanding", {
+  id: __t.string(),
+  played: __t.u32(),
+  wins: __t.u32(),
+});
+export type SoloStanding = __Infer<typeof SoloStanding>;
+
+export const SoloTotals = __t.object("SoloTotals", {
+  profile: __t.u64(),
+  played: __t.u32(),
+  wins: __t.u32(),
+});
+export type SoloTotals = __Infer<typeof SoloTotals>;
+
+export const Totals = __t.object("Totals", {
+  profile: __t.u64(),
+  played: __t.u32(),
+  wins: __t.u32(),
+});
+export type Totals = __Infer<typeof Totals>;

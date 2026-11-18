@@ -48,11 +48,12 @@ const publicLobby = (() => {
   }
   async function open() {
     if (database) {
-      const {createLobbyDirectory} = await import("./spacetime-lobby-client.js");
+      const {createLobbyDirectory} = await import("./spacetime-lobby-client.js?v=community-1");
       directory = createLobbyDirectory(database, window.FRUIT_WARS_SPACETIME_HOST || undefined, window.FRUIT_WARS_AUTH_CLIENT);
     }
     keys = await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveKey"]);
     publicKey = await crypto.subtle.exportKey("jwk",keys.publicKey);
+    if(directory && !window.mqtt)return;
     client = window.mqtt.connect("wss://broker.emqx.io:8084/mqtt",{reconnectPeriod:2000,connectTimeout:6000});
     client.on("connect",() => client.subscribe(database ? [address+id] : [presence,address+id],{qos:1},error => {ready=!error;lastSeen=0}));
     client.on("close",() => {ready=false});
@@ -64,9 +65,10 @@ const publicLobby = (() => {
   return async (action,name,fields) => {
     opening ??= open().catch(error => {opening=undefined;throw error});
     await opening;
-    if (action === "record-match") return directory?.record(fields);
+    if (["save-map","comment-map","vote-map","start-map-play"].includes(action)) return directory?.mapAction(action,fields);
+    if (action === "record-match" || action === "record-solo") return directory?.record(fields,action==="record-solo");
     if (["sign-in","sign-out","rename-account"].includes(action)) return directory?.accountAction(action,name);
-    if (!ready) throw new Error("Connecting to the public signaling service.");
+    if (!ready && !(action==="poll" && directory)) throw new Error("Connecting to the public signaling service.");
     const now = Date.now();
     if (action === "poll") {
       let directoryUnavailable = false;
@@ -84,12 +86,12 @@ const publicLobby = (() => {
       }
       for (const [key,room] of rooms) if (!room.accepted&&now-room.seen > 30_000) {rooms.delete(key);inbox.push({kind:"expired",room:key})}
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],
-        friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0),directoryUnavailable,
-        matchHistory:directory?.history(),account:directory?.account()};
+        friends:[...friends].map(([id,{key,seen,...friend}]) => ({id,...friend})),events:inbox.splice(0),directoryUnavailable,
+        community:directory?.community(),matchHistory:directory?.history(),account:directory?.account()};
     }
     if (action === "invite") {
       const friend = friends.get(fields.to);
-      if (!friend) throw new Error("Friend is offline.");
+      if (!friend || friend.online===false) throw new Error("Friend is offline.");
       const room = crypto.randomUUID();
       rooms.set(room,{id:fields.to,key:await shared(friend.key),seen:now,accepted:false});
       try {

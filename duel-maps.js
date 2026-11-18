@@ -35,4 +35,159 @@ const TWO_PLAYER_MAPS={
   11:symmetricDuelMap('Crossroads',[[24,23],[50,23],[24,40],[8,50],[50,50]],
     '50,5/24,23 50,5/50,23 24,23/50,23 24,23/24,40 50,23/24,40 24,40/8,50 24,40/50,50 8,50/50,50')
 };
-function mapPlayerCount(id){return id===4?4:[3,6].includes(id)?3:2}
+
+const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
+// Threefold symmetric graph: starting nodes, triangle side nodes, vertices, and hub.
+// Twin branches follows the ten-node two-player sketch.
+// Axis-symmetric four-player schema; every starting-node pair is four edges apart.
+const FOUR_POS={P1:[25,8],P2:[75,8],P3:[25,92],P4:[75,92],D1:[50,18],D2:[50,82],A1:[12,32],A2:[38,32],A3:[62,32],A4:[88,32],B1:[12,50],B2:[50,50],B3:[88,50],C1:[12,68],C2:[38,68],C3:[62,68],C4:[88,68]};
+const FOUR_EDGES="P1-A1 P1-A2 P2-A3 P2-A4 P3-C1 P3-C2 P4-C3 P4-C4 A1-A2 A3-A4 C1-C2 C3-C4 D1-A2 D1-A3 D2-C2 D2-C3 A2-B2 A3-B2 C2-B2 C3-B2 A1-B1 B1-C1 A4-B3 B3-C4 B1-B2 B2-B3".split(" ").map(e=>e.split("-"));
+const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
+const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 B2-C2 B2-C3 C1-C2 C2-C3 C1-P1 C3-P1".split(" ").map(e=>e.split("-"));
+const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
+// Expand the original triangle with a node on every path and symmetric bypasses.
+const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
+const THREE_EDGES=THREE_PATHS;
+const LARGE_THREE_POS={...THREE_POS};
+const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
+  const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
+  LARGE_THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
+  return [[a,id],[id,b]];
+});
+LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
+const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
+const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
+const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
+
+// These transforms match boardViewPoint in controls.js. Three-seat boards rotate
+// around the hub. Four-seat boards use both reflections to keep seats equivalent.
+function symmetryCopies(point, players, mirror) {
+  const [x,y]=point;
+  if(players===3) {
+    const orbit=p=>[0,1,2].map(i=>{
+      const q=rotateBoardPoint({x:p[0],y:p[1]},i*2*Math.PI/3);
+      return [q.x,q.y];
+    });
+    return mirror ? [...orbit(point),...orbit([100-x,y])] : orbit(point);
+  }
+  return players===4 || mirror
+    ? [point,[x,100-y],[100-x,y],[100-x,100-y]]
+    : [point,[x,100-y]];
+}
+function nodeAt(nodes,point) {
+  return Object.keys(nodes).find(id=>Math.hypot(nodes[id][0]-point[0],nodes[id][1]-point[1])<0.015);
+}
+function mapLayout(raw, requireConnected=true) {
+  const {nodes,edges,players,mirror,difficulty={}}=raw;
+  const fail=message=>{throw new Error(message)};
+  if(![2,3,4].includes(players)||typeof mirror!=='boolean'||!nodes||Array.isArray(nodes)||!Array.isArray(edges))
+    fail('Choose a valid map and seat count.');
+  const ids=Object.keys(nodes);
+  if(ids.length>96||edges.length>300)fail('Maps support up to 96 nodes and 300 paths.');
+  for(const id of ids){
+    const p=nodes[id];
+    if(!/^(?:P[1-4]|[A-OQ-RT-Z][0-9]{1,5})$/.test(id)||!Array.isArray(p)||p.length!==2||
+      p.some(v=>!Number.isFinite(v)||v<1||v>99)||nodeAt(nodes,p)!==id)fail('Node positions must be distinct and on the board.');
+  }
+  const homes=Array.from({length:players},(_,i)=>'P'+(i+1));
+  if(homes.some(id=>!nodes[id])||ids.filter(id=>id.startsWith('P')).length!==players)fail('Each seat needs one starting node.');
+  // A seat always views its home in the same position as the other seats.
+  const [hx,hy]=nodes.P1;
+  const seats=players===4?[[hx,hy],[100-hx,hy],[hx,100-hy],[100-hx,100-hy]]:
+    players===3?[0,2,1].map(i=>symmetryCopies(nodes.P1,3,false)[i]):[[hx,hy],[hx,100-hy]];
+  if(seats.some((p,i)=>nodeAt(nodes,p)!==homes[i]))fail('Starting nodes must match the seat perspectives.');
+  if(!difficulty||typeof difficulty!=='object'||Array.isArray(difficulty)||
+     Object.entries(difficulty).some(([id,d])=>!ids.includes(id)||id.startsWith('P')||!Number.isInteger(d)||d<1||d>99))
+    fail('Neutral difficulty must be between 1 and 99.');
+  const seen=new Set(), startGroups=[],copies={};
+  for(const id of ids){
+    const orbit=symmetryCopies(nodes[id],players,mirror).map(p=>nodeAt(nodes,p));
+    if(orbit.some(other=>!other||other.startsWith('P')!==id.startsWith('P')||(difficulty[other]??5)!==(difficulty[id]??5)))fail('Nodes and difficulty must match across all seats.');
+    copies[id]=orbit;
+    if(!seen.has(id)){const group=[...new Set(orbit)];startGroups.push(group);group.forEach(other=>seen.add(other))}
+  }
+  const key=(a,b)=>[a,b].sort().join('-'), paths=new Set(),adj=Object.fromEntries(ids.map(id=>[id,[]]));
+  for(const pair of edges){
+    if(!Array.isArray(pair)||pair.length!==2)fail('Invalid path.');
+    const [a,b]=pair;
+    if(!ids.includes(a)||!ids.includes(b)||a===b||paths.has(key(a,b)))fail('Paths must join two different nodes once.');
+    paths.add(key(a,b));adj[a].push(b);adj[b].push(a);
+  }
+  for(const [a,b] of edges)if(copies[a].some((other,i)=>!paths.has(key(other,copies[b][i]))))fail('Paths must match across all seats.');
+  const reached=new Set(['P1']);
+  for(const id of reached)for(const other of adj[id])reached.add(other);
+  if(requireConnected&&reached.size!==ids.length)fail('Connect every node and starting position before publishing.');
+  return {players,mirror,nodes,edges,difficulty,startGroups};
+}
+const expandedNodes={...POS,D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]};
+const expandedEdges=[...EDGES,...'A1-D1 A3-D2 B1-E1 B4-E2 D1-B1 D2-B4 E1-C1 E2-C3'.split(' ').map(path=>path.split('-'))];
+const defaultMaps=Object.fromEntries([
+  [1,'Original map',2,POS,EDGES],[2,'Expanded orchard',2,expandedNodes,expandedEdges],
+  [3,'Three groves',3,THREE_POS,THREE_EDGES],[4,'Grand orchard',4,FOUR_POS,FOUR_EDGES],
+  [5,'Twin branches',2,BRANCH_POS,BRANCH_EDGES],[6,'Expanded three groves',3,LARGE_THREE_POS,LARGE_THREE_EDGES],
+  ...Object.entries(TWO_PLAYER_MAPS).map(([id,m])=>[Number(id),m.name,2,m.nodes,m.edges])
+].map(([id,name,players,nodes,edges])=>[id,{id,name,...mapLayout({players,nodes,edges,mirror:players!==3,difficulty:{}})}]));
+const mapVersions=new Map(), latestMaps=new Map(Object.values(defaultMaps).map(m=>[m.id,m]));
+function selectedLayout(config){
+  return config.mapRevision ? mapVersions.get(config.map+'/'+config.mapRevision) : defaultMaps[config.map] || latestMaps.get(config.map);
+}
+function mapPlayerCount(id){return latestMaps.get(id)?.players}
+function selectionConfig(id){
+  const revision=latestMaps.get(id)?.revision;
+  return revision?{map:id,mapRevision:revision}:{map:id};
+}
+if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt};
+
+function loadMapCatalog(catalog) {
+  for(const version of catalog.versions){
+    if(!mapVersions.has(version.key))mapVersions.set(version.key,mapLayout(JSON.parse(version.layout)));
+  }
+  for(const row of catalog.maps){
+    const layout=mapVersions.get(row.id+'/'+row.revision);
+    if(layout)latestMaps.set(row.id,{...layout,...row});
+  }
+}
+function drawMapPreview(layout,editable=false,selected=''){
+  if(!layout)return '';
+  // Only validated node IDs and numeric coordinates enter the SVG markup.
+  const {nodes,edges,difficulty}=layout;
+  const lines=edges.map(([a,b])=>{
+    const [x,y]=nodes[a],[u,v]=nodes[b];
+    return '<line data-edge="'+a+'-'+b+'" x1="'+x+'" y1="'+y+'" x2="'+u+'" y2="'+v+'"/>';
+  });
+  const dots=Object.entries(nodes).map(([id,[x,y]])=>{
+    const home=id.startsWith('P'), label=home?id:String(difficulty[id]??5);
+    return '<g data-node="'+id+'" class="'+(home?'map-home ':'')+(selected===id?'map-selected':'')+'"><title>'+id+' · '+(home?'Starting node':'Difficulty '+label)+'</title><circle cx="'+x+'" cy="'+y+'" r="3.6"/><text x="'+x+'" y="'+y+'">'+label+'</text></g>';
+  });
+  return '<svg class="map-preview" viewBox="-4 -4 108 108" '+(editable?'tabindex="0" role="application" aria-label="Map editor board"':'role="img" aria-label="'+layout.players+'-player map preview"')+'>'+lines.join('')+dots.join('')+'</svg>';
+}
+function fillMapSelect(select) {
+  const current=select.value;
+  const maps=[...latestMaps.values()].sort((a,b)=>a.players-b.players||a.id-b.id);
+  select.replaceChildren(...maps.map(m=>{
+    const option=document.createElement('option');option.value=String(m.id);option.textContent=m.name+' · '+m.players+' players';return option;
+  }));
+  if(latestMaps.has(Number(current)))select.value=current;
+}
+function setupMapPicker(select, preview, config) {
+  function refresh(){
+    fillMapSelect(select);
+    select.value=String(config().map);
+    show();
+  }
+  function show(){
+    const m=latestMaps.get(Number(select.value));
+    const pinned=config();
+    const layout=pinned.map===m?.id && pinned.mapRevision ? selectedLayout(pinned) : m;
+    preview.innerHTML=drawMapPreview(layout);
+    if(m?.plays!==undefined){
+      const info=document.createElement('small');
+      info.textContent=m.plays+' plays · Updated '+new Date(Number(m.updatedAt/1000n)).toLocaleDateString();
+      preview.append(info);
+    }
+  }
+  select.addEventListener('change',show);
+  addEventListener('map-catalog',refresh);
+  refresh();
+  return show;
+}

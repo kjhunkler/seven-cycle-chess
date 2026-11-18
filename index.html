@@ -32,7 +32,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=25"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=29"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
@@ -55,7 +55,7 @@ small{color:var(--mut)}
     <small id="account-status" role="status"></small>
   </div>
   <p role="status">Connecting to players…</p>
-  <strong>Online players</strong><ul id="friends"></ul>
+  <p id="player-stats" hidden></p><strong>Friends</strong><ul id="friends"></ul>
   <details id="match-history" hidden>
     <summary>Match history</summary>
     <small id="history-owner">Casual results reported by the host. Your history is linked to this browser.</small>
@@ -63,53 +63,44 @@ small{color:var(--mut)}
     <h3>Recent matches</h3><ul id="recent-matches"></ul>
     <h3>Head-to-head</h3><ul id="head-to-head"></ul>
   </details>
-</section></details><div id="invite-toasts" aria-live="assertive"></div></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=1"></script><script>
+</section></details><button type="button" id="open-maps">Map library</button>
+<dialog id="map-library" aria-labelledby="library-title">
+  <div class="map-heading"><h2 id="library-title">Map library</h2><button type="button" data-close>Close</button></div>
+  <label>Map <select id="library-select"></select></label>
+  <div id="library-preview"></div>
+  <p id="library-meta"></p>
+  <div class="map-actions"><button id="play-map">Play solo</button><button id="share-map">Copy link</button><button id="edit-map">Edit map</button><button id="new-map">Create map</button></div>
+  <p id="map-auth-hint">Sign in from Friends to publish maps, vote, and comment.</p><section id="map-discussion"><div class="map-actions"><button id="upvote" aria-label="Vote up">▲</button><output id="vote-total"></output><button id="downvote" aria-label="Vote down">▼</button></div>
+  <h3>Comments</h3><ul id="map-comments"></ul><form id="comment-form"><label>Comment <textarea required maxlength="1000"></textarea></label><button>Post comment</button></form></section>
+  <p role="status" id="library-status"></p>
+</dialog>
+<dialog id="map-editor" aria-labelledby="editor-title"><div class="map-heading"><h2 id="editor-title">Map editor</h2><button type="button" data-close>Close</button></div>
+  <label>Map name <input id="map-name" required maxlength="64"></label>
+  <div class="map-fields"><label>Players <select id="editor-players"><option>2</option><option>3</option><option>4</option></select></label>
+  <label>Symmetry <select id="editor-symmetry"></select></label></div>
+  <div class="map-fields"><label>Tool <select id="editor-tool"><option value="node">Add node</option><option value="path">Connect nodes</option><option value="difficulty">Set difficulty</option><option value="erase">Erase node or path</option></select></label>
+  <label>Neutral difficulty <input type="number" id="editor-difficulty" min="1" max="99" value="5"></label></div>
+  <div id="editor-board"></div><p id="editor-help"></p>
+  <div class="map-actions"><button id="editor-undo">Undo</button><button id="publish-map">Publish map</button></div><p role="status" id="editor-status"></p>
+</dialog><div id="invite-toasts" aria-live="assertive"></div></main>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=2"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
-const POS={P2:[50,5],P1:[50,95],A1:[28,22],A2:[50,22],A3:[72,22],B1:[12,50],B2:[38,50],B3:[62,50],B4:[88,50],C1:[28,78],C2:[50,78],C3:[72,78]};
-// Threefold symmetric graph: starting nodes, triangle side nodes, vertices, and hub.
-// Twin branches follows the ten-node two-player sketch.
-// Axis-symmetric four-player schema; every starting-node pair is four edges apart.
-const FOUR_POS={P1:[25,8],P2:[75,8],P3:[25,92],P4:[75,92],D1:[50,18],D2:[50,82],A1:[12,32],A2:[38,32],A3:[62,32],A4:[88,32],B1:[12,50],B2:[50,50],B3:[88,50],C1:[12,68],C2:[38,68],C3:[62,68],C4:[88,68]};
-const FOUR_EDGES="P1-A1 P1-A2 P2-A3 P2-A4 P3-C1 P3-C2 P4-C3 P4-C4 A1-A2 A3-A4 C1-C2 C3-C4 D1-A2 D1-A3 D2-C2 D2-C3 A2-B2 A3-B2 C2-B2 C3-B2 A1-B1 B1-C1 A4-B3 B3-C4 B1-B2 B2-B3".split(" ").map(e=>e.split("-"));
-const BRANCH_POS={P2:[50,6],A1:[20,28],A2:[50,28],A3:[80,28],B1:[35,50],B2:[65,50],C1:[20,72],C2:[50,72],C3:[80,72],P1:[50,94]};
-const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 B2-C2 B2-C3 C1-C2 C2-C3 C1-P1 C3-P1".split(" ").map(e=>e.split("-"));
-const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
-// Expand the original triangle with a node on every path and symmetric bypasses.
-const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
-const THREE_EDGES=THREE_PATHS;
-const LARGE_THREE_POS={...THREE_POS};
-const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
-  const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
-  LARGE_THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
-  return [[a,id],[id,b]];
-});
-LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
-const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
-const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
-const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
 let botConfig={map:1,speed:1,shops:false,productionRotation:false,fullElimination:false,portionControl:false,transformationWave:false,transformationTime:10};
-const extraMaps={
-  1:{nodes:{},edges:[]},
-  2:{nodes:{D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]},edges:[["A1","D1"],["A3","D2"],["B1","E1"],["B4","E2"],["D1","B1"],["D2","B4"],["E1","C1"],["E2","C3"]]},
-  3:{nodes:{P3:[92,50],A4:[71,36],B5:[78,65],C4:[48,56]},edges:[["P3","A3"],["P3","B4"],["P3","C3"],["A3","A4"],["B4","A4"],["B4","B5"],["C3","B5"],["B5","C4"],["C4","C2"]]},
-  4:{nodes:{P3:[92,50],P4:[8,50],A4:[70,28],A5:[70,72],B5:[50,36],B6:[50,64],C4:[29,28],C5:[29,72]},edges:[["P3","A3"],["P3","A4"],["P3","B5"],["P4","A1"],["P4","C1"],["P4","C4"],["A4","B5"],["B5","B2"],["B5","B3"],["A5","B6"],["A5","C3"],["A5","C5"],["B6","B2"],["B6","C2"],["C4","B1"],["C5","B4"]]}
-};
 function init(){
   transformationClock=0;
   N={};
   CONFIG.timeScale=botConfig.speed;
-  const positions=TWO_PLAYER_MAPS[botConfig.map]?.nodes||(botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===6?LARGE_THREE_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes});
+  const layout = selectedLayout(botConfig);
+  const {nodes: positions, edges} = layout;
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
-  const edges=TWO_PLAYER_MAPS[botConfig.map]?.edges||(botConfig.map===4?FOUR_EDGES:botConfig.map===5?BRANCH_EDGES:botConfig.map===6?LARGE_THREE_EDGES:botConfig.map===3?THREE_EDGES:[...EDGES,...extraMaps[botConfig.map].edges]);
-  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(botConfig.map),botConfig.map===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
+  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,layout.players===3,layout.players===4),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
   edges.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
-    if(n.home){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
+    if(n.home){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=layout.difficulty[n.id] ?? CONFIG.neutralGarrison}}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;aiT=2;
   productionCycle=botConfig.productionRotation?startProductionCycle(N,G,T.length,performance.now()):null;
   msg="Drag from your named node or another node to create a route.";
@@ -349,4 +340,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=24"></script><script src="./board-ui.js?v=28"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=25"></script><script src="./board-ui.js?v=29"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./map-library.js"></script><script src="./lobby.js"></script></body></html>

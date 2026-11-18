@@ -1,4 +1,36 @@
-import { schema, SenderError, table, t } from 'spacetimedb/server';
+import { schema, type ReducerCtx, SenderError, table, t } from 'spacetimedb/server';
+
+import { defaultMaps, mapLayout } from '../../../duel-maps.js';
+
+const totals = table({}, {
+  profile: t.u64().primaryKey(), played: t.u32(), wins: t.u32(),
+});
+const member = table({public:true}, {
+  profile: t.u64().primaryKey(), name:t.string(), lastOnline:t.u64(), played:t.u32(), wins:t.u32(),
+});
+const liveProfile = table({public:true}, {
+  id:t.string().primaryKey(), member:t.option(t.u64()), played:t.u32(), wins:t.u32(),
+});
+const communityMap = table({public:true}, {
+  id:t.u32().primaryKey().autoInc(), name:t.string(), owner:t.option(t.u64()), players:t.u8(),
+  revision:t.u32(), updatedAt:t.u64(), plays:t.u32(),
+});
+const mapVersion = table({public:true}, {
+  key:t.string().primaryKey(), mapId:t.u32(), revision:t.u32(), layout:t.string(),
+});
+const mapVote = table({public:true}, {
+  key:t.string().primaryKey(), mapId:t.u32(), profile:t.u64(), value:t.i8(),
+});
+const mapComment = table({public:true}, {
+  id:t.u64().primaryKey().autoInc(), mapId:t.u32(), profile:t.u64(), body:t.string(), postedAt:t.u64(),
+});
+const soloRound = table({}, {id:t.string().primaryKey(), profile:t.u64(), mapId:t.u32(), win:t.bool()});
+const soloTotals = table({}, {profile:t.u64().primaryKey(), played:t.u32(), wins:t.u32()});
+// Directory keys are transient lobby IDs for guests and stable profile keys for members.
+const soloStanding = table({public:true}, {id:t.string().primaryKey(), played:t.u32(), wins:t.u32()});
+const mapPlay = table({}, { id:t.string().primaryKey(), mapId:t.u32() });
+const playedMap = table({}, { id:t.string().primaryKey(), mapId:t.u32(), name:t.string() });
+const migration = table({}, { version:t.u8().primaryKey() });
 
 const player = table({ public: true }, {
   id: t.string().primaryKey(),
@@ -98,8 +130,8 @@ const rivalry = table({}, {
 
 const lobby = schema({
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
-  account, accountSession, accountLink,
-}, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()) } });
+  account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, migration, soloRound, soloTotals, soloStanding,
+}, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()), FRUIT_WARS_DEFAULT_MAP_OWNER:t.option(t.string()) } });
 export default lobby;
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -107,6 +139,127 @@ const inviteLifetime = 30_000_000n;
 const guestLifetime = 86_400_000_000n;
 const historyLimit = 30;
 
+type Context = ReducerCtx<typeof lobby.schemaType>;
+function accountFor(ctx:Context) {
+  const link=ctx.db.accountSession.lobbyIdentity.find(ctx.sender);
+  return link && ctx.db.account.identity.find(link.accountIdentity);
+}
+function signedIn(ctx:Context) {
+  const user=accountFor(ctx);
+  if(!user)throw new SenderError('Sign in to publish, vote, or comment.');
+  return user;
+}
+function refreshProfile(ctx:Context, profile:bigint, seen?:bigint) {
+  const stats=ctx.db.totals.profile.find(profile) ?? {profile,played:0,wins:0};
+  const solo=ctx.db.soloTotals.profile.find(profile);
+  function showSolo(id:string){
+    if(!solo){ctx.db.soloStanding.id.delete(id);return}
+    const row={id,played:solo.played,wins:solo.wins};
+    if(ctx.db.soloStanding.id.find(id))ctx.db.soloStanding.id.update(row);else ctx.db.soloStanding.insert(row);
+  }
+  const user=ctx.db.account.profile.find(profile);
+  if(user){
+    showSolo('member-'+profile);
+    const prev=ctx.db.member.profile.find(profile);
+    const row={...stats,name:user.name,lastOnline:seen ?? prev?.lastOnline ?? 0n};
+    if(prev)ctx.db.member.profile.update(row); else ctx.db.member.insert(row);
+  }
+  for(const identity of ctx.db.historyIdentity.iter()){
+    if(identity.profile!==profile)continue;
+    const session=ctx.db.session.identity.find(identity.identity);
+    if(!session)continue;
+    showSolo(session.id);
+    const linked=ctx.db.accountSession.lobbyIdentity.find(identity.identity);
+    const row={id:session.id,member:linked?profile:undefined,played:stats.played,wins:stats.wins};
+    if(ctx.db.liveProfile.id.find(row.id))ctx.db.liveProfile.id.update(row);else ctx.db.liveProfile.insert(row);
+  }
+}
+function addResult(ctx:Context, players:{profile:bigint,seat:number}[],winner:number) {
+  const winning=players.find(p=>p.seat===winner)?.profile;
+  for(const profile of new Set(players.map(p=>p.profile))){
+    const old=ctx.db.totals.profile.find(profile);
+    const row={profile,played:(old?.played??0)+1,wins:(old?.wins??0)+Number(winning===profile)};
+    if(old)ctx.db.totals.profile.update(row);else ctx.db.totals.insert(row);
+    refreshProfile(ctx,profile);
+  }
+}
+function countPlay(ctx:Context,id:string,mapId:number) {
+  if(ctx.db.mapPlay.id.find(id))return;
+  const row=ctx.db.communityMap.id.find(mapId);
+  if(!row)throw new SenderError('Unknown map.');
+  ctx.db.mapPlay.insert({id,mapId});
+  ctx.db.communityMap.id.update({...row,plays:row.plays+1});
+}
+// Idempotent both on a fresh database and on an existing lobby with match history.
+export const initializeCommunity = lobby.reducer(ctx=>{
+  const configured=ctx.env.FRUIT_WARS_DEFAULT_MAP_OWNER;
+  const owner=configured ? ctx.db.account.profile.find(BigInt(configured))?.profile : undefined;
+  if(configured && owner===undefined)throw new SenderError('The configured default map owner must have an existing account.');
+  if(ctx.db.migration.version.find(1)){
+    if(owner!==undefined)for(const m of ctx.db.communityMap.iter())if(m.id<=11 && m.owner===undefined)
+      ctx.db.communityMap.id.update({...m,owner});
+    return;
+  }
+  for(const m of Object.values(defaultMaps) as {id:number,name:string,players:number,mirror:boolean,nodes:object,edges:string[][]}[]){
+    const {id,name,players,mirror,nodes,edges}=m;
+    ctx.db.communityMap.insert({id,name,players,owner,revision:1,updatedAt:ctx.timestamp.microsSinceUnixEpoch,plays:0});
+    ctx.db.mapVersion.insert({key:id+'/1',mapId:id,revision:1,layout:JSON.stringify({players,mirror,nodes,edges,difficulty:{}})});
+  }
+  const lastPlayed=new Map<bigint,bigint>();
+  for(const match of ctx.db.matchResult.iter()){
+    for(const p of match.players)if(match.finishedAt>(lastPlayed.get(p.profile)??0n))lastPlayed.set(p.profile,match.finishedAt);
+    addResult(ctx,match.players,match.winner);
+    countPlay(ctx,match.id,match.rules.map);
+  }
+  for(const user of ctx.db.account.iter())refreshProfile(ctx,user.profile,lastPlayed.get(user.profile));
+  ctx.db.migration.insert({version:1});
+});
+export const saveMap = lobby.reducer({mapId:t.u32(),revision:t.u32(),name:t.string(),layout:t.string()},(ctx,{mapId,revision,name,layout})=>{
+  const user=signedIn(ctx);
+  name=name.trim();
+  if(!name||name.length>64||layout.length>24576)throw new SenderError('Give the map a name of up to 64 characters and a valid layout.');
+  const old=ctx.db.communityMap.id.find(mapId);
+  if(mapId && old?.owner!==user.profile)throw new SenderError('Only the creator can update this map.');
+  if((old?.revision??0)!==revision)throw new SenderError('This map has changed. Reopen the editor for its latest version.');
+  let board;
+  try{board=mapLayout(JSON.parse(layout))}catch(error){throw new SenderError(error instanceof Error?error.message:'Invalid map.')}
+  if(old && old.players!==board.players)throw new SenderError('Create a new map to change its seat count.');
+  const row={id:mapId,owner:user.profile,name,players:board.players,revision:revision+1,updatedAt:ctx.timestamp.microsSinceUnixEpoch,plays:old?.plays??0};
+  // Explicit seed keys do not advance SpacetimeDB's auto-increment sequence.
+  if(!mapId)row.id=Math.max(11,...Array.from(ctx.db.communityMap.iter(),m=>m.id))+1;
+  const saved=old?ctx.db.communityMap.id.update(row):ctx.db.communityMap.insert(row);
+  const {players,mirror,nodes,edges,difficulty}=board;
+  ctx.db.mapVersion.insert({key:saved.id+'/'+row.revision,mapId:saved.id,revision:row.revision,layout:JSON.stringify({players,mirror,nodes,edges,difficulty})});
+});
+export const voteMap=lobby.reducer({mapId:t.u32(),value:t.i8()},(ctx,{mapId,value})=>{
+  const {profile}=signedIn(ctx);
+  if(!ctx.db.communityMap.id.find(mapId)||![-1,0,1].includes(value))throw new SenderError('Invalid vote.');
+  const key=mapId+'/'+profile;
+  ctx.db.mapVote.key.delete(key);
+  if(value)ctx.db.mapVote.insert({key,mapId,profile,value});
+});
+export const commentMap=lobby.reducer({mapId:t.u32(),body:t.string()},(ctx,{mapId,body})=>{
+  const {profile}=signedIn(ctx);body=body.trim();
+  if(!ctx.db.communityMap.id.find(mapId)||!body||body.length>1000)throw new SenderError('Enter a comment of up to 1,000 characters.');
+  ctx.db.mapComment.insert({id:0n,mapId,profile,body,postedAt:ctx.timestamp.microsSinceUnixEpoch});
+});
+export const startMapPlay=lobby.reducer({id:t.string(),mapId:t.u32()},(ctx,{id,mapId})=>{
+  if(!uuid.test(id)||!ctx.db.session.identity.find(ctx.sender))throw new SenderError('Join the lobby to record a play.');
+  countPlay(ctx,id,mapId);
+});
+export const finishSoloMatch=lobby.reducer({id:t.string(),mapId:t.u32(),win:t.bool()},(ctx,{id,mapId,win})=>{
+  const profile=ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
+  if(profile===undefined||!uuid.test(id)||!ctx.db.communityMap.id.find(mapId))throw new SenderError('A game profile and map are required.');
+  const existing=ctx.db.soloRound.id.find(id);
+  if(existing?.profile===profile)return;
+  if(existing)throw new SenderError('That round has already been recorded.');
+  ctx.db.soloRound.insert({id,profile,mapId,win});
+  countPlay(ctx,id,mapId);
+  const prior=ctx.db.soloTotals.profile.find(profile);
+  const row={profile,played:(prior?.played??0)+1,wins:(prior?.wins??0)+Number(win)};
+  if(prior)ctx.db.soloTotals.profile.update(row);else ctx.db.soloTotals.insert(row);
+  refreshProfile(ctx,profile);
+});
 export const pendingInvitations = lobby.view(
   { public: true }, t.array(invitation.rowType),
   ctx => [...ctx.db.invitation.recipient.filter(ctx.sender)].filter(row => !row.delivered),
@@ -151,6 +304,10 @@ export const disconnect = lobby.clientDisconnected(ctx => {
   const current = ctx.db.session.identity.find(ctx.sender);
   if (!ctx.connectionId || !current?.connection.isEqual(ctx.connectionId)) return;
 
+  const leaving=accountFor(ctx);
+  if(leaving)refreshProfile(ctx,leaving.profile,ctx.timestamp.microsSinceUnixEpoch);
+  ctx.db.soloStanding.id.delete(current.id);
+  ctx.db.liveProfile.id.delete(current.id);
   ctx.db.player.id.delete(current.id);
   ctx.db.session.identity.delete(ctx.sender);
   ctx.db.historyIdentity.identity.delete(ctx.sender);
@@ -240,6 +397,7 @@ export const registerHistory = lobby.reducer({ credential: t.string() }, (ctx, {
   if (identity?.profile === profile.id) return;
   if (identity) throw new SenderError('This connection already has a history profile.');
   ctx.db.historyIdentity.insert({ identity: ctx.sender, profile: profile.id });
+  refreshProfile(ctx,profile.id);
 });
 
 export const myAccount = lobby.view(
@@ -288,6 +446,7 @@ export const connectAccount = lobby.reducer({ nonce: t.string() }, (ctx, { nonce
   ctx.db.historyIdentity.identity.delete(link.lobbyIdentity);
   ctx.db.historyIdentity.insert({ identity: link.lobbyIdentity, profile: profile.profile });
   ctx.db.player.id.update({ ...player, name: profile.name });
+  refreshProfile(ctx,profile.profile,ctx.timestamp.microsSinceUnixEpoch);
 });
 
 export const renameAccount = lobby.reducer({ name: t.string() }, (ctx, { name }) => {
@@ -298,11 +457,16 @@ export const renameAccount = lobby.reducer({ name: t.string() }, (ctx, { name })
     throw new SenderError('Enter a display name between 1 and 32 characters.');
   }
   ctx.db.account.identity.update({ ...profile, name: displayName });
+  refreshProfile(ctx,profile.profile);
 });
 
 export const signOutAccount = lobby.reducer(ctx => {
   ctx.db.accountLink.lobbyIdentity.delete(ctx.sender);
+  const leaving=accountFor(ctx);
+  if(leaving)refreshProfile(ctx,leaving.profile,ctx.timestamp.microsSinceUnixEpoch);
   if (ctx.db.accountSession.lobbyIdentity.delete(ctx.sender)) {
+    const session=ctx.db.session.identity.find(ctx.sender);
+    if(session){ctx.db.liveProfile.id.delete(session.id);ctx.db.soloStanding.id.delete(session.id)}
     ctx.db.historyIdentity.identity.delete(ctx.sender);
   }
 });
@@ -328,18 +492,22 @@ export const acceptHistoryInvite = lobby.reducer({ room: t.string() }, (ctx, { r
   ctx.db.historyGuest.insert({ room, host, guest, acceptedAt: now });
 });
 
-export const recordMatch = lobby.reducer({
+const resultFields = {
   id: t.string(), hostName: t.string(), guests: t.array(guestSeat), winner: t.u8(),
   rules: matchRules, durationSeconds: t.u32(),
-}, (ctx, { id, hostName, guests, winner, rules, durationSeconds }) => {
+};
+type Result = { id:string,hostName:string,guests:{room:string,seat:number,name:string}[],winner:number,rules:typeof matchRules.type,durationSeconds:number };
+function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSeconds}:Result,mapId:number,revision?:number) {
   const host = ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
   if (host === undefined || !uuid.test(id)) throw new SenderError('Match history is unavailable.');
   const existing = ctx.db.matchResult.id.find(id);
   if (existing?.host === host) return;
   if (existing) throw new SenderError('That match already exists.');
 
-  const seatCount = rules.map === 4 ? 4 : [3, 6].includes(rules.map) ? 3 : 2;
-  if (rules.map < 2 || rules.map > 11 || ![.5, 1, 1.5].includes(rules.speed) ||
+  const entry=ctx.db.communityMap.id.find(mapId);
+  const version=revision && ctx.db.mapVersion.key.find(mapId+'/'+revision);
+  const seatCount = entry?.players ?? (rules.map === 4 ? 4 : [3,6].includes(rules.map) ? 3 : 2);
+  if ((revision!==undefined ? !version || !entry : rules.map < 2 || rules.map > 11) || ![.5, 1, 1.5].includes(rules.speed) ||
       !Number.isFinite(rules.transformationTime) || rules.transformationTime < 1 || rules.transformationTime > 120 ||
       winner < 1 || winner > seatCount || durationSeconds > 86400 || guests.length < 1 || guests.length >= seatCount ||
       !hostName.trim() || hostName.length > 32) {
@@ -363,6 +531,11 @@ export const recordMatch = lobby.reducer({
   players.sort((a, b) => a.seat - b.seat);
   ctx.db.matchResult.insert({ id, host, finishedAt: now, durationSeconds, winner, rules, players });
 
+  if(ctx.db.migration.version.find(1)){
+    addResult(ctx,players,winner);
+    countPlay(ctx,id,mapId);
+  }
+  if(entry && revision)ctx.db.playedMap.insert({id,mapId,name:entry.name});
   const profiles = new Map(players.map(player => [player.profile, player]));
   const winningProfile = players.find(player => player.seat === winner)?.profile;
   for (const player of profiles.values()) {
@@ -386,4 +559,14 @@ export const recordMatch = lobby.reducer({
       else ctx.db.rivalry.insert(row);
     }
   }
+}
+export const recordMatch=lobby.reducer(resultFields,(ctx,result)=>storeResult(ctx,result,result.rules.map));
+export const recordCatalogMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>storeResult(ctx,result,result.mapId,result.revision));
+export const myPlayedMaps=lobby.view({public:true},t.array(playedMap.rowType),ctx=>{
+  const profile=ctx.db.historyIdentity.identity.find(ctx.sender)?.profile;
+  if(profile===undefined)return [];
+  return [...ctx.db.matchEntry.profile.filter(profile)].flatMap(entry=>{
+    const row=ctx.db.playedMap.id.find(entry.matchId);
+    return row?[row]:[];
+  });
 });

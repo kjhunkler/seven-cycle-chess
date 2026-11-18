@@ -11,7 +11,7 @@ if(historyPanel)historyPanel.hidden=false;
 const accountPanel = historyPanel && window.FRUIT_WARS_AUTH_CLIENT && document.querySelector("#profile-account");
 const accountButton = accountPanel && accountPanel.querySelector("#account-action");
 const accountStatus = accountPanel && accountPanel.querySelector("#account-status");
-let signedInAccount;
+let signedInAccount, currentCatalog;
 if(accountPanel)accountPanel.hidden=false;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 // Connections are per tab, so two tabs in one browser can occupy different seats.
@@ -51,6 +51,15 @@ function loadTurnServers() {
   return turnRequest;
 }
 
+const pendingSoloPlays=new Map();
+function recordSoloPlay(mapId){
+  if(!historyPanel)return;
+  const id=crypto.randomUUID();pendingSoloPlays.set(id,mapId);
+  return id;
+}
+function finishSoloPlay(id,mapId,win){
+  if(id && historyPanel)void request('record-solo',{id,mapId,win}).catch(()=>status('Could not save this solo result.'));
+}
 function game(){return frame?.contentWindow?.matchGame}
 function status(message){statusText.textContent=message;const display=frame?.contentDocument?.querySelector("#match-status");if(display)display.textContent=message}
 function rename(value){
@@ -75,7 +84,7 @@ async function request(action,fields={}){
   const response=await fetch(endpoint,{method:"POST",headers:{Authorization:"Bearer "+token,"Content-Type":"application/json"},body:JSON.stringify({action,name,...fields}),signal:AbortSignal.timeout(7000)});
   const data=await response.json();if(!response.ok)throw new Error(data.error);return data;
 }
-function availableFriends(){return lastFriends.filter(f=>![...links.values()].some(l=>l.id===f.id))}
+function availableFriends(){return lastFriends.filter(f=>f.online!==false&&![...links.values()].some(l=>l.id===f.id))}
 function updateMembers(){
   if(!game()||!frame.dataset.started)return;
   if(player===1)game().setMembers([{seat:1,name,connected:true},...[...links.values()].map(l=>({seat:l.seat,name:l.name,connected:l.connected&&!l.left}))]);
@@ -83,7 +92,7 @@ function updateMembers(){
 }
 function launchGame(){
   if(!game()||!session||!player)return;
-  if(!frame.dataset.started){frame.dataset.started="true";game().start(player,transmit,player===1?[1,...[...links.values()].map(l=>l.seat)]:[1,player])}
+  if(!frame.dataset.started){frame.dataset.started="true";if(currentCatalog)game().setCatalog(currentCatalog);game().start(player,transmit,player===1?[1,...[...links.values()].map(l=>l.seat)]:[1,player])}
   updateMembers();
   for(const [link,data]of incoming.splice(0))if(links.get(link.room)===link)game().receive(data,player===1?link.seat:1);
 }
@@ -103,20 +112,30 @@ function renderInvitations(){
     toast.append(addAction("Accept",()=>acceptInvite(invite)),addAction("Decline",async()=>{pendingInvites.delete(invite.room);renderInvitations();await request("leave",{room:invite.room})}));host.append(toast);
   }
 }
+function statsLine({wins,played},solo) {
+  return 'Multiplayer · '+wins+' wins · '+(played-wins)+' losses · '+played+' games · '+(played?Math.round(wins*100/played):0)+'% wins'+
+    ' / Solo · '+(solo?.wins??0)+' wins in '+(solo?.played??0)+' games';
+}
 function renderRoster(friends){
   lastFriends=friends;roster.replaceChildren();
-  for(const friend of friends){const row=document.createElement("li");row.append(document.createTextNode(friend.name+" "));
+  for(const friend of friends){const row=document.createElement("li");const dot=document.createElement("span");dot.className="presence-dot"+(friend.online===false?" offline":"");
+    const identity=document.createElement("strong");identity.textContent=friend.name;
+    const detail=document.createElement("small");
+    detail.textContent=(friend.online===false?(friend.lastOnline?"Last online "+new Date(friend.lastOnline).toLocaleString():"Last online unknown"):"Online")+
+      (friend.played!==undefined?" · "+statsLine(friend,friend.solo):"");
+    row.append(dot,identity,detail);
+    if(friend.online===false){roster.append(row);continue}
     const invite=[...pendingInvites.values()].find(i=>i.from===friend.id);
     const button=invite?addAction("Accept",()=>acceptInvite(invite)):addAction("Invite",()=>invitePlayer(friend.id));
     button.disabled=session&&(player!==1||links.size>=3||game()?.started||[...links.values()].some(l=>l.id===friend.id));row.append(button);roster.append(row);
   }
-  if(!friends.length){const row=document.createElement("li");row.textContent="No other players online.";roster.append(row)}
+  if(!friends.length){const row=document.createElement("li");row.textContent="No other players yet.";roster.append(row)}
   game()?.setFriends(availableFriends());
 }
 function makeLink(room,seat,id,name){const link={room,seat,id,name,created:Date.now(),seen:Date.now(),connected:false,accepted:false,relay:false,pc:null,channel:null,state:null,candidates:[],outgoing:Promise.resolve(),lastState:0};links.set(room,link);return link}
 async function invitePlayer(id){
   if(inviting||player!==1||links.size>=3||game()?.started)return;
-  const friend=lastFriends.find(f=>f.id===id);if(!friend||[...links.values()].some(l=>l.id===id))return;
+  const friend=lastFriends.find(f=>f.id===id);if(!friend||friend.online===false||[...links.values()].some(l=>l.id===id))return;
   inviting=true;let reservation;
   try{
     const seat=[2,3,4].find(p=>![...links.values()].some(l=>l.seat===p));
@@ -266,7 +285,7 @@ function renderMatchHistory(data) {
     return;
   }
   if(!historyPanel.open)return;
-  const mapNames={2:"Expanded orchard",3:"Three groves",4:"Grand orchard",5:"Twin branches",6:"Expanded three groves"};
+
   const dateFormat=new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"});
   const item=(label,detail)=>{
     const li=document.createElement("li");
@@ -281,7 +300,7 @@ function renderMatchHistory(data) {
 
   const matches=data.matches.sort((a,b)=>a.finishedAt>b.finishedAt?-1:1).map(match=>{
     const winner=match.players.find(player=>player.seat===match.winner);
-    const map=mapNames[match.rules.map]||TWO_PLAYER_MAPS[match.rules.map].name;
+    const map=data.maps?.get(match.id) || defaultMaps[match.rules.map]?.name || "Community map";
     const won=winner?.profile===data.profile;
     const outcome=won?"Won":"Lost";
     const opponents=match.players.filter(player=>player.profile!==data.profile).map(player=>player.name);
@@ -314,6 +333,10 @@ function renderAccount(data) {
   historyPanel.querySelector("#history-owner").textContent=signedIn
     ?"Casual results reported by the host. Your history follows your signed-in profile."
     :"Casual results reported by the host. Your history is linked to this browser.";
+  const stats=document.querySelector("#player-stats");
+  stats.hidden=!data.stats;
+  if(data.stats)stats.textContent=statsLine(data.stats,data.solo);
+  if(signedIn && previous?.profile!==data.profile)document.querySelector("#friends-panel").open=true;
   if(signedIn&&data.name!==previous?.name)rename(data.name);
 }
 
@@ -322,8 +345,21 @@ async function poll(){
     const data=await request("poll");iceServers=data.iceServers||[];
     for(const event of data.events)await handleEvent(event);
     const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
-    renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
+    renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.filter(f=>f.online!==false).length+" players online");
     renderAccount(data.account);
+    if(data.community){
+      if(currentCatalog!==data.community){
+        currentCatalog=data.community;
+        loadMapCatalog(currentCatalog);
+        dispatchEvent(new Event("map-catalog"));
+        game()?.setCatalog(currentCatalog);
+      }
+      mapLibrary.sync(currentCatalog,data.account?.profile);
+      for(const [id,mapId] of pendingSoloPlays){
+        await request('start-map-play',{id,mapId});
+        pendingSoloPlays.delete(id);
+      }
+    }
     renderMatchHistory(data.matchHistory);
     if(!session)status(data.directoryUnavailable?"Lobby is unreachable. Retrying…":"You’re online.");
   }catch{status(session?"Lobby unavailable. Retrying; your match is retained.":"Lobby is unreachable. Retrying…")}
@@ -349,6 +385,7 @@ addEventListener("message",event=>{
     const guests=[...links.values()].filter(link=>seats.includes(link.seat))
       .map(({room,seat,name})=>({room,seat,name}));
     historyRound={round,id:crypto.randomUUID(),hostName:name,guests,rules};
+    if(currentCatalog)void request("start-map-play",{id:historyRound.id,mapId:rules.map}).catch(()=>{});
   }
   if(historyPanel&&player===1&&event.data?.kind==="match-history-finish"&&historyRound?.round===event.data.round){
     const {round,...result}=historyRound;

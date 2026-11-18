@@ -1,5 +1,6 @@
 /* Routes and their optional troop budgets are simulated by the host. */
 let portionPercent=100;
+let soloPlayId;
 function portionControlEnabled(){return !!transformationConfig().portionControl}
 const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let eliminatedBy={};
@@ -47,6 +48,9 @@ function eliminatePlayer(loser,winner){
   sel=null;drag=null;closeWheel();
   const remaining=Object.values(N).filter(n=>n.home);
   over=remaining.length===1?remaining[0].home:0;
+  if(typeof botConfig!=='undefined' && soloPlayId && (loser===1 || over===1) && typeof finishSoloPlay==='function'){
+    finishSoloPlay(soloPlayId,botConfig.map,over===1);soloPlayId=undefined;
+  }
   msg=isEliminated(myPlayer())?'You were eliminated. Your fruit joined the captor. Spectating the remaining players.':'A player was eliminated. Keep playing.';
 }
 function capturedHome(node,loser,winner){
@@ -70,6 +74,7 @@ function applyRouteCommand(owner,data){
         n.routeRemaining[data.to]=Math.min(stock,Math.max(1,Math.floor(stock*data.portion/100)));
       }
       n.routes.push(data.to);
+      if(typeof botConfig!=='undefined' && owner===1 && !soloPlayId && typeof recordSoloPlay==='function')soloPlayId=recordSoloPlay(botConfig.map);
     }
   }
   if(data.kind==='stop'){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
@@ -88,23 +93,12 @@ function bounceTroop(g,progress){
   const baseInit=init;
   init=function(){
     baseInit();
+    soloPlayId=undefined;
     eliminatedBy={};
     for(const n of Object.values(N)){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
-    const duel=TWO_PLAYER_MAPS[transformationConfig().map];
-    if(duel){
-      for(const group of duel.startGroups)for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
-    }else if(N.P4){
-      for(const group of [['P1','P2','P3','P4'],['A1','A4','C1','C4'],['A2','A3','C2','C3'],['B1','B3'],['D1','D2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
-    }else if(N.D1){
-      for(const group of [['P1','P2'],['A1','A3','C1','C3'],['A2','C2'],['B1','B4'],['B2','B3'],['D1','D2','E1','E2']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
-    }else if(N.P3){
-      for(const group of [['P1','P2','P3'],['C2','A1','A3'],['A2','C1','C3']])for(const id of group.slice(1)){N[id].ut=N[group[0]].ut;N[id].stock=[...N[group[0]].stock];}
-    }else if(!N.B3){
-      for(const [a,b] of [['P1','P2'],['C1','A1'],['C2','A2'],['C3','A3'],['B1','B2']]){N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];}
-    }else if(typeof localPlayer!=='undefined'){
-      for(const [a,b] of [['P1','P2'],['C1','A1'],['C2','A2'],['C3','A3'],['B1','B4'],['B2','B3']]){
-        N[b].ut=N[a].ut;N[b].stock=[...N[a].stock];
-      }
+    for(const group of selectedLayout(transformationConfig()).startGroups){
+      const first=N[group[0]];
+      for(const id of group.slice(1)){N[id].ut=first.ut;N[id].stock=[...first.stock]}
     }
     for(const n of Object.values(N))if(n.home){n.ut=Math.max(0,big(n));}
     closeWheel();
