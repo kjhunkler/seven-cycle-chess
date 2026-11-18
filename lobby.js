@@ -263,7 +263,8 @@ function renderMatchHistory(data) {
   const matches=data.matches.sort((a,b)=>a.finishedAt>b.finishedAt?-1:1).map(match=>{
     const winner=match.players.find(player=>player.seat===match.winner);
     const map=mapNames[match.rules.map]||TWO_PLAYER_MAPS[match.rules.map].name;
-    const outcome=winner?.profile===data.profile?"Won":winner?winner.name+" won":"Bot "+match.winner+" won";
+    const won=winner?.profile===data.profile;
+    const outcome=won?"Won":"Lost";
     const opponents=match.players.filter(player=>player.profile!==data.profile).map(player=>player.name);
     const players=opponents.length?" vs "+opponents.join(", "):" · shared browser";
     const duration=Math.floor(match.durationSeconds/60)+":"+String(match.durationSeconds%60).padStart(2,"0");
@@ -274,7 +275,8 @@ function renderMatchHistory(data) {
       rules.productionRotation&&"Production rotation",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
     ].filter(Boolean);
     const date=dateFormat.format(Number(match.finishedAt/1000n));
-    return item(outcome+players,[map,duration,date,speed,...extras].join(" · "));
+    const winnerLabel=won?"":(winner?.name||"Bot "+match.winner)+" won";
+    return item(outcome+players,[winnerLabel,map,duration,date,speed,...extras].filter(Boolean).join(" · "));
   });
   recent.replaceChildren(...(matches.length?matches:[item("No completed online matches yet.")]));
 
