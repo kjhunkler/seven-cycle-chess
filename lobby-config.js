@@ -1,3 +1,4 @@
 window.FRUIT_WARS_LOBBY = "";
 window.FRUIT_WARS_TURN_ENDPOINT = "";
 window.FRUIT_WARS_SPACETIME_DB = "";
+window.FRUIT_WARS_AUTH_CLIENT = "";

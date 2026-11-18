@@ -33,6 +33,23 @@ const historyIdentity = table({}, {
   profile: t.u64(),
 });
 
+const account = table({}, {
+  identity: t.identity().primaryKey(),
+  profile: t.u64().unique(),
+  name: t.string(),
+});
+
+const accountSession = table({}, {
+  lobbyIdentity: t.identity().primaryKey(),
+  accountIdentity: t.identity(),
+});
+
+const accountLink = table({}, {
+  lobbyIdentity: t.identity().primaryKey(),
+  nonce: t.string().unique(),
+  expiresAt: t.u64(),
+});
+
 const historyGuest = table({}, {
   room: t.string().primaryKey(),
   host: t.u64().index('btree'),
@@ -81,7 +98,8 @@ const rivalry = table({}, {
 
 const lobby = schema({
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
-});
+  account, accountSession, accountLink,
+}, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()) } });
 export default lobby;
 
 const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/;
@@ -136,6 +154,8 @@ export const disconnect = lobby.clientDisconnected(ctx => {
   ctx.db.player.id.delete(current.id);
   ctx.db.session.identity.delete(ctx.sender);
   ctx.db.historyIdentity.identity.delete(ctx.sender);
+  ctx.db.accountSession.lobbyIdentity.delete(ctx.sender);
+  ctx.db.accountLink.lobbyIdentity.delete(ctx.sender);
   for (const row of [...ctx.db.invitation.recipient.filter(ctx.sender), ...ctx.db.invitation.sender.filter(ctx.sender)]) {
     ctx.db.invitation.room.delete(row.room);
   }
@@ -213,10 +233,78 @@ export const registerHistory = lobby.reducer({ credential: t.string() }, (ctx, {
   }
   const profile = ctx.db.historyProfile.credential.find(credential)
     ?? ctx.db.historyProfile.insert({ id: 0n, credential });
+  if (ctx.db.account.profile.find(profile.id)) {
+    throw new SenderError('This browser history is linked to an account.');
+  }
   const identity = ctx.db.historyIdentity.identity.find(ctx.sender);
   if (identity?.profile === profile.id) return;
   if (identity) throw new SenderError('This connection already has a history profile.');
   ctx.db.historyIdentity.insert({ identity: ctx.sender, profile: profile.id });
+});
+
+export const myAccount = lobby.view(
+  { public: true }, t.option(t.object('AccountSummary', { name: t.string(), profile: t.u64() })),
+  ctx => {
+    const link = ctx.db.accountSession.lobbyIdentity.find(ctx.sender);
+    const row = link && ctx.db.account.identity.find(link.accountIdentity);
+    return row ? { name: row.name, profile: row.profile } : undefined;
+  },
+);
+
+export const requestAccountLink = lobby.reducer({ nonce: t.string() }, (ctx, { nonce }) => {
+  if (!ctx.db.session.identity.find(ctx.sender) || !uuid.test(nonce)) {
+    throw new SenderError('Join the lobby before signing in.');
+  }
+  ctx.db.accountLink.lobbyIdentity.delete(ctx.sender);
+  ctx.db.accountLink.insert({
+    lobbyIdentity: ctx.sender, nonce, expiresAt: ctx.timestamp.microsSinceUnixEpoch + 60_000_000n,
+  });
+});
+
+export const connectAccount = lobby.reducer({ nonce: t.string() }, (ctx, { nonce }) => {
+  const jwt = ctx.senderAuth.jwt;
+  const client = ctx.env.FRUIT_WARS_AUTH_CLIENT;
+  if (!client || jwt?.issuer !== 'https://auth.spacetimedb.com/oidc' ||
+      !jwt.audience.includes(client) || jwt.fullPayload.email_verified !== true) {
+    throw new SenderError('A verified Fruit Wars sign-in is required.');
+  }
+  const link = ctx.db.accountLink.nonce.find(nonce);
+  const session = link && ctx.db.session.identity.find(link.lobbyIdentity);
+  const player = session && ctx.db.player.id.find(session.id);
+  if (!link || !player || link.expiresAt <= ctx.timestamp.microsSinceUnixEpoch) {
+    throw new SenderError('This sign-in request has expired.');
+  }
+  const current = ctx.db.historyIdentity.identity.find(link.lobbyIdentity);
+  let profile = ctx.db.account.identity.find(ctx.sender);
+  if (!profile) {
+    if (!current || ctx.db.account.profile.find(current.profile)) {
+      throw new SenderError('Open your guest profile before creating an account.');
+    }
+    profile = ctx.db.account.insert({ identity: ctx.sender, profile: current.profile, name: player.name });
+  }
+  ctx.db.accountLink.lobbyIdentity.delete(link.lobbyIdentity);
+  ctx.db.accountSession.lobbyIdentity.delete(link.lobbyIdentity);
+  ctx.db.accountSession.insert({ lobbyIdentity: link.lobbyIdentity, accountIdentity: ctx.sender });
+  ctx.db.historyIdentity.identity.delete(link.lobbyIdentity);
+  ctx.db.historyIdentity.insert({ identity: link.lobbyIdentity, profile: profile.profile });
+  ctx.db.player.id.update({ ...player, name: profile.name });
+});
+
+export const renameAccount = lobby.reducer({ name: t.string() }, (ctx, { name }) => {
+  const link = ctx.db.accountSession.lobbyIdentity.find(ctx.sender);
+  const profile = link && ctx.db.account.identity.find(link.accountIdentity);
+  const displayName = name.trim();
+  if (!profile || !displayName || displayName.length > 32) {
+    throw new SenderError('Enter a display name between 1 and 32 characters.');
+  }
+  ctx.db.account.identity.update({ ...profile, name: displayName });
+});
+
+export const signOutAccount = lobby.reducer(ctx => {
+  ctx.db.accountLink.lobbyIdentity.delete(ctx.sender);
+  if (ctx.db.accountSession.lobbyIdentity.delete(ctx.sender)) {
+    ctx.db.historyIdentity.identity.delete(ctx.sender);
+  }
 });
 
 export const acceptHistoryInvite = lobby.reducer({ room: t.string() }, (ctx, { room }) => {

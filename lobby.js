@@ -8,6 +8,11 @@ const endpoint = window.FRUIT_WARS_LOBBY || (local && !window.FRUIT_WARS_SPACETI
 const turnEndpoint = endpoint ? "" : window.FRUIT_WARS_TURN_ENDPOINT;
 const historyPanel = !endpoint && window.FRUIT_WARS_SPACETIME_DB && document.querySelector("#match-history");
 if(historyPanel)historyPanel.hidden=false;
+const accountPanel = historyPanel && window.FRUIT_WARS_AUTH_CLIENT && document.querySelector("#profile-account");
+const accountButton = accountPanel && accountPanel.querySelector("#account-action");
+const accountStatus = accountPanel && accountPanel.querySelector("#account-status");
+let signedInAccount;
+if(accountPanel)accountPanel.hidden=false;
 const savedName = localStorage.getItem("fruit-wars-name") || ("Player " + crypto.randomUUID().slice(0,6).toUpperCase());
 // Connections are per tab, so two tabs in one browser can occupy different seats.
 const token = crypto.randomUUID();
@@ -54,6 +59,16 @@ function rename(value){
   document.querySelector("#profile-name").textContent=name;labelProfile(document.querySelector("#friend-summary"),name+" · player profile and friends");
   if(frame?.contentDocument){const field=frame.contentDocument.querySelector("#match-name");if(field)field.value=name}
   updateMembers();
+}
+
+async function saveName(value){
+  rename(value);
+  try{
+    if(signedInAccount?.profile!==undefined)await request("rename-account");
+    status("Name saved.");
+  }catch{
+    status("Could not sync your display name. Try again.");
+  }
 }
 async function request(action,fields={}){
   if(!endpoint)return publicLobby(action,name,fields);
@@ -243,10 +258,14 @@ function renderMatchHistory(data) {
   if(!historyPanel)return;
   const historyStatus=historyPanel.querySelector("#history-status");
   historyStatus.textContent=historyNotice||(data?.saveError??(data?.pending?"Saving match result…":data?"":"Connecting to match history…"));
-  if(!historyPanel.open||!data)return;
-
   const recent=historyPanel.querySelector("#recent-matches");
   const rivalries=historyPanel.querySelector("#head-to-head");
+  if(!data){
+    recent.replaceChildren();
+    rivalries.replaceChildren();
+    return;
+  }
+  if(!historyPanel.open)return;
   const mapNames={2:"Expanded orchard",3:"Three groves",4:"Grand orchard",5:"Twin branches",6:"Expanded three groves"};
   const dateFormat=new Intl.DateTimeFormat(undefined,{dateStyle:"medium",timeStyle:"short"});
   const item=(label,detail)=>{
@@ -285,12 +304,26 @@ function renderMatchHistory(data) {
   rivalries.replaceChildren(...(records.length?records:[item("No head-to-head records yet.")]));
 }
 
+function renderAccount(data) {
+  if(!accountPanel||!data)return;
+  const previous=signedInAccount;
+  signedInAccount=data;
+  const signedIn=data.profile!==undefined;
+  accountButton.textContent=signedIn?"Sign out":"Sign in with email";
+  accountStatus.textContent=data.message||(signedIn?"Profile synced.":"");
+  historyPanel.querySelector("#history-owner").textContent=signedIn
+    ?"Casual results reported by the host. Your history follows your signed-in profile."
+    :"Casual results reported by the host. Your history is linked to this browser.";
+  if(signedIn&&data.name!==previous?.name)rename(data.name);
+}
+
 async function poll(){
   try{
     const data=await request("poll");iceServers=data.iceServers||[];
     for(const event of data.events)await handleEvent(event);
     const now=Date.now();for(const [room,invite]of pendingInvites)if(invite.expiresAt<=now)pendingInvites.delete(room);
     renderInvitations();renderRoster(data.friends);labelProfile(document.querySelector("#friend-summary"),name+" · "+data.friends.length+" players online");
+    renderAccount(data.account);
     renderMatchHistory(data.matchHistory);
     if(!session)status(data.directoryUnavailable?"Lobby is unreachable. Retrying…":"You’re online.");
   }catch{status(session?"Lobby unavailable. Retrying; your match is retained.":"Lobby is unreachable. Retrying…")}
@@ -324,11 +357,25 @@ addEventListener("message",event=>{
     void request("record-match",{...result,winner,durationSeconds}).catch(()=>{historyNotice="A match result could not be saved."});
   }
   if(event.data?.kind==="leave-match")reset("You left the match.");
-  if(event.data?.kind==="rename"){rename(event.data.name);status("Name saved.")}
+  if(event.data?.kind==="rename")void saveName(event.data.name);
   if(event.data?.kind==="invite-player")void invitePlayer(event.data.to).catch(error=>status(error.message));
   if(event.data?.kind==="remove-player"&&player===1&&!game()?.started){const link=[...links.values()].find(l=>l.seat===event.data.seat);if(link){void request("leave",{room:link.room}).catch(()=>{});removeLink(link,"Player removed from setup.")}}
 });
 addEventListener("popstate",()=>{if(frame)reset("You left the match.")});
-form.onsubmit=event=>{event.preventDefault();rename(nameInput.value);form.hidden=true;status("Name saved.")};
+form.onsubmit=event=>{
+  event.preventDefault();
+  form.hidden=true;
+  void saveName(nameInput.value);
+};
+if(accountButton)accountButton.onclick=async()=>{
+  accountButton.disabled=true;
+  try {
+    await request(signedInAccount?.profile!==undefined?"sign-out":"sign-in");
+  } catch {
+    accountStatus.textContent="Could not change sign-in status. Try again.";
+  } finally {
+    accountButton.disabled=false;
+  }
+};
 document.querySelector("#edit-profile-name").onclick=()=>{form.hidden=!form.hidden;if(!form.hidden)nameInput.focus()};
 status("Connecting to the lobby…");poll();

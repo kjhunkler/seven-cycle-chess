@@ -37,13 +37,18 @@ import {
 import AcceptHistoryInviteReducer from "./accept_history_invite_reducer";
 import AcknowledgeInvitationReducer from "./acknowledge_invitation_reducer";
 import AnnounceReducer from "./announce_reducer";
+import ConnectAccountReducer from "./connect_account_reducer";
 import RecordMatchReducer from "./record_match_reducer";
 import RegisterHistoryReducer from "./register_history_reducer";
+import RenameAccountReducer from "./rename_account_reducer";
+import RequestAccountLinkReducer from "./request_account_link_reducer";
 import SendInvitationReducer from "./send_invitation_reducer";
+import SignOutAccountReducer from "./sign_out_account_reducer";
 
 // Import all procedure arg schemas
 
 // Import all table schema definitions
+import MyAccountRow from "./my_account_table";
 import MyHistoryProfileRow from "./my_history_profile_table";
 import MyMatchesRow from "./my_matches_table";
 import MyRivalriesRow from "./my_rivalries_table";
@@ -65,6 +70,13 @@ const tablesSchema = __schema({
       { name: 'player_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, PlayerRow),
+  myAccount: __table({
+    name: 'my_account',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyAccountRow),
   myHistoryProfile: __table({
     name: 'my_history_profile',
     indexes: [
@@ -100,9 +112,13 @@ const reducersSchema = __reducers(
   __reducerSchema("accept_history_invite", AcceptHistoryInviteReducer),
   __reducerSchema("acknowledge_invitation", AcknowledgeInvitationReducer),
   __reducerSchema("announce", AnnounceReducer),
+  __reducerSchema("connect_account", ConnectAccountReducer),
   __reducerSchema("record_match", RecordMatchReducer),
   __reducerSchema("register_history", RegisterHistoryReducer),
+  __reducerSchema("rename_account", RenameAccountReducer),
+  __reducerSchema("request_account_link", RequestAccountLinkReducer),
   __reducerSchema("send_invitation", SendInvitationReducer),
+  __reducerSchema("sign_out_account", SignOutAccountReducer),
 );
 
 /** The schema information for all procedures in this module. This is defined the same way as the procedures would have been defined in the server. */

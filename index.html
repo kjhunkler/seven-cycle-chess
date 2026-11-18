@@ -50,11 +50,15 @@ small{color:var(--mut)}
     <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
     <button>Save</button>
   </form>
+  <div id="profile-account" hidden>
+    <button type="button" id="account-action">Sign in with email</button>
+    <small id="account-status" role="status"></small>
+  </div>
   <p role="status">Connecting to players…</p>
   <strong>Online players</strong><ul id="friends"></ul>
   <details id="match-history" hidden>
     <summary>Match history</summary>
-    <small>Casual results reported by the host. Your history is linked to this browser.</small>
+    <small id="history-owner">Casual results reported by the host. Your history is linked to this browser.</small>
     <p id="history-status" role="status"></p>
     <h3>Recent matches</h3><ul id="recent-matches"></ul>
     <h3>Head-to-head</h3><ul id="head-to-head"></ul>

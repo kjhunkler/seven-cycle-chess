@@ -49,7 +49,7 @@ const publicLobby = (() => {
   async function open() {
     if (database) {
       const {createLobbyDirectory} = await import("./spacetime-lobby-client.js");
-      directory = createLobbyDirectory(database, window.FRUIT_WARS_SPACETIME_HOST || undefined);
+      directory = createLobbyDirectory(database, window.FRUIT_WARS_SPACETIME_HOST || undefined, window.FRUIT_WARS_AUTH_CLIENT);
     }
     keys = await crypto.subtle.generateKey({name:"ECDH",namedCurve:"P-256"},true,["deriveKey"]);
     publicKey = await crypto.subtle.exportKey("jwk",keys.publicKey);
@@ -65,6 +65,7 @@ const publicLobby = (() => {
     opening ??= open().catch(error => {opening=undefined;throw error});
     await opening;
     if (action === "record-match") return directory?.record(fields);
+    if (["sign-in","sign-out","rename-account"].includes(action)) return directory?.accountAction(action,name);
     if (!ready) throw new Error("Connecting to the public signaling service.");
     const now = Date.now();
     if (action === "poll") {
@@ -83,7 +84,8 @@ const publicLobby = (() => {
       }
       for (const [key,room] of rooms) if (!room.accepted&&now-room.seen > 30_000) {rooms.delete(key);inbox.push({kind:"expired",room:key})}
       return {iceServers:[{urls:"stun:stun.l.google.com:19302"}],
-        friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0),directoryUnavailable,matchHistory:directory?.history()};
+        friends:[...friends].map(([id,friend]) => ({id,name:friend.name})),events:inbox.splice(0),directoryUnavailable,
+        matchHistory:directory?.history(),account:directory?.account()};
     }
     if (action === "invite") {
       const friend = friends.get(fields.to);

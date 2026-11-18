@@ -10,6 +10,32 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 
+export const Account = __t.object("Account", {
+  identity: __t.identity(),
+  profile: __t.u64(),
+  name: __t.string(),
+});
+export type Account = __Infer<typeof Account>;
+
+export const AccountLink = __t.object("AccountLink", {
+  lobbyIdentity: __t.identity(),
+  nonce: __t.string(),
+  expiresAt: __t.u64(),
+});
+export type AccountLink = __Infer<typeof AccountLink>;
+
+export const AccountSession = __t.object("AccountSession", {
+  lobbyIdentity: __t.identity(),
+  accountIdentity: __t.identity(),
+});
+export type AccountSession = __Infer<typeof AccountSession>;
+
+export const AccountSummary = __t.object("AccountSummary", {
+  name: __t.string(),
+  profile: __t.u64(),
+});
+export type AccountSummary = __Infer<typeof AccountSummary>;
+
 export const GuestSeat = __t.object("GuestSeat", {
   room: __t.string(),
   seat: __t.u8(),
@@ -94,6 +120,9 @@ export const MatchRules = __t.object("MatchRules", {
   transformationTime: __t.f64(),
 });
 export type MatchRules = __Infer<typeof MatchRules>;
+
+export const MyAccount = __t.object("MyAccount", {});
+export type MyAccount = __Infer<typeof MyAccount>;
 
 export const MyHistoryProfile = __t.object("MyHistoryProfile", {});
 export type MyHistoryProfile = __Infer<typeof MyHistoryProfile>;
