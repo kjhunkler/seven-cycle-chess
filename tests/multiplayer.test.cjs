@@ -40,11 +40,11 @@ test('eliminated host can spectate and simulation continues',()=>{const h=start(
 test('same-frame arrivals from an eliminated player use their new owner',()=>{const h=start(4);h.run('N.P3.stock.fill(0);arrive({to:"P3",owner:1,type:0,n:1});N.A3.owner=1;N.A3.ut=0;N.A3.stock=[4,0,0,0,0,0,0];arrive({to:"A3",owner:3,type:0,n:1})');assert.equal(h.run('N.A3.stock[0]'),5)});
 test('all seats receive shops; bots charge and use them',()=>{const h=start(4,true);assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),8);h.run('N.P3.stock=[20,0,0,0,0,0,0];botShopTurn(3)');assert.ok(h.run('N.P3.orders.some(o=>o.to==="S3H")'));h.run('N.S3H.abilityReady=true;botShopTurn(3)');assert.equal(h.run('N.P3.shields'),1)});
 test('solo four-player mode uses the same elimination rules',()=>{const h=createGame('index.html');h.run('botConfig.map=4;init();N.P3.stock.fill(0);arrive({to:"P3",owner:1,type:0,n:1});render()');assert.equal(h.run('N.P3.disabled'),true);assert.equal(h.run('over'),0)});
-for(const page of ['index.html','match.html'])test(page+': triangular map preserves nodes and edges under rotation',()=>{
+for(const page of ['index.html','match.html'])for(const map of [3,6])test(page+': triangular map '+map+' preserves nodes and edges under rotation',()=>{
  const h=createGame(page);
- h.run(page==='index.html'?'botConfig.map=3;botConfig.shops=false;init()':'lobbyConfig.map=3;lobbyConfig.shops=false;init()');
- assert.equal(h.run('Object.keys(N).length'),22);
- assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),66);
+ h.run(page==='index.html'?`botConfig.map=${map};botConfig.shops=false;init()`:`lobbyConfig.map=${map};lobbyConfig.shops=false;init()`);
+ assert.equal(h.run('Object.keys(N).length'),map===3?10:22);
+ assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),map===3?24:66);
  assert.equal(h.run(`Object.values(N).every(n=>{
  const p=rotateBoardPoint(n,2*Math.PI/3);
  const rotated=Object.values(N).find(b=>Math.hypot(p.x-b.x,p.y-b.y)<1e-8);
@@ -75,6 +75,22 @@ test('Twin branches seat capacity is two and adding a third player changes map',
  assert.equal(h.run('lobbyConfig.map'),5);
  h.run('matchGame.setMembers([{seat:1,name:"One",connected:true},{seat:2,name:"Two",connected:true},{seat:3,name:"Three",connected:true}])');
  assert.equal(h.run('lobbyConfig.map'),3);
+});
+test('both three-player maps are selectable and expanded map respects seat capacity',()=>{
+ const h=createGame();
+ h.run('matchGame.start(1,()=>{},[1,2,3])');
+ assert.equal(h.run('lobbyConfig.map'),3);
+ assert.equal(h.run('Object.keys(N).length'),10);
+ h.run('lobbyAction(2,{action:"config",config:{...lobbyConfig,map:6,shops:true}});init()');
+ assert.equal(h.run('lobbyConfig.map'),6);
+ assert.equal(h.run('Object.values(N).filter(n=>!n.shop).length'),22);
+ assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),6);
+ h.run('render();matchGame.setMembers([1,2,3].map(seat=>({seat,name:"Player "+seat,connected:true})))');
+ assert.equal(h.run('lobbyConfig.map'),6,'three seats retain expanded map');
+ h.run('matchGame.setMembers([1,2,3,4].map(seat=>({seat,name:"Player "+seat,connected:true})))');
+ assert.equal(h.run('lobbyConfig.map'),4,'fourth seat requires four-player map');
+ assert.equal(h.run('validConfig({...lobbyConfig,map:6})'),false);
+ assert.equal(h.run('validConfig({...lobbyConfig,map:3})'),false);
 });
 for(const page of ['index.html','match.html'])test(page+': four-player schema has both axis symmetries and four jumps between all castles',()=>{
  const h=createGame(page);

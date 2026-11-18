@@ -33,7 +33,7 @@ button{min-height:44px}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
 </style><link rel="stylesheet" href="./board-ui.css?v=23"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
-<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
+<dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Invite up to three friends. Everyone must ready up. Open seats are filled by bots.</p><label>Map <select name="map"><option value="2">Expanded orchard · 2 players</option><option value="5">Twin branches · 2 players</option><option value="3">Three groves · 3 players</option><option value="6">Expanded three groves · 3 players</option><option value="4">Grand orchard · 4 players</option></select></label><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-toggle"><input name="shops" type="checkbox"> Enable Shop Nodes</label><label class="shop-toggle"><input name="portionControl" type="checkbox"> Portion control</label><label class="shop-toggle"><input name="noQueue" type="checkbox"> No queue</label><label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="transformationWave" type="checkbox"> Transformation Wave</label><label>Transformation time (seconds) <input name="transformationTime" type="number" min="1" max="120" step="0.1" value="10" disabled></label><p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
   <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
@@ -58,12 +58,14 @@ const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 
 const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
 // Expand the original triangle with a node on every path and symmetric bypasses.
 const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
-const THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
+const THREE_EDGES=THREE_PATHS;
+const LARGE_THREE_POS={...THREE_POS};
+const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
   const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
-  THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
+  LARGE_THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
   return [[a,id],[id,b]];
 });
-THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
+LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
 const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
@@ -77,8 +79,8 @@ function init(){
   transformationClock=0;
   productionCycle=null;
   N={};shakeNodes={};botThink=0;
-  if([3,4,5].includes(lobbyConfig.map)){
-    const positions=lobbyConfig.map===4?FOUR_POS:lobbyConfig.map===5?BRANCH_POS:THREE_POS,edges=lobbyConfig.map===4?FOUR_EDGES:lobbyConfig.map===5?BRANCH_EDGES:THREE_EDGES;
+  if([3,4,5,6].includes(lobbyConfig.map)){
+    const positions=lobbyConfig.map===4?FOUR_POS:lobbyConfig.map===5?BRANCH_POS:lobbyConfig.map===6?LARGE_THREE_POS:THREE_POS,edges=lobbyConfig.map===4?FOUR_EDGES:lobbyConfig.map===5?BRANCH_EDGES:lobbyConfig.map===6?LARGE_THREE_EDGES:THREE_EDGES;
     for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
     for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
   }else{
@@ -91,7 +93,7 @@ function init(){
 
   }
 
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,lobbyConfig.map===3,lobbyConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
+  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(lobbyConfig.map),lobbyConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
     if(n.shop)continue;
     if(n.castle){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -261,7 +263,7 @@ function snapshot(viewer=2){
   }));
   return {kind:"state",sequence:sequence++,nodes,units:G.filter(g=>g.owner===viewer||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:castleConquests,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&[2,3,4,5].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.noQueue===undefined||typeof config.noQueue==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&(config.map===5?2:config.map)>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&[2,3,4,5,6].includes(config.map)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.noQueue===undefined||typeof config.noQueue==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&(config.map===5?2:config.map===6?3:config.map)>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
@@ -296,7 +298,7 @@ window.matchGame={
     if(localPlayer!==1)return;
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
     lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
-    if(changed&&!gameStarted){if(Math.max(...seats)>(lobbyConfig.map===5?2:lobbyConfig.map))lobbyConfig.map=Math.max(...seats);configVersion++;lobbyReady=[false,false,false,false]}
+    if(changed&&!gameStarted){if(Math.max(...seats)>(lobbyConfig.map===5?2:lobbyConfig.map===6?3:lobbyConfig.map))lobbyConfig.map=Math.max(...seats);configVersion++;lobbyReady=[false,false,false,false]}
     sendLobby();updateLobbyUI();beginMatch();
   },
   setFriends(friends){
@@ -449,4 +451,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=23"></script></body></html>
+</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=24"></script></body></html>

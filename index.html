@@ -61,12 +61,14 @@ const BRANCH_EDGES="P2-A1 P2-A3 A1-A2 A2-A3 A1-B1 A2-B1 A2-B2 A3-B2 B1-C1 B1-C2 
 const THREE_POS={P1:[50,96],P2:[89.8371685741,27],P3:[10.1628314259,27],C2:[50,72],A1:[30.9474411167,39],A3:[69.0525588833,39],A2:[50,12],C1:[17.0910346562,69],C3:[82.9089653438,69],B2:[50,50]};
 // Expand the original triangle with a node on every path and symmetric bypasses.
 const THREE_PATHS="P1-C2 P2-A3 P3-A1 A2-A1 A2-A3 C1-A1 C1-C2 C3-A3 C3-C2 B2-A1 B2-A3 B2-C2".split(" ").map(e=>e.split("-"));
-const THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
+const THREE_EDGES=THREE_PATHS;
+const LARGE_THREE_POS={...THREE_POS};
+const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
   const id=`M${i}`,p=THREE_POS[a],q=THREE_POS[b];
-  THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
+  LARGE_THREE_POS[id]=[(p[0]+q[0])/2,(p[1]+q[1])/2];
   return [[a,id],[id,b]];
 });
-THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
+LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
 const shopPosition=(c,kind,triangular,four=false)=>four?{x:c.x+(kind==="shield"?-15:15),y:c.y<50?2:98}:triangular?rotateBoardPoint({x:kind==="shield"?26:74,y:90},(Number(c.id.slice(1))-1)*2*Math.PI/3):{x:Math.max(8,Math.min(92,c.x+(kind==="shield"?-36:36))),y:c.y+(c.y<50?5:-5)};
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
@@ -84,10 +86,10 @@ function init(){
   transformationClock=0;
   N={};
   CONFIG.timeScale=botConfig.speed;
-  const positions=botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes};
+  const positions=botConfig.map===4?FOUR_POS:botConfig.map===5?BRANCH_POS:botConfig.map===6?LARGE_THREE_POS:botConfig.map===3?THREE_POS:{...POS,...extraMaps[botConfig.map].nodes};
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,castle:id[0]==="P",owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[]};
-  const edges=botConfig.map===4?FOUR_EDGES:botConfig.map===5?BRANCH_EDGES:botConfig.map===3?THREE_EDGES:[...EDGES,...extraMaps[botConfig.map].edges];
-  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,botConfig.map===3,botConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
+  const edges=botConfig.map===4?FOUR_EDGES:botConfig.map===5?BRANCH_EDGES:botConfig.map===6?LARGE_THREE_EDGES:botConfig.map===3?THREE_EDGES:[...EDGES,...extraMaps[botConfig.map].edges];
+  if(botConfig.shops)for(const owner of Object.values(N).filter(n=>n.castle).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...shopPosition(c,kind,[3,6].includes(botConfig.map),botConfig.map===4),castle:false,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,q:[],orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(positions)}
   edges.forEach(([a,b])=>{N[a].adj.push(b);N[b].adj.push(a)});
   for(const n of Object.values(N)){if(n.shop)continue;const ty=Math.random()*7|0;
     if(n.castle){n.owner=Number(n.id.slice(1));n.stock[ty]=CONFIG.castleStart}else{n.ut=ty;n.stock[ty]=CONFIG.neutralGarrison}}
@@ -333,4 +335,4 @@ function openWheel(id,x,y){
 }
 init();requestAnimationFrame(loop);
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=23"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
+</script><script src="./controls.js?v=20"></script><script src="./board-ui.js?v=24"></script><script src="./lobby-config.js"></script><script src="https://cdn.jsdelivr.net/npm/mqtt@5.14.1/dist/mqtt.min.js"></script><script src="./public-lobby.js"></script><script src="./lobby.js"></script></body></html>
