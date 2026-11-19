@@ -41,6 +41,19 @@
   const art = i => compactBoard ? `<circle cx="12" cy="12" r="9" fill="${troopColors[i]}"/>` : `<g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g>`;
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const actionPaths={
+    fit:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8m-4-4v8"/>',
+    settings:'<path d="m9 4 1-2h4l1 2 2 1 2-.1 2 3.4-1 1.7v4l1 1.7-2 3.4-2-.1-2 1-1 2h-4l-1-2-2-1-2 .1-2-3.4 1-1.7v-4L3 8.4 5 5l2 .1Z"/><circle cx="12" cy="12" r="3"/>',
+    expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
+    collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>',
+    play:'<path d="m8 4 12 8-12 8Z"/>',
+    pause:'<path d="M8 4v16M16 4v16"/>'
+  };
+  const setAction=(button,action,label)=>{
+    button.innerHTML='<svg class="battle-action-icon" viewBox="0 0 24 24" aria-hidden="true">'+actionPaths[action]+'</svg><span class="battle-action-label">'+label+'</span>';
+    button.setAttribute('aria-label',label);
+    button.setAttribute('title',label);
+  };
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
   shell.innerHTML = '<div class="battle-tools"><div class="battle-menu"><button type="button" class="battle-menu-toggle" aria-label="Board options" title="Board options" aria-expanded="false" aria-controls="battle-menu-actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button><div id="battle-menu-actions" class="battle-menu-actions" hidden><button type="button" class="battle-fit-button" title="Fit the whole board">Fit board</button><button type="button" class="battle-settings-button">Battle settings</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button></div></div></div>';
@@ -53,12 +66,18 @@
     if(restoreFocus)menuToggle.focus();
   };
   menuToggle.onclick=()=>{
+    if(menuActions.hidden&&typeof online==='undefined'&&window.botGame.active)window.botGame.pause();
     menuActions.hidden=!menuActions.hidden;
     menuToggle.setAttribute('aria-expanded',String(!menuActions.hidden));
   };
   menuActions.addEventListener('click',event=>{if(event.target.closest('button'))closeBoardMenu(!settingsDialog.open);});
   document.addEventListener('pointerdown',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
   document.addEventListener('focusin',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
+  menuActions.hidden=true;
+  const fitButton=shell.querySelector('.battle-fit-button');
+  fitButton.hidden=true;
+  setAction(fitButton,'fit','Fit board');
+  setAction(shell.querySelector('.battle-settings-button'),'settings','Battle settings');
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
@@ -81,7 +100,7 @@
     soloToggle=document.createElement('button');
     soloToggle.type='button';soloToggle.className='battle-solo-toggle';
     soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
-    shell.querySelector('.battle-tools').append(soloToggle);
+    shell.querySelector('.battle-tools').append(soloToggle,boardMenu);
   }
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
@@ -91,11 +110,17 @@
   settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   const fullscreenButton=shell.querySelector('.battle-fullscreen-button');
+  setAction(fullscreenButton,'expand','Full screen');
   let boardFullscreen=false,nativeFullscreen=false;
   const setBoardFullscreen=active=>{
     boardFullscreen=active;
     document.documentElement.classList.toggle('board-fullscreen',active);
-    fullscreenButton.textContent=active?'Exit full screen':'Full screen';
+    setAction(fullscreenButton,active?'collapse':'expand',active?'Exit full screen':'Full screen');
+    fitButton.hidden=!active;
+    if(soloToggle){
+      if(active)menuActions.append(soloToggle);
+      else shell.querySelector('.battle-tools').append(soloToggle,boardMenu);
+    }
     fullscreenButton.setAttribute('aria-pressed',String(active));
     window.boardViewport.fit();
   };
@@ -333,7 +358,12 @@
     board.innerHTML=h;if(focused)board.querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
     refreshWheel();
     shell.classList.toggle('battle-ended',!!over);
-    if(soloToggle){soloToggle.textContent=!window.botGame.started?'Start bot game':window.botGame.paused?'Resume bot game':'Pause bot game';soloToggle.disabled=!!over;}
+    if(soloToggle){
+      const paused=window.botGame.paused;
+      setAction(soloToggle,paused?'play':'pause',!window.botGame.started?'Start bot game':paused?'Resume bot game':'Pause bot game');
+      soloToggle.hidden=!!over;
+      soloToggle.disabled=!!over;
+    }
   };
   panel=function(){
     const me=player();

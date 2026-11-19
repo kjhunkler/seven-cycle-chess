@@ -85,10 +85,10 @@ for(const page of ['index.html','match.html']){
     pointer('pointerup',2,350,300);
     await button.onclick();
     assert.ok(classes.has('board-fullscreen'));
-    assert.equal(button.textContent,'Exit full screen');
+    assert.ok(button.innerHTML.includes('Exit full screen'));
     near(game.view()[2],110);
     await button.onclick();
     assert.ok(!classes.has('board-fullscreen'));
-    assert.equal(button.textContent,'Full screen');
+    assert.ok(button.innerHTML.includes('Full screen'));
   });
 }
