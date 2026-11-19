@@ -11,12 +11,12 @@ function start(page='match.html',seat=1){
 for(const page of ['index.html','match.html']){
   test(page+' allied reinforcement requires matching fruit and transfers control on arrival',()=>{
     const h=start(page);
-    h.run('N.A1.owner=2;N.A1.ut=3;N.A1.stock=[0,0,0,4,0,0,0];N.A1.shields=2;N.P1.ut=0;N.P1.stock=[6,0,0,0,0,0,0];send("P1","A1");depart(N.P1,.01)');
+    h.run('N.A1.owner=2;N.A1.ut=3;N.A1.stock=[0,0,0,4,0,0,0];N.P1.ut=0;N.P1.stock=[6,0,0,0,0,0,0];send("P1","A1");depart(N.P1,.01)');
     assert.equal(h.run('G.length'),0);
     assert.equal(h.run('N.P1.stock[0]'),6);
     h.run('N.A1.ut=0;N.A1.stock=[4,0,0,0,0,0,0];depart(N.P1,.1);arrive(G.shift())');
     assert.equal(h.run('N.A1.stock[0]'),5);
-    assert.equal(h.run('N.A1.owner===2 && N.A1.shields===2'),true);
+    assert.equal(h.run('N.A1.owner===2'),true);
     h.run('N.A1.routes=["P1"];depart(N.A1,.1)');
     assert.equal(h.run('G[0].owner'),2);
   });
@@ -42,7 +42,7 @@ for(const page of ['index.html','match.html']){
 }
 test('both partners share their bottom row, vision, and viewer-relative colors on every client',()=>{
   const host=start();
-  host.run('N.P3.shields=2;N.P3.routes=["C1"];G=[{owner:3,from:"P3",to:"C1",n:3,type:2,t:.5}]');
+  host.run('N.P3.routes=["C1"];G=[{owner:3,from:"P3",to:"C1",n:3,type:2,t:.5}]');
   for(const seat of [1,2,3,4]){
     const h=start('match.html',seat),mate=seat%2?seat+1:seat-1;
     h.context.packet=JSON.parse(host.run('JSON.stringify(snapshot('+seat+'))'));
@@ -56,7 +56,7 @@ test('both partners share their bottom row, vision, and viewer-relative colors o
     assert.equal(h.run('boardViewPoint(N.P'+seat+','+seat+').x<50'),seat%2===1);
     assert.equal(h.run('JSON.stringify([...vis('+seat+')].sort())===JSON.stringify([...vis('+mate+')].sort())'),true);
     if(seat<=2){
-      assert.equal(h.run('packet.nodes.P3.shields===undefined && packet.nodes.P3.owner===0 && packet.units.length===0'),true);
+      assert.equal(h.run('packet.nodes.P3.owner===0 && packet.units.length===0'),true);
       assert.equal(h.run('packet.nodes.P1.owner===1 && packet.nodes.P2.owner===2'),true);
     }
     h.run('applyCommand('+seat+',{kind:"route",node:"P'+mate+'",to:N.P'+mate+'.adj[0]})');

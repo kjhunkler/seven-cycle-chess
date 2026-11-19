@@ -2,10 +2,9 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
 for(const page of ['index.html','match.html']){
- test(page+': normal node defaults apply and other optional settings default off',()=>{
+ test(page+': normal nodes and match rules have the expected defaults',()=>{
   const h=createGame(page);
-  assert.equal(h.run(page==='index.html'?'!botConfig.fullElimination&&!botConfig.shops&&!botConfig.productionRotation':'!lobbyConfig.fullElimination&&!lobbyConfig.shops&&!lobbyConfig.productionRotation'),true);
-  assert.equal(h.run('productionCycle'),null);
+  assert.equal(h.run(page==='index.html'?'!botConfig.fullElimination&&botConfig.fogOfWar&&!botConfig.diminishingReturns':'!lobbyConfig.fullElimination&&lobbyConfig.fogOfWar&&!lobbyConfig.diminishingReturns'),true);
   assert.equal(h.run('Object.values(N).some(n=>n.shop)'),false);
  });
  test(page+': named nodes produce, transform, resume, and cap like regular nodes',()=>{
@@ -39,14 +38,14 @@ for(const page of ['index.html','match.html']){
 }
 test('online Full elimination setting invalidates readiness and appears in snapshots',()=>{
  const h=createGame();
- h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];lobbyAction(2,{action:"config",config:{map:2,speed:1,shops:false,fullElimination:true,productionRotation:false}})');
+ h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];lobbyAction(2,{action:"config",config:{map:2,speed:1,fullElimination:true}})');
  assert.equal(h.run('lobbyConfig.fullElimination'),true);
  assert.equal(h.run('lobbyReady.some(Boolean)'),false);
  h.run('init();gameStarted=true;applyCommand(1,{kind:"queue",type:0});select("P1");applyCommand(1,{kind:"produce",node:"P1",type:(N.P1.ut+1)%7})');
  assert.equal(h.run('N.P1.q'),undefined);
  assert.equal(h.run('N.P1.cd'),5);
  assert.equal(h.run('snapshot(1).config.fullElimination'),true);
- assert.equal(h.run('validConfig({map:2,speed:1,shops:false,fullElimination:"yes"})'),false);
+ assert.equal(h.run('validConfig({map:2,speed:1,fullElimination:"yes"})'),false);
 });
 for(const page of ['index.html','match.html'])test(page+': named node capture keeps multiplayer elimination rules',()=>{
  const h=createGame(page);

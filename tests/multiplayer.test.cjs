@@ -1,5 +1,5 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const {createGame}=require('./game-harness.cjs');
-function start(map=2,shops=false){const h=createGame();h.run(`matchGame.start(1,()=>{});lobbyConfig={map:${map},speed:.5,shops:${shops}};init();gameStarted=true`);return h}
+function start(map=2){const h=createGame();h.run(`matchGame.start(1,()=>{});lobbyConfig={map:${map},speed:.5};init();gameStarted=true`);return h}
 for(const count of [2,3,4]){
  test(`${count} seats: readiness, command ownership and per-player fog`,()=>{
   const games=Array.from({length:count},()=>createGame()),queue=[];
@@ -17,32 +17,31 @@ for(const count of [2,3,4]){
  });
 }
 test('settings invalidate all ready flags and stale ready packets cannot launch',()=>{
- const h=start(3);h.run('gameStarted=false;humanPlayers=[1,2,3];lobbyReady=[true,true,true,false];lobbyAction(2,{action:"config",config:{map:3,speed:1,shops:true}});lobbyAction(3,{action:"ready",value:true,configVersion:0})');
+ const h=start(3);h.run('gameStarted=false;humanPlayers=[1,2,3];lobbyReady=[true,true,true,false];lobbyAction(2,{action:"config",config:{map:3,speed:1}});lobbyAction(3,{action:"ready",value:true,configVersion:0})');
  assert.equal(h.run('lobbyReady.some(Boolean)'),false);assert.equal(h.run('gameStarted'),false);
- h.run('lobbyAction(3,{action:"config",config:{map:2,speed:1,shops:false}})');assert.equal(h.run('lobbyConfig.map'),3);
+ h.run('lobbyAction(3,{action:"config",config:{map:2,speed:1}})');assert.equal(h.run('lobbyConfig.map'),3);
 });
 test('late client lobby messages and ready actions cannot reset an active match',()=>{
- const h=start();h.run('N.P1.stock[0]=77;matchGame.receive({kind:"lobby",started:false,config:{map:4,speed:1,shops:true}},2);matchGame.receive({kind:"lobby-action",action:"ready",value:false,configVersion:0},2)');assert.equal(h.run('gameStarted'),true);assert.equal(h.run('N.P1.stock[0]'),77);
+ const h=start();h.run('N.P1.stock[0]=77;matchGame.receive({kind:"lobby",started:false,config:{map:4,speed:1}},2);matchGame.receive({kind:"lobby-action",action:"ready",value:false,configVersion:0},2)');assert.equal(h.run('gameStarted'),true);assert.equal(h.run('N.P1.stock[0]'),77);
 });
 test('reconnect retains state, while fresh start resets revisions',()=>{
  const h=start();h.run('N.P1.stock[0]=77;matchGame.rebind(()=>{});matchGame.reconnect(()=>{})');assert.equal(h.run('N.P1.stock[0]'),77);h.run('matchGame.start(2,()=>{});lastLobbyRevision=10;matchGame.start(2,()=>{})');assert.equal(h.run('lastLobbyRevision'),-1);
 });
 test('two-player castle capture still ends the game',()=>{const h=start();h.run('N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:1})');assert.equal(h.run('over'),1)});
 for(const map of [3,4])test(`${map} players: elimination converts territory, queued and moving fruit, disables castle and removes lines`,()=>{
- const h=start(map,true);h.run('N.P3.stock.fill(0);N.A3.owner=3;N.A3.stock=[5,0,0,0,0,0,0];N.A3.ut=0;N.A3.routes=["P3"];N.A3.orders=[{to:"B2",owner:3,type:0,count:2}];G=[{from:"A3",to:"B2",owner:3,type:0,n:1,t:.4},{from:"P3",to:"B2",owner:3,type:0,n:1,t:.4}];arrive({to:"P3",owner:1,type:0,n:1});render();panel()');
+ const h=start(map);h.run('N.P3.stock.fill(0);N.A3.owner=3;N.A3.stock=[5,0,0,0,0,0,0];N.A3.ut=0;N.A3.routes=["P3"];N.A3.orders=[{to:"B2",owner:3,type:0,count:2}];G=[{from:"A3",to:"B2",owner:3,type:0,n:1,t:.4},{from:"P3",to:"B2",owner:3,type:0,n:1,t:.4}];arrive({to:"P3",owner:1,type:0,n:1});render();panel()');
  assert.equal(h.run('over'),0);assert.equal(h.run('isEliminated(3)&&N.P3.owner===1'),true);assert.equal(h.run('N.A3.owner'),1);assert.equal(h.run('N.A3.orders[0].owner'),1);assert.equal(h.run('G[0].owner'),1);assert.equal(h.run('Object.values(N).some(n=>n.adj.includes("P3"))'),true);
- assert.match(h.elements.get('map').innerHTML,/data-id="P3"/);assert.equal(h.run('N.S3H'),undefined);assert.equal(h.run('N.P1.adj.includes("S3H")'),false);
+ assert.match(h.elements.get('map').innerHTML,/data-id="P3"/);
  h.run('applyCommand(3,{kind:"produce",node:"A3",type:1})');assert.equal(h.run('N.A3.pend'),null);
  if(map===4){h.run('N.P4.stock.fill(0);arrive({to:"P4",owner:2,type:0,n:1})');assert.equal(h.run('over'),0)}
  h.run('N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:1})');assert.equal(h.run('over'),1);assert.equal(h.run('N.A3.owner'),1);
 });
 test('eliminated host can spectate and simulation continues',()=>{const h=start(4);h.run('N.P1.stock.fill(0);arrive({to:"P1",owner:3,type:0,n:1});render();panel();step(.1)');assert.equal(h.run('over'),0);assert.equal(h.run('vis().size===Object.keys(N).length'),true);assert.match(h.elements.get('panel').innerHTML,/^$/);assert.match(h.elements.get('msg').innerHTML,/Spectating/)});
 test('same-frame arrivals from an eliminated player use their new owner',()=>{const h=start(4);h.run('N.P3.stock.fill(0);arrive({to:"P3",owner:1,type:0,n:1});N.A3.owner=1;N.A3.ut=0;N.A3.stock=[4,0,0,0,0,0,0];arrive({to:"A3",owner:3,type:0,n:1})');assert.equal(h.run('N.A3.stock[0]'),5)});
-test('all seats receive shops; bots charge and use them',()=>{const h=start(4,true);assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),8);h.run('N.P3.stock=[20,0,0,0,0,0,0];botShopTurn(3)');assert.ok(h.run('N.P3.orders.some(o=>o.to==="S3H")'));h.run('N.S3H.abilityReady=true;botShopTurn(3)');assert.equal(h.run('N.P3.shields'),1)});
 test('solo four-player mode uses the same elimination rules',()=>{const h=createGame('index.html');h.run('botConfig.map=4;init();N.P3.stock.fill(0);arrive({to:"P3",owner:1,type:0,n:1});render()');assert.equal(h.run('isEliminated(3)'),true);assert.equal(h.run('over'),0)});
 for(const page of ['index.html','match.html'])for(const map of [3,6])test(page+': triangular map '+map+' preserves nodes and edges under rotation',()=>{
  const h=createGame(page);
- h.run(page==='index.html'?`botConfig.map=${map};botConfig.shops=false;init()`:`lobbyConfig.map=${map};lobbyConfig.shops=false;init()`);
+ h.run(page==='index.html'?`botConfig.map=${map};init()`:`lobbyConfig.map=${map};init()`);
  assert.equal(h.run('Object.keys(N).length'),map===3?10:22);
  assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),map===3?24:66);
  assert.equal(h.run(`Object.values(N).every(n=>{
@@ -52,9 +51,9 @@ for(const page of ['index.html','match.html'])for(const map of [3,6])test(page+'
  })`),true);
  for(let player=1;player<=3;player++)assert.equal(h.run(`(()=>{const p=rotateBoardPoint(N.P${player},${player-1}*2*Math.PI/3);return Math.abs(p.x-50)<1e-8&&Math.abs(p.y-96)<1e-8})()`),true);
 });
-for(const page of ['index.html','match.html'])test(page+': Twin branches matches the sketch and supports routes and shops',()=>{
+for(const page of ['index.html','match.html'])test(page+': Twin branches matches the sketch and supports routes',()=>{
  const h=createGame(page);
- h.run(page==='index.html'?'botConfig.map=5;botConfig.shops=false;init()':'lobbyConfig.map=5;lobbyConfig.shops=false;init()');
+ h.run(page==='index.html'?'botConfig.map=5;init()':'lobbyConfig.map=5;init()');
  assert.equal(h.run('Object.keys(N).length'),10);
  assert.equal(h.run('Object.values(N).filter(n=>n.home).length'),2);
  const expected={P2:['A1','A3'],A1:['P2','A2','B1'],A2:['A1','A3','B1','B2'],A3:['P2','A2','B2'],B1:['A1','A2','C1','C2'],B2:['A2','A3','C2','C3'],C1:['B1','C2','P1'],C2:['B1','B2','C1','C3'],C3:['B2','C2','P1'],P1:['C1','C3']};
@@ -62,15 +61,13 @@ for(const page of ['index.html','match.html'])test(page+': Twin branches matches
  h.run('applyRouteCommand(1,{kind:"route",node:"P1",to:"C1"})');
  assert.equal(h.run('N.P1.routes[0]'),'C1');
  assert.equal(h.run('Object.values(N).every(n=>{const mirror=Object.values(N).find(b=>b.x===n.x&&b.y===100-n.y);return mirror&&n.adj.every(id=>mirror.adj.some(to=>N[to].x===N[id].x&&N[to].y===100-N[id].y))})'),true);
- h.run(page==='index.html'?'botConfig.shops=true;init()':'lobbyConfig.shops=true;init()');
- assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),4);
  h.run('render();panel()');
 });
 test('Twin branches seat capacity is two and adding a third player changes map',()=>{
  const h=createGame();
- assert.equal(h.run('validConfig({map:5,speed:1,shops:false})'),true);
+ assert.equal(h.run('validConfig({map:5,speed:1})'),true);
  h.run('humanPlayers=[1,2,3]');
- assert.equal(h.run('validConfig({map:5,speed:1,shops:false})'),false);
+ assert.equal(h.run('validConfig({map:5,speed:1})'),false);
  h.run('humanPlayers=[1,2];lobbyConfig.map=5;matchGame.setMembers([{seat:1,name:"One",connected:true},{seat:2,name:"Two",connected:true}])');
  assert.equal(h.run('lobbyConfig.map'),5);
  h.run('matchGame.setMembers([{seat:1,name:"One",connected:true},{seat:2,name:"Two",connected:true},{seat:3,name:"Three",connected:true}])');
@@ -81,10 +78,9 @@ test('both three-player maps are selectable and expanded map respects seat capac
  h.run('matchGame.start(1,()=>{},[1,2,3])');
  assert.equal(h.run('lobbyConfig.map'),3);
  assert.equal(h.run('Object.keys(N).length'),10);
- h.run('lobbyAction(2,{action:"config",config:{...lobbyConfig,map:6,shops:true}});init()');
+ h.run('lobbyAction(2,{action:"config",config:{...lobbyConfig,map:6}});init()');
  assert.equal(h.run('lobbyConfig.map'),6);
- assert.equal(h.run('Object.values(N).filter(n=>!n.shop).length'),22);
- assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),6);
+ assert.equal(h.run('Object.keys(N).length'),22);
  h.run('render();matchGame.setMembers([1,2,3].map(seat=>({seat,name:"Player "+seat,connected:true})))');
  assert.equal(h.run('lobbyConfig.map'),6,'three seats retain expanded map');
  h.run('matchGame.setMembers([1,2,3,4].map(seat=>({seat,name:"Player "+seat,connected:true})))');
@@ -94,7 +90,7 @@ test('both three-player maps are selectable and expanded map respects seat capac
 });
 for(const page of ['index.html','match.html'])test(page+': four-player schema has both axis symmetries and four jumps between all castles',()=>{
  const h=createGame(page);
- h.run(page==='index.html'?'botConfig.map=4;botConfig.shops=false;init()':'lobbyConfig.map=4;lobbyConfig.shops=false;init()');
+ h.run(page==='index.html'?'botConfig.map=4;init()':'lobbyConfig.map=4;init()');
  assert.equal(h.run('Object.keys(N).length'),17);
  assert.equal(h.run('Object.values(N).reduce((sum,n)=>sum+n.adj.length,0)'),52);
  for(const axis of ['x','y'])assert.equal(h.run(`Object.values(N).every(n=>{
@@ -111,14 +107,12 @@ for(const page of ['index.html','match.html'])test(page+': four-player schema ha
   assert.equal(h.run(`boardViewPoint(N.P${owner},${owner}).y`),92);
   assert.equal(h.run(`Object.values(N).every(n=>{const p=boardViewPoint(boardViewPoint(n,${owner}),${owner},true);return p.x===n.x&&p.y===n.y})`),true);
  }
- h.run(page==='index.html'?'botConfig.shops=true;init()':'lobbyConfig.shops=true;init()');
- assert.equal(h.run('Object.values(N).filter(n=>n.shop).length'),8);
  h.run('render();panel()');
 });
-for(const page of ['index.html','match.html'])for(const shops of [false,true])test(page+': Expanded orchard reflects all nodes and connections across both axes (shops '+shops+')',()=>{
+for(const page of ['index.html','match.html'])test(page+': Expanded orchard reflects all nodes and connections across both axes',()=>{
  const h=createGame(page);
- h.run(page==='index.html'?`botConfig.map=2;botConfig.shops=${shops};init()`:`lobbyConfig.map=2;lobbyConfig.shops=${shops};init()`);
- assert.equal(h.run('Object.keys(N).length'),shops?20:16);
+ h.run(page==='index.html'?`botConfig.map=2;init()`:`lobbyConfig.map=2;init()`);
+ assert.equal(h.run('Object.keys(N).length'),16);
  for(const axis of ['x','y'])assert.equal(h.run(`Object.values(N).every(n=>{
  const flip=p=>({x:${axis==='x'?'100-p.x':'p.x'},y:${axis==='y'?'100-p.y':'p.y'}});
  const p=flip(n),mirror=Object.values(N).find(b=>b.x===p.x&&b.y===p.y);
@@ -126,4 +120,32 @@ for(const page of ['index.html','match.html'])for(const shops of [false,true])te
  })`),true);
  assert.equal(h.run('N.D1.ut===N.E1.ut&&N.D2.ut===N.E2.ut&&N.D1.ut===N.D2.ut'),true);
  h.run('render();panel()');
+});
+
+test('online rule changes reveal enemy nodes and troops and synchronize guest production',()=>{
+ const host=createGame(),guest=createGame();
+ host.run('matchGame.start(1,()=>{});lobbyReady=[true,true]');
+ guest.run('matchGame.start(2,()=>{})');
+ const sync=()=>{
+  guest.context.packet=JSON.parse(host.run('JSON.stringify(snapshot(2))'));
+  guest.run('matchGame.receive(packet,1);render()');
+ };
+ host.run('G=[{owner:1,from:"P1",to:"C1",n:1,type:0,t:.2}]');
+ sync();
+ assert.equal(guest.run('tot(N.P1)'),0);
+ assert.equal(guest.run('G.length'),0);
+ assert.match(guest.elements.get('map').innerHTML,/P1, unexplored/);
+ assert.equal(host.run('validConfig({...lobbyConfig,fogOfWar:"false"})'),false);
+ assert.equal(host.run('validConfig({...lobbyConfig,diminishingReturns:1})'),false);
+ host.run('variantField("fogOfWar").checked=false;variantField("diminishingReturns").checked=true');
+ host.elements.get('variant-form').listeners.get('change')();
+ assert.equal(host.run('lobbyReady.some(Boolean)'),false);
+ host.run('gameStarted=true;N.P2.ut=0;N.P2.stock=[1,0,0,0,0,0,0];N.P2.tm=1.5');
+ sync();
+ assert.equal(guest.run('lobbyConfig.fogOfWar===false&&lobbyConfig.diminishingReturns===true'),true);
+ assert.equal(guest.run('tot(N.P1)'),host.run('tot(N.P1)'));
+ assert.equal(guest.run('G.length'),1);
+ assert.match(guest.elements.get('map').innerHTML,/Node P1, rival/);
+ guest.run('step(.75)');
+ assert.equal(guest.run('tot(N.P2)'),2);
 });

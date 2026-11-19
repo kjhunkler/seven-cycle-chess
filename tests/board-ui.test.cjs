@@ -38,7 +38,7 @@ for (const page of ['index.html', 'match.html']) {
     });
     context.window = context;
     const html = fs.readFileSync(path.join(root, page), 'utf8');
-    for(const file of ['production-cycle.js','duel-maps.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
+    for(const file of ['simulation.js','duel-maps.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context,{filename:file});
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
       if (match[1].trim()) vm.runInContext(match[1], context, { filename: page });
     }
@@ -47,46 +47,32 @@ for (const page of ['index.html', 'match.html']) {
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     if (page === 'index.html') {
       const dialog = context.document.body.children.find(element => element.className === 'battle-settings-dialog');
-      const fields = {map: {value: '1'}, speed: {value: '1.5'}, shops: {checked: false}, productionRotation: {checked: false}, fullElimination: {checked: false}};
+      const fields = {map: {value: '1'}, speed: {value: '1.5'}, fogOfWar: {checked: true}, diminishingReturns: {checked: false}, fullElimination: {checked: false}};
       dialog.querySelector = selector => selector === 'form' ? {elements: fields} : new Element();
-      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && !N.S1H && !botConfig.fullElimination && !productionCycle', context), true, 'original map at standard speed with no queue enabled');
+      assert.equal(vm.runInContext('botConfig.map===1 && CONFIG.timeScale===1 && !N.D1 && !botConfig.fullElimination && botConfig.fogOfWar && !botConfig.diminishingReturns', context), true, 'original map at standard speed with default rules');
       vm.runInContext('globalThis.originalBoard=N', context);
       dialog.listeners.get('change')();
       assert.equal(vm.runInContext('N===originalBoard && CONFIG.timeScale===1.5', context), true, 'speed applies without resetting');
+      fields.fogOfWar.checked = false;
+      fields.diminishingReturns.checked = true;
+      dialog.listeners.get('change')();
+      assert.equal(vm.runInContext('N===originalBoard && !botConfig.fogOfWar && botConfig.diminishingReturns', context), true, 'new rules apply without resetting');
+      assert.match(get('map').innerHTML, /Node P2, rival/);
       fields.map.value = '4';
       fields.fullElimination.checked = false;
-      fields.shops.checked = true;
-      fields.productionRotation.checked = false;
       dialog.listeners.get('change')();
-      assert.equal(vm.runInContext('N!==originalBoard && N.P3.owner===3 && N.P4.owner===4 && N.S4H.shop==="shield" && productionCycle===null', context), true, 'board-changing settings rebuild the match');
+      assert.equal(vm.runInContext('N!==originalBoard && N.P3.owner===3 && N.P4.owner===4', context), true, 'board-changing settings rebuild the match');
       fields.map.value = '1';
       fields.speed.value = '0.5';
-      fields.shops.checked = true;
-      fields.productionRotation.checked = true;
       dialog.listeners.get('change')();
     }
-    vm.runInContext(`
-      globalThis.savedShopState={N,G};
-      const source={id:'P1',owner:1,home:1,ut:0,stock:[30,0,0,0,0,0,0],orders:[],routes:['S1H'],selectedType:0,departure:0,adj:['S1H']};
-      const shop={id:'S1H',shop:'shield',owner:1,charge:6,abilityReady:false,abilityCd:0,orders:[]};
-      N={P1:source,S1H:shop};G=[{to:'S1H',owner:1,n:2}];
-      dispatch(source,'S1H',0,20);
-    `,context);
-    assert.equal(vm.runInContext('N.P1.orders[0].count',context),2,'shop queue reserves only the unpaid amount after incoming troops');
-    assert.equal(vm.runInContext('N.P1.stock[0]',context),28,'excess troops stay at their source');
-    vm.runInContext("dispatch(N.P1,'S1H',0,20);for(let i=0;i<40;i++)depart(N.P1,.1)",context);
-    assert.equal(vm.runInContext('G.reduce((sum,g)=>sum+g.n,0)',context),4,'routes and queued orders together cannot overfill a shop');
-    assert.equal(vm.runInContext('N.P1.stock[0]',context),28,'routes keep remaining troops once shop capacity is reserved');
-    vm.runInContext('G=[];N.S1H.charge=10;N.S1H.abilityReady=true;dispatch(N.P1,"S1H",0,20);depart(N.P1,.1)',context);
-    assert.equal(vm.runInContext('G.length+N.P1.orders.length',context),0,'ready shops accept no additional dispatches');
-    vm.runInContext('N=savedShopState.N;G=savedShopState.G',context);
     vm.runInContext(typeof context.matchGame==='undefined'?'panel()':'panel()',context);
     assert.doesNotMatch(get('panel').innerHTML, /Queue/);
     assert.match(get('map').innerHTML, /board-node/);
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
-    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; for(let i=0;i<25;i++)step(.1); select("P1"); panel(); render();', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
+    vm.runInContext('N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; for(let i=0;i<30;i++)step(.1); select("P1"); panel(); render();', context);
     assert.doesNotMatch(get('panel').innerHTML, /Queue/);
-    assert.ok(vm.runInContext('N.P1.stock[0] >= 1', context));
+    assert.ok(vm.runInContext('N.P1.stock[0] === 7', context));
     vm.runInContext('sendType=0; send("P1","C1"); step(.1); render(); panel();', context);
     assert.ok(vm.runInContext('G.some(g => g.from === "P1" && g.to === "C1")', context));
 
@@ -147,24 +133,13 @@ for (const page of ['index.html', 'match.html']) {
     }
     assert.ok(frames.length > 0);
     frames.shift()(200);
-    if (page === 'index.html') assert.match(get('production-countdown').textContent, /Next in \d+s/);
     // Exercise the real frame loop at the Standard 1× default cadence.
-    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
+    if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true', context);
     else vm.runInContext('botConfig.speed=1;CONFIG.timeScale=1;init();botGame.start()', context);
-    vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
+    vm.runInContext('N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 7, 'production completes after 3 real seconds');
     vm.runInContext('for(let now=3200;now<=6300;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 8, 'production continues at the Standard cadence');
-    vm.runInContext('productionCycle.next={buff:0,debuff:1};loop(45100)', context);
-    assert.equal(get('production-active-buff').textContent, '🍎');
-    assert.equal(get('production-progress').value, 0);
-    if (page === 'index.html') {
-      vm.runInContext('botConfig.productionRotation=false;act("restart");botGame.start();loop(45200)', context);
-      assert.equal(get('production-cycle').hidden, true);
-      assert.equal(vm.runInContext('productionMultiplier(productionCycle, 0)', context), 1);
-      vm.runInContext('botConfig.productionRotation=true;act("restart");loop(45300)', context);
-      assert.equal(get('production-cycle').hidden, false);
-    }
     if (page === 'match.html') {
       vm.runInContext('matchGame.start(2, () => {}); render(); panel();', context);
       assert.doesNotMatch(get('panel').innerHTML, /Queue/);

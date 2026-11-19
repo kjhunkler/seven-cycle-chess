@@ -18,7 +18,7 @@ test('bot selection counts garrisons, queued departures and traveling fruit, wit
 
 test('watching a solo game keeps it solo; joining preserves its live board and starts no countdown',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),watcher=hub.add('Watcher'),joiner=hub.add('Joiner');
-  host.solo.run('botConfig.map=4;botConfig.shops=true;botConfig.fullElimination=true;botConfig.portionControl=true;init();botGame.start();N.P3.stock[0]=80;N.P1.routes=[N.P1.adj[0]];N.P1.routeRemaining={[N.P1.adj[0]]:3};N.P1.pend=2;N.P1.cd=3;G=[{from:"P3",to:N.P3.adj[0],owner:3,type:0,n:2,t:.4}];transformationClock=17;portionPercent=25');
+  host.solo.run('botConfig.map=4;botConfig.diminishingReturns=true;botConfig.fullElimination=true;botConfig.portionControl=true;init();botGame.start();N.P3.stock[0]=80;N.P1.routes=[N.P1.adj[0]];N.P1.routeRemaining={[N.P1.adj[0]]:3};N.P1.pend=2;N.P1.cd=3;G=[{from:"P3",to:N.P3.adj[0],owner:3,type:0,n:2,t:.4}];transformationClock=17;portionPercent=25');
   await hub.pump();
   assert.equal(watcher.run('lastFriends.find(f=>f.name==="Host").activity.join'),true);
   await watcher.run('enterGame(lastFriends.find(f=>f.name==="Host").id,"spectate")');await hub.pump();await hub.beat();

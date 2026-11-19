@@ -4,7 +4,7 @@ const {createGame,Element}=require('./game-harness.cjs');
 function setup(page,enabled=true){
  const h=createGame(page);
  h.run(page==='index.html'?`botConfig.portionControl=${enabled};init()`:`lobbyConfig.portionControl=${enabled};online=true;gameStarted=true;init()`);
- h.run('N.P1.stock=[20,0,0,0,0,0,0];N.P1.ut=0;globalThis.to=N.P1.adj.find(id=>!N[id].shop);');
+ h.run('N.P1.stock=[20,0,0,0,0,0,0];N.P1.ut=0;globalThis.to=N.P1.adj[0];');
  return h;
 }
 for(const page of ['index.html','match.html']){
@@ -30,7 +30,7 @@ for(const page of ['index.html','match.html']){
  });
  test(`${page}: separate arrows keep independent budgets despite production and slider changes`,()=>{
   const h=setup(page);
-  h.run("portionPercent=25;send('P1',to);globalThis.other=N.P1.adj.find(id=>id!==to&&!N[id].shop);portionPercent=50;send('P1',other);N.P1.stock[0]+=20;for(let i=0;i<30;i++)depart(N.P1,1)");
+  h.run("portionPercent=25;send('P1',to);globalThis.other=N.P1.adj.find(id=>id!==to);portionPercent=50;send('P1',other);N.P1.stock[0]+=20;for(let i=0;i<30;i++)depart(N.P1,1)");
   assert.equal(h.run('G.filter(g=>g.to===to).reduce((s,g)=>s+g.n,0)'),5);
   assert.equal(h.run('G.filter(g=>g.to===other).reduce((s,g)=>s+g.n,0)'),10);
   assert.equal(h.run('N.P1.routes.length'),0);
@@ -78,13 +78,13 @@ for(const page of ['index.html','match.html'])test(page+': legacy portion config
  if(page==='index.html'){
   const dialog=h.context.document.body.children.find(node=>node.className==='battle-settings-dialog');
   assert.doesNotMatch(dialog.innerHTML,/name="(?:portionControl|transformationWave|transformationTime)"/);
-  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},shops:{checked:false},productionRotation:{checked:false},fullElimination:{checked:false}};
+  dialog.querySelector('form').elements={map:{value:'1'},speed:{value:'1'},fogOfWar:{checked:true},diminishingReturns:{checked:false},fullElimination:{checked:false}};
   dialog.listeners.get('change')();h.run('render()');assert.equal(control.hidden,true);
  }else{
-  h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];variantField("shops").checked=true');
+  h.run('matchGame.start(1,()=>{});lobbyReady=[true,true];variantField("diminishingReturns").checked=true');
   h.elements.get('variant-form').listeners.get('change')();
   assert.equal(h.run('lobbyConfig.portionControl'),undefined);
-  assert.equal(h.run('lobbyConfig.shops'),true);
+  assert.equal(h.run('lobbyConfig.diminishingReturns'),true);
   assert.equal(h.run('lobbyReady.some(Boolean)'),false);
  }
 });

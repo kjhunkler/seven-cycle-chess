@@ -3,14 +3,6 @@
   const board = document.getElementById('map');
   if (!board) return;
   // Presentation helpers belong here, independent of each edition's simulation.
-  const productionEffect = type => {
-    const cycle = typeof productionCycle === 'undefined' ? null : productionCycle;
-    if (type == null || !cycle) return null;
-    const multiplier = productionMultiplier(cycle, type);
-    if (multiplier === 1) return null;
-    const buff = multiplier > 1;
-    return {percent: `${buff ? '+' : '−'}${Math.abs(Math.round((multiplier - 1) * 100))}%`, kind: buff ? 'buff' : 'debuff', arrow: buff ? '▲' : '▼', label: `${T[type][1]} ${buff ? '+' : ''}${Math.round((multiplier - 1) * 100)}% production speed`};
-  };
   const player = () => typeof localPlayer === 'undefined' ? 1 : localPlayer;
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const storage = { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch {} } };
@@ -60,7 +52,6 @@
   const settingsButton=shell.querySelector('.battle-settings-button');
   setAction(settingsButton,'settings','Battle settings');
   board.before(shell);
-  if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
   const startCountdown=document.createElement('div');
   startCountdown.className='match-countdown';startCountdown.hidden=true;
@@ -107,17 +98,17 @@
     <label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label>
     <details class="form-options"><summary>Match rules</summary><div class="option-fields">
       <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
-      <label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label>
-      <label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label>
-      <label class="shop-setting"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
-      <label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label>
+      <label class="rule-setting"><input name="fogOfWar" type="checkbox" checked> Fog of war</label>
+      <label class="rule-setting"><input name="diminishingReturns" type="checkbox"> Diminishing returns</label>
+      <label class="rule-setting"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
+      <label class="rule-setting"><input name="fullElimination" type="checkbox"> Full elimination</label>
     </div></details>
     <details class="form-options"><summary>Board preferences</summary>${boardPreferences}</details>
     <div class="settings-actions"><button type="button" class="settings-restart">Restart game</button></div>
   </form>`;
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){if(window.botGame.active)window.botGame.pause();showSoloPreview();settingsDialog.querySelector('[name=botDifficulty]').value=botConfig.botDifficulty??'normal';settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=transformationPenalty]').checked=!!botConfig.transformationPenalty;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){if(window.botGame.active)window.botGame.pause();showSoloPreview();settingsDialog.querySelector('[name=botDifficulty]').value=botConfig.botDifficulty??'normal';settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=fogOfWar]').checked=botConfig.fogOfWar!==false;settingsDialog.querySelector('[name=diminishingReturns]').checked=!!botConfig.diminishingReturns;settingsDialog.querySelector('[name=transformationPenalty]').checked=!!botConfig.transformationPenalty;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>window.boardViewport.resize()).observe(board);
   window.addEventListener('resize',()=>window.boardViewport.resize());
@@ -189,9 +180,9 @@
   drawCombatHelper(0);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,botDifficulty,speed,shops,productionRotation,transformationPenalty,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
-      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,botDifficulty:botDifficulty?.value||"normal",speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,transformationPenalty:!!transformationPenalty?.checked,fullElimination:!!fullElimination?.checked};
-      const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.transformationPenalty!==!!botConfig.transformationPenalty||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,botDifficulty,speed,fogOfWar,diminishingReturns,transformationPenalty,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
+      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,botDifficulty:botDifficulty?.value||"normal",speed:Number(speed.value),fogOfWar:fogOfWar.checked,diminishingReturns:diminishingReturns.checked,transformationPenalty:!!transformationPenalty?.checked,fullElimination:!!fullElimination?.checked};
+      const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.transformationPenalty!==!!botConfig.transformationPenalty||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision;
       botConfig=next;
       showSoloPreview();
       if(reset){
@@ -199,8 +190,7 @@
         previousNodes=null;
         render();
         panel();
-        renderProductionCycle(productionCycle,T);
-      }else CONFIG.timeScale=next.speed;
+      }else{CONFIG.timeScale=next.speed;render();panel();}
     };
     settingsDialog.querySelector('.settings-restart').onclick=()=>{applySettings(true);settingsDialog.close();};
     settingsDialog.addEventListener('change',event=>{if(event?.target?.id!=='battle-compact-board')applySettings();});
@@ -253,10 +243,6 @@
   const burst = (n, color) => effects.push({x:n.x,y:n.y,color,start:performance.now()});
   const originalInit=init;
   init=function(){originalInit();effects=[];previousNodes=null;previousWinner=0;modalWinner=0;statusHTML=null;closeEndgame()};
-  if(typeof online==='undefined'&&typeof applyRouteCommand==='function'){
-    const baseRouteCommand=applyRouteCommand;
-    applyRouteCommand=function(owner,data){if(data?.kind==='ability'){const shop=N[data.from],target=N[data.to];if(shop?.shop&&shop.owner===owner&&shop.abilityReady&&shop.abilityCd<=0&&target?.owner===owner&&!target.shop){if(shop.shop==='shield')target.shields=(target.shields||0)+1;else target.boost=Math.max(target.boost||0,7);shop.abilityReady=false;shop.charge=0;shop.abilityCd=10;}return true;}return baseRouteCommand(owner,data)};
-  }
   const originalArrive=arrive;
   arrive=function(g){const n=N[g.to];if(n&&!allies(n.owner,g.owner)&&vis().has(n.id))burst(n,'#f5d765');return originalArrive(g)};
   const originalSelect=select;
@@ -311,20 +297,19 @@
       }else closeEndgame();
     }
     let h='<defs><radialGradient id="node-shine" cx="32%" cy="20%" r="85%"><stop stop-color="#ffffff" stop-opacity=".28"/><stop offset="1" stop-color="#000000" stop-opacity=".16"/></radialGradient><pattern id="board-grid" width="5" height="5" patternUnits="userSpaceOnUse"><circle cx="0" cy="0" r=".12" fill="var(--mut)" opacity=".25"/></pattern></defs><rect x="-5" y="-7" width="110" height="116" fill="url(#board-grid)" pointer-events="none"/>',countLabels='';
-    for(const a of Object.values(N))if(!a.shop&&!a.disabled)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.disabled||b.shop&&b.owner!==a.owner)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
+    for(const a of Object.values(N))if(!a.disabled)for(const id of a.adj||[]){if(a.id>=id)continue;const b=N[id];if(!b||b.disabled)continue;const on=V.has(a.id)||V.has(id),active=sel&&(a.id===sel||id===sel);h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route ${active?'route-active':''}" opacity="${on?1:.2}"/>`;if(active)h+=`<path d="M${a.x} ${a.y}L${b.x} ${b.y}" class="route-flow" stroke-dashoffset="${animated()?-now/160:0}"/>`;}
     const source=N[sel];
     for(const n of Object.values(N)){
       if(n.disabled)continue;
-      const compactNode=compactBoard&&!n.shop;
-      const v=V.has(n.id),r=n.shop?3.5:compactNode?3.6:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
+      const compactNode=compactBoard;
+      const v=V.has(n.id),r=compactNode?3.6:5.2,k=big(n),selected=sel===n.id,col=ownerColor(v?n.owner:0);
       const fruit=n.cd>0?n.ut:(k>=0?k:n.ut),flash=n.cd>0&&animated()?.6+.4*Math.cos(now/100):1;
       const fill=compactNode&&v?(troopColors[fruit]??'var(--neu)'):col;
-      const count=Math.round(tot(n));
-      const shopState=n.abilityCd>0?'on cooldown':n.abilityReady?'purchased and ready':'spent';
-      const label=v?`${n.shop==='shield'?'Shield shop':n.shop==='boost'?'Speed shop':'Node'} ${n.id}, ${n.owner===me?'yours':allies(n.owner,me)?'teammate':n.owner?'rival':'unclaimed'}, ${n.shop?shopState:`${count} troops${compactNode&&T[fruit]?`, ${T[fruit][1]}`:''}`}`:`${n.id}, unexplored`;
-      h+=`<g data-id="${n.id}" class="board-node ${n.shake>0||typeof shakeNodes!=='undefined'&&shakeNodes[n.id]>now?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+(compactNode?.4:.7)}" fill="var(--card)" stroke="${col}" stroke-width="${compactNode?.75:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${fill}" opacity="${v?(compactNode?flash:1):.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
+      const population=tot(n),count=Math.round(population);
+      const label=v?`Node ${n.id}, ${n.owner===me?'yours':allies(n.owner,me)?'teammate':n.owner?'rival':'unclaimed'}, ${count} troops${compactNode&&T[fruit]?`, ${T[fruit][1]}`:''}`:`${n.id}, unexplored`;
+      h+=`<g data-id="${n.id}" class="board-node ${n.shake>0?'node-shaking':''}" role="button" tabindex="0" aria-label="${escape(label)}" aria-pressed="${selected}"><circle cx="${n.x}" cy="${n.y+1}" r="${r+.4}" fill="#000" opacity=".2"/><circle cx="${n.x}" cy="${n.y}" r="${r+(compactNode?.4:.7)}" fill="var(--card)" stroke="${col}" stroke-width="${compactNode?.75:.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="${fill}" opacity="${v?(compactNode?flash:1):.35}"/><circle cx="${n.x}" cy="${n.y}" r="${r}" fill="url(#node-shine)"/>`;
       if(selected)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.25}" fill="none" stroke="var(--fg)" stroke-width=".45"/><circle cx="${n.x}" cy="${n.y}" r="${r+2}" fill="none" stroke="var(--p1)" opacity="${animated()?.4+.2*Math.sin(now/250):.6}" stroke-width=".5"/>`;
-      if(source?.owner===me&&!source.shop&&!n.shop&&source.adj.includes(n.id)){
+      if(source?.owner===me&&source.adj.includes(n.id)){
         const type=canEnter(n,me,source.ut)?source.ut:-1;
         let color='var(--mut)',matchup='';
         if(v&&!allies(n.owner,me)&&k>=0&&type>=0&&source.stock[type]>CONFIG.strengthEpsilon){
@@ -342,20 +327,19 @@
         h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.7}" fill="none" stroke="${color}" stroke-width=".55" stroke-dasharray="1 1"/>`;
         h+=matchup;
       }
-      if(v&&n.shields>0)h+=`<text x="${n.x}" y="${n.y+2}" text-anchor="middle" font-size="${compactNode?6:10}" opacity=".25" pointer-events="none">🛡️</text>`;
-      if(v){if(n.shop){const icon=n.shop==='shield'?'🛡️':'⚡',ready=n.abilityReady,cd=n.abilityCd>0,mark=cd?'⌛':ready?'✓':'·';h+=`<text x="${n.x}" y="${n.y+1.1}" text-anchor="middle" font-size="4.2" font-weight="900" fill="${ready?'var(--fg)':'var(--mut)'}" opacity="${ready?1:.55}" pointer-events="none">${icon}</text><circle cx="${n.x}" cy="${n.y}" r="5.3" fill="none" stroke="${ready?'#efc94c':cd?'var(--p2)':'var(--mut)'}" stroke-width=".8" stroke-dasharray="${cd?'2 1':'none'}" class="${cd?'shop-cooldown':''}"/><circle cx="${n.x+3.8}" cy="${n.y-3.8}" r="1.7" fill="var(--card)"/><text x="${n.x+3.8}" y="${n.y-3.1}" text-anchor="middle" font-size="2.5" font-weight="900" fill="${cd?'var(--p2)':ready?'#efc94c':'var(--mut)'}">${mark}</text>`;}else if(!compactNode){const size=7;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
-        const productionType=n.ut;
-        const effect=!n.shop&&n.owner&&!(n.cd>0)?productionEffect(productionType):null;
+      if(v){
+        if(!compactNode){const size=7;if(fruit!=null)h+=`<g opacity="${flash}" transform="translate(${n.x-size/2} ${n.y-size/2-.3}) scale(${size/24})" pointer-events="none">${art(fruit)}</g>`;}
+        const rate=n.owner&&n.cd<=0?Math.round((productionMultiplier(population)-1)*100):0;
+        const effect=rate===0?null:{
+          kind:rate>0?'buff':'debuff',
+          label:`${rate>0?'+':''}${rate}% production speed`
+        };
         const progress=n.cd>0?transformationProgress(n):n.owner?n.tm/CONFIG.outpostRate:0;
         if(progress>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r-.3}" fill="none" stroke="#fff" opacity=".7" stroke-width=".45" pathLength="100" stroke-dasharray="${Math.min(100,progress*100)} 100" transform="rotate(-90 ${n.x} ${n.y})"/>`;
-        if(!n.shop){
-          const countBadge=compactNode
-            ? `<text class="compact-troop-count" x="${n.x}" y="${n.y}" dominant-baseline="central" text-anchor="middle" font-size="${Math.min(3.2,9/String(count).length)}" font-weight="800" fill="#151923" stroke="#fffd" stroke-width=".45" paint-order="stroke">${count}</text>`
-            : `<rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${count}</text>`;
-          countLabels+=`<g pointer-events="none">${countBadge}${effect?`<g class="node-production node-production-${effect.kind}" transform="translate(${n.x+(compactNode?r+1.5:5.5)} ${n.y+(compactNode?0:r+.8)+(effect.kind==='buff'?-.6:.6)})" role="img" aria-label="${effect.label}"><title>${effect.label}</title><path d="${effect.kind==='buff'?'M0 -1.1L1.1 .8H-1.1Z':'M0 1.1L1.1 -.8H-1.1Z'}" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}"/></g>`:''}</g>`;
-        }
-        if(n.shields>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+3.1}" fill="none" stroke="#55d9ff" stroke-width="1.5" class="shield-ring"/><text x="${n.x-r-1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#63e4ff" stroke="var(--card)" stroke-width=".7" paint-order="stroke">🛡️${n.shields>1?`×${n.shields}`:''}</text>`;
-        if(n.boost>0)h+=`<circle cx="${n.x}" cy="${n.y}" r="${r+1.5}" fill="none" stroke="#ffd34e" stroke-width="1.5" stroke-dasharray="1 1"/><text x="${n.x+r+1.1}" y="${n.y-r+1}" font-size="3.4" text-anchor="middle" fill="#ffd34e" stroke="var(--card)" stroke-width=".7" paint-order="stroke">⚡${Math.ceil(n.boost)}s</text>`;
+        const countBadge=compactNode
+          ? `<text class="compact-troop-count" x="${n.x}" y="${n.y}" dominant-baseline="central" text-anchor="middle" font-size="${Math.min(3.2,9/String(count).length)}" font-weight="800" fill="#151923" stroke="#fffd" stroke-width=".45" paint-order="stroke">${count}</text>`
+          : `<rect x="${n.x-3.8}" y="${n.y+r-1}" width="7.6" height="3.6" rx="1.8" fill="var(--card)" stroke="${col}" stroke-width=".3"/><text x="${n.x}" y="${n.y+r+1.6}" text-anchor="middle" font-size="2.6" font-weight="800" fill="var(--fg)">${count}</text>`;
+        countLabels+=`<g pointer-events="none">${countBadge}${effect?`<g class="node-production node-production-${effect.kind}" transform="translate(${n.x+(compactNode?r+1.5:5.5)} ${n.y+(compactNode?0:r+.8)+(effect.kind==='buff'?-.6:.6)})" role="img" aria-label="${effect.label}"><title>${effect.label}</title><path d="${effect.kind==='buff'?'M0 -1.1L1.1 .8H-1.1Z':'M0 1.1L1.1 -.8H-1.1Z'}" fill="${effect.kind==='buff'?'#7ae6aa':'#ff8997'}"/></g>`:''}</g>`;
       }else h+=`<text x="${n.x}" y="${n.y+1.3}" text-anchor="middle" font-size="4" fill="var(--mut)">?</text>`;
       if(n.home){
         const seat=n.home,members=typeof lobbyMembers==='undefined'?[]:lobbyMembers;
@@ -371,7 +355,7 @@
       for(const to of routes){const b=N[to],angle=Math.atan2(b.y-a.y,b.x-a.x)*180/Math.PI;
         if(compactBoard){
           // Keep the direction at the source rim, moving inward on crowded routes.
-          const clearance=Math.hypot(b.x-a.x,b.y-a.y)-(b.shop?5.7:4.4)-.5;
+          const clearance=Math.hypot(b.x-a.x,b.y-a.y)-4.9;
           const tip=Math.max(3.6,Math.min(6,clearance));
           h+=`<g pointer-events="none" transform="translate(${a.x} ${a.y}) rotate(${angle})"><path class="sending-arrow" d="M${tip-1.5} -.85L${tip} 0L${tip-1.5} .85Z" fill="#fff"/></g>`;
         }else{
@@ -379,7 +363,6 @@
         }
       }
     }
-    if(drag?.moved&&N[drag.from]?.shop&&drag.to){const a=N[drag.from],b=N[drag.to],mx=(a.x+b.x)/2+(b.y-a.y)*.16,my=(a.y+b.y)/2-(b.x-a.x)*.16;h+=`<path d="M${a.x} ${a.y} Q${mx} ${my} ${b.x} ${b.y}" fill="none" stroke="${a.shop==='shield'?'#63e4ff':'#ffd34e'}" stroke-width="1.3" stroke-dasharray="2 1" class="ability-arc" pointer-events="none"/>`;}
     for(const g of G){if(!allies(g.owner,me)&&!V.has(g.from)&&!V.has(g.to))continue;const a=N[g.from],b=N[g.to],progress=typeof unitProgress==='function'?unitProgress(g,now):g.t,x=a.x+(b.x-a.x)*progress,y=a.y+(b.y-a.y)*progress,t=Math.max(0,progress-.065),color=ownerColor(g.owner);h+=`<g pointer-events="none"><path d="M${a.x+(b.x-a.x)*t} ${a.y+(b.y-a.y)*t}L${x} ${y}" stroke="${color}" stroke-width="1.5" stroke-linecap="round" opacity=".5"/><circle cx="${x}" cy="${y}" r="1.9" fill="var(--card)" stroke="${color}" stroke-width=".35"/><g transform="translate(${x-1.5} ${y-1.5}) scale(.125)">${art(g.type)}</g></g>`;}
     effects=effects.filter(e=>now-e.start<800);
     if(animated())for(const e of effects){const t=(now-e.start)/800;h+=`<g pointer-events="none" opacity="${1-t}"><circle cx="${e.x}" cy="${e.y}" r="${5+t*8}" fill="none" stroke="${e.color}" stroke-width="${.8*(1-t)}"/>`;for(let j=0;j<8;j++){const a=j*Math.PI/4;h+=`<circle cx="${e.x+Math.cos(a)*(5+t*10)}" cy="${e.y+Math.sin(a)*(5+t*10)}" r="${.65*(1-t)}" fill="${e.color}"/>`;}h+='</g>';}

@@ -175,8 +175,17 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         const result = entry.result ?? entry;
         if (entry.solo) await conn.reducers.finishSoloMatch(result);
         else {
-          const {teams,mapRevision,map,...settings}=result.rules;
-          const rules={teamSize:teams?(settings.teamSize??2):undefined,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10,...settings,map:map<=11?map:0};
+          const {
+            teams, teamSize, mapRevision, map, speed, shops = false, productionRotation = false,
+            fullElimination = false, portionControl = false, transformationPenalty = false,
+            transformationWave = false, transformationTime = 10
+          } = result.rules;
+          // Keep writing the deployed history schema, including queued results from older clients.
+          const rules = {
+            map: map <= 11 ? map : 0, teamSize: teams ? (teamSize ?? 2) : undefined, speed,
+            shops, productionRotation, fullElimination, portionControl, transformationPenalty,
+            transformationWave, transformationTime
+          };
           const payload={...result,rules};
           if(teams)await conn.reducers.recordTeamMatch({...payload,mapId:map,revision:mapRevision??0});
           else if(mapRevision || map>11)await conn.reducers.recordCatalogMatch({...payload,mapId:map,revision:mapRevision??0});

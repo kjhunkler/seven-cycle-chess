@@ -8,7 +8,7 @@ for(const count of [2,3,4])for(const requester of [0,count-1])test(`${count} pla
   await host.run(`invitePlayer(lastFriends.find(f=>f.name==='Player ${i+1}').id)`);await hub.pump();
   await clients[i].run('acceptInvite([...pendingInvites.values()][0])');await hub.pump();
  }
- host.match.run(`lobbyAction(1,{action:'config',config:{...lobbyConfig,map:${count===2?10:count===3?6:4},shops:true}})`);await hub.pump();
+ host.match.run(`lobbyAction(1,{action:'config',config:{...lobbyConfig,map:${count===2?10:count===3?6:4},fogOfWar:false,diminishingReturns:true}})`);await hub.pump();
  const config=host.match.run('JSON.stringify(lobbyConfig)'),rooms=clients.map(c=>c.run('JSON.stringify([...links.keys()])'));
  const ready=async()=>{for(const c of clients)c.match.elements.get('ready-button').onclick();await hub.pump()};
  await ready();

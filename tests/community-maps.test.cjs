@@ -61,11 +61,10 @@ test('custom spawns keep seat ownership, individual paths and shop positions in 
     const game=createGame(page),config=page==='index.html'?'botConfig':'lobbyConfig';
     game.context.catalog={maps:[{id:403,revision:1,players:4,name:'Team camp'}],
       versions:[{key:'403/1',layout:JSON.stringify(board)}]};
-    game.run('loadMapCatalog(catalog);Object.assign('+config+',selectionConfig(403),{teams:true,teamSize:2,shops:true});init()');
+    game.run('loadMapCatalog(catalog);Object.assign('+config+',selectionConfig(403),{teams:true,teamSize:2});init()');
     assert.equal(game.run('N.P2.owner===2&&allies(1,2)&&N.P2.adj.includes("P1")'),true);
     assert.equal(game.run('boardViewPoint(N.P2,2).x'),35);
     assert.equal(game.run('boardViewPoint(N.P2,2,true).y'),20);
-    assert.equal(game.run('Object.values(N).filter(n=>n.shop).every(s=>Object.values(N).every(n=>s===n||Math.hypot(s.x-n.x,s.y-n.y)>=8))'),true);
   }
 });
 

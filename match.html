@@ -25,13 +25,13 @@ small{color:var(--mut)}
 .editions a[aria-current="page"]{background:var(--card);font-weight:700}
 input{font:inherit;min-width:0;max-width:100%;min-height:40px;box-sizing:border-box}
 button{min-height:44px}
-#variant-dialog{max-height:calc(100dvh - 48px);overflow:auto;width:min(420px,calc(100% - 44px));border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--fg);box-shadow:0 18px 80px #0008}#variant-dialog::backdrop{background:#101410bb;backdrop-filter:blur(3px)}#variant-form{display:grid;gap:14px}#variant-form h2{margin:0}#variant-form label{display:grid;gap:5px;font-weight:650}#variant-form select{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}#variant-form .shop-toggle{display:flex;align-items:center}#variant-form .shop-toggle input{width:20px;height:20px}.variant-status{min-height:22px;color:var(--mut)}
+#variant-dialog{max-height:calc(100dvh - 48px);overflow:auto;width:min(420px,calc(100% - 44px));border:1px solid var(--bd);border-radius:16px;background:var(--card);color:var(--fg);box-shadow:0 18px 80px #0008}#variant-dialog::backdrop{background:#101410bb;backdrop-filter:blur(3px)}#variant-form{display:grid;gap:14px}#variant-form h2{margin:0}#variant-form label{display:grid;gap:5px;font-weight:650}#variant-form select{font:inherit;padding:10px;border:1px solid var(--bd);border-radius:8px;background:var(--bg);color:var(--fg)}#variant-form .rule-toggle{display:flex;align-items:center}#variant-form .rule-toggle input{width:20px;height:20px}.variant-status{min-height:22px;color:var(--mut)}
 #friends li{margin:4px 0}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
 #match-invites{display:flex;gap:8px;flex-wrap:wrap;max-height:140px;overflow:auto}#match-roster p{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:6px 0}
-</style><link rel="stylesheet" href="./board-ui.css?v=40"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=41"></head><body><main>
 <header class="row"><h1>Fruit Wars</h1><button id="leave-match">Leave</button></header><details id="match-profile" class="card"><summary id="match-profile-name" aria-label="Player profile" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><form class="row" id="rename-match"><label for="match-name">Display name</label><input id="match-name" required maxlength="32"><button>Save name</button></form><label>Compact board <select id="profile-compact-board" aria-label="Compact board"></select></label><p>Leave this match to invite another online player.</p></details><p id="match-status" role="status">Connecting to your friend…</p><section id="match" hidden>
 <dialog id="variant-dialog"><form method="dialog" id="variant-form"><h2>Set up this match</h2><p>Ready up to start. Bots fill empty seats.</p>
     <fieldset class="map-player-count"><legend>Players</legend></fieldset>
@@ -41,27 +41,22 @@ button{min-height:44px}
     <label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label>
     <details class="form-options"><summary>Match rules</summary><div class="option-fields">
       <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
-      <label class="shop-toggle"><input name="shops" type="checkbox"> Shop abilities</label>
-      <label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label>
-      <label class="shop-toggle"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
-      <label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label>
+      <label class="rule-toggle"><input name="fogOfWar" type="checkbox" checked> Fog of war</label>
+      <label class="rule-toggle"><input name="diminishingReturns" type="checkbox"> Diminishing returns</label>
+      <label class="rule-toggle"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
+      <label class="rule-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label>
     </div></details>
     <p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
-<div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
-  <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
-  <div class="production-pair production-next"><strong>Next</strong><span id="production-next-buff" class="production-buff" role="img"></span><span id="production-next-debuff" class="production-debuff" role="img"></span></div>
-  <progress id="production-progress" max="45000" aria-label="Time until next production pair"></progress>
-</div>
 <button id="join-game" type="button" hidden>Join game</button>
 <div id="msg"></div>
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
 
 </section></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=6"></script><script>
+<script src="./simulation.js?v=1"></script><script src="./duel-maps.js?v=7"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:280,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
-let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={botDifficulty:"normal",map:2,speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
+let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={botDifficulty:"normal",map:2,speed:1,fogOfWar:true,diminishingReturns:false,fullElimination:false,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1;
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
 let historyReportedRound=-1;
 let spectatorSeats=[];
@@ -76,21 +71,17 @@ function unitProgress(g,now=performance.now()){
 function predictFor(seconds){
   for(let remaining=seconds;remaining>1e-8;){const dt=Math.min(.025,remaining);step(dt);remaining-=dt;}
 }
-let productionCycle;
 let humanPlayers=[1,2], connectedPlayers=[1,2], configVersion=0, lastCommands={}, lobbyMembers=[];
 let N,G,drag,sel,sendType,half,msg,over,botThink=0;
 const $=id=>document.getElementById(id);
 function init(){
   transformationClock=0;
-  productionCycle=null;
-  N={};shakeNodes={};botThink=0;
+  N={};botThink=0;
   const layout = selectedLayout(lobbyConfig);
   const {nodes: positions, edges} = layout;
   for(const [id,[x,y]] of Object.entries(positions))N[id]={id,x,y,home:id[0]==="P"?Number(id.slice(1)):0,owner:0,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[]};
   for(const [a,b] of edges){N[a].adj.push(b);N[b].adj.push(a)}
-  if(lobbyConfig.shops)for(const owner of Object.values(N).filter(n=>n.home).map(n=>Number(n.id.slice(1))))for(const kind of ["shield","boost"]){const id=`S${owner}${kind==="shield"?"H":"B"}`,c=N[`P${owner}`];N[id]={id,...(layout.customHomes?customShopPosition(c,kind,N):shopPosition(c,kind,layout.players===3,layout.players===4,layout.players)),home:0,shop:kind,owner,stock:Array(7).fill(0),ut:0,pend:null,cd:0,tm:0,orders:[],departure:0,adj:[],charge:0,abilityReady:false,abilityCd:0,abilityTargets:[]};c.adj.push(id);N[id].abilityTargets=Object.keys(N).filter(k=>!k.startsWith("S"))}
   for(const n of Object.values(N)){const ty=Math.random()*7|0;
-    if(n.shop)continue;
     if(n.home){n.owner=n.id==="P1"?1:2;n.stock[ty]=CONFIG.startingPopulation}else{n.ut=ty;n.stock[ty]=layout.difficulty[n.id] ?? CONFIG.neutralGarrison}}
   for(const n of Object.values(N))if(n.home){const owner=Number(n.id.slice(1));n.owner=owner;n.stock.fill(0);n.stock[Math.random()*7|0]=CONFIG.startingPopulation}
   G=[];drag=null;sel=null;sendType=0;half=false;over=0;
@@ -107,19 +98,11 @@ function fight(at,an,dt,dn){
   if(pd-pa>CONFIG.strengthEpsilon)return[2,(pd-pa)/mult(dt,at)];
   return[0,0];
 }
-function shopCapacity(target,includeOrders=true){
-  const incoming=G.filter(g=>g.to===target.id&&g.owner===target.owner).reduce((sum,g)=>sum+g.n,0);
-  const reserved=includeOrders?Object.values(N).reduce((sum,n)=>sum+n.orders.filter(o=>o.to===target.id&&o.owner===target.owner).reduce((total,o)=>total+o.count,0),0):0;
-  return target.abilityReady||target.abilityCd>0?0:Math.max(0,10-target.charge-incoming-reserved);
-}
 function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
-  if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
   return !allies(target.owner,owner)||target.ut===type;
 }
 function dispatch(source,to,type,count){
-  const target=N[to];
-  if(target?.shop){if(target.owner!==source.owner)return;count=Math.min(count,shopCapacity(target));}
   if(count<=CONFIG.strengthEpsilon)return;
   source.stock[type]-=count;
   source.orders.push({to,owner:source.owner,type,count});
@@ -134,7 +117,7 @@ function depart(source,dt){
       source.orders.shift();
       continue;
     }
-    const strength=Math.min(1,order.count,target.shop?shopCapacity(target,false):Infinity);
+    const strength=Math.min(1,order.count);
     G.push({id:source.id+":"+(source.unitSequence=(source.unitSequence||0)+1),from:source.id,to:order.to,owner:order.owner,type:order.type,n:strength,t:0});
     order.count-=strength;
     if(order.count<=CONFIG.strengthEpsilon)source.orders.shift();
@@ -144,8 +127,6 @@ function depart(source,dt){
 }
 function arrive(g){
   const n=N[g.to];
-  if(n.shields>0&&n.owner!==g.owner){n.shields--;n.shake=.55;shakeNodes[n.id]=performance.now()+550;return}
-  if(n.shop){if(g.owner===n.owner&&!n.abilityReady&&n.abilityCd<=0){n.charge=Math.min(10,n.charge+Math.ceil(g.n));if(n.charge>=10)n.abilityReady=true;}return}
   if(n.owner===g.owner){if(!canEnter(n,g.owner,g.type))return;n.stock[g.type]=Math.min(CONFIG.cap,n.stock[g.type]+Math.ceil(g.n));return}
   let a=g.n;
   while(a>0){
@@ -165,12 +146,9 @@ function step(dt){
   const transformed=[];
   for(const n of Object.values(N)){
     if(n.shake>0)n.shake=Math.max(0,n.shake-dt);
-    if(n.boost>0)n.boost=Math.max(0,n.boost-dt);
-    if(n.boost<1e-8)n.boost=0;
     if(!n.owner||(predicting&&n.owner!==localPlayer))continue;
-    if(n.shop){if(n.abilityCd>0)n.abilityCd=Math.max(0,n.abilityCd-dt);continue}
     if(n.cd>0){advanceTransformation(n,dt);if(n.cd<=0){finishTransformation(n);transformed.push(n)}}
-    else{n.tm+=dt*productionMultiplier(productionCycle,n.ut);if(n.tm>=CONFIG.outpostRate){n.tm=0;if(tot(n)<CONFIG.cap)n.stock[n.ut]+=n.boost>0?3:1}}
+    else advanceProduction(n,dt);
   }
   if(transformed.length)bounceTransformedTroops(transformed);
   G.forEach(g=>{g.previous=g.t;g.t+=dt/troopTravelTime(g)});
@@ -237,15 +215,12 @@ function command(data){
 function applyCommand(owner,data){
   if(!Number.isInteger(owner)||owner<1||owner>MAX_PLAYERS)return;
   if(!online||!gameStarted||countdownRemaining>0||over||!data||typeof data!=="object"||isEliminated(owner))return;
-  if(data.kind==="ability"&&typeof data.from==="string"&&typeof data.to==="string"){
-    const s=N[data.from],t=N[data.to];if(s?.shop&&s.owner===owner&&s.abilityReady&&s.abilityCd<=0&&t?.owner===owner&&!t.shop){if(s.shop==="shield")t.shields=(t.shields||0)+1;else t.boost=Math.max(t.boost||0,7);s.abilityReady=false;s.charge=0;s.abilityCd=10;}return;
-  }
   if(applyRouteCommand(owner,data))return;
   const type=data.type;
   if(!Number.isInteger(type)||type<0||type>=T.length)return;
   if(data.kind==="produce"&&typeof data.node==="string"&&Object.hasOwn(N,data.node)){
     const n=N[data.node];
-    if(n.owner===owner&&!n.shop&&type!==(n.pend??n.ut)){
+    if(n.owner===owner&&type!==(n.pend??n.ut)){
       beginTransformation(n,type);
     }
   }
@@ -261,18 +236,18 @@ function snapshot(viewer=2){
   const nodes=Object.fromEntries(Object.entries(N).map(([id,n])=>{
     if(viewer===0||allies(n.owner,viewer))return [id,n];
     if(visible.has(id))return [id,{...n,pend:null,cd:0,tm:0,orders:[],routes:[],routeRemaining:{}}];
-    return [id,{id,x:n.x,y:n.y,home:n.home,shop:n.shop,adj:n.adj,owner:0,stock:Array(7).fill(0),
+    return [id,{id,x:n.x,y:n.y,home:n.home,adj:n.adj,owner:0,stock:Array(7).fill(0),
       ut:0,pend:null,cd:0,tm:0,orders:[],routes:[],routeRemaining:{},departure:0}];
   }));
-  return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>allies(g.owner,viewer)||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:eliminatedBy,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
+  return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>allies(g.owner,viewer)||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,conquests:eliminatedBy,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&(config.botDifficulty===undefined||["easy","normal","hard"].includes(config.botDifficulty))&&Number.isInteger(config.map)&&!!selectedLayout(config)&&validTeams(config)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.transformationPenalty===undefined||typeof config.transformationPenalty==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&selectedLayout(config).players>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&(config.botDifficulty===undefined||["easy","normal","hard"].includes(config.botDifficulty))&&Number.isInteger(config.map)&&!!selectedLayout(config)&&validTeams(config)&&[.5,1,1.5].includes(config.speed)&&(config.fogOfWar===undefined||typeof config.fogOfWar==="boolean")&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.transformationPenalty===undefined||typeof config.transformationPenalty==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.diminishingReturns===undefined||typeof config.diminishingReturns==="boolean")&&selectedLayout(config).players>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",round:matchRound,config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
   const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
   variantField("botDifficulty").value=lobbyConfig.botDifficulty??"normal";
-  variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;variantField("transformationPenalty").checked=!!lobbyConfig.transformationPenalty;
+  variantField("speed").value=String(lobbyConfig.speed);variantField("fogOfWar").checked=lobbyConfig.fogOfWar!==false;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("diminishingReturns").checked=!!lobbyConfig.diminishingReturns;variantField("transformationPenalty").checked=!!lobbyConfig.transformationPenalty;
   teamSetting($("variant-form"),mapPlayerCount(lobbyConfig.map),lobbyConfig);
   showMapPreview();
   $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
@@ -300,7 +275,7 @@ function lobbyAction(owner,data){
   sendLobby();updateLobbyUI();beginMatch();
 }
 function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields,round:matchRound};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
-$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{...matchMapChoice(Number(variantField("map").value),variantField("teams").checked),teams:!!variantField("teams").checked,teamSize:Number(variantField("teamSize").value)||2,botDifficulty:variantField("botDifficulty").value,speed:Number(variantField("speed").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,productionRotation:variantField("productionRotation").checked,transformationPenalty:variantField("transformationPenalty").checked}}));
+$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{...matchMapChoice(Number(variantField("map").value),variantField("teams").checked),teams:!!variantField("teams").checked,teamSize:Number(variantField("teamSize").value)||2,botDifficulty:variantField("botDifficulty").value,speed:Number(variantField("speed").value),fogOfWar:variantField("fogOfWar").checked,fullElimination:variantField("fullElimination").checked,diminishingReturns:variantField("diminishingReturns").checked,transformationPenalty:variantField("transformationPenalty").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
 $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
@@ -316,8 +291,7 @@ window.matchGame={
     this.start(1,send,[1]);
     lobbyConfig=state.config;CONFIG.timeScale=lobbyConfig.speed;
     N=state.nodes;G=state.units;G.forEach((g,i)=>g.id??="solo:"+i);over=state.over;eliminatedBy=state.conquests;
-    transformationClock=state.transformationClock;productionCycle=state.productionCycle;
-    if(productionCycle)productionCycle.endsAt=performance.now()+productionCycle.remaining;
+    transformationClock=state.transformationClock;
     portionPercent=state.portionPercent;sel=state.selection;sendType=state.sendType;
     gameStarted=true;countdownRemaining=0;countdownSyncedAt=performance.now()-5000;
     sequence=state.sequence||0;$("variant-dialog").close();nextSync=0;
@@ -338,7 +312,7 @@ window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
     historyReportedRound=-1;
-    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(MAX_PLAYERS).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={botDifficulty:"normal",map:mapForPlayers(Math.max(2,...humans)),speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=1;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(MAX_PLAYERS).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={botDifficulty:"normal",map:mapForPlayers(Math.max(2,...humans)),speed:1,fogOfWar:true,diminishingReturns:false,fullElimination:false,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=1;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
     $("join-game").hidden=player!==0;
     if(player===0){$("variant-dialog").close();msg="Spectating. Join to take over an available bot."}
@@ -396,7 +370,7 @@ window.matchGame={
     countdownRemaining=Number.isFinite(data.countdownRemaining)?Math.max(0,data.countdownRemaining):0;countdownSyncedAt=syncedAt;
     if(Array.isArray(data.members))lobbyMembers=data.members;
     if(Number.isFinite(data.transformationClock))transformationClock=data.transformationClock;
-    N=data.nodes;G=data.units;over=data.over;productionCycle=data.productionCycle;eliminatedBy=data.conquests||{};
+    N=data.nodes;G=data.units;over=data.over;eliminatedBy=data.conquests||{};
     if(Array.isArray(data.humans))humanPlayers=data.humans;
     if(Array.isArray(data.connected))connectedPlayers=data.connected;
     pendingCommands=pendingCommands.filter(entry=>entry.packet.sequence>(data.ack??-1)&&syncedAt-entry.at<=PREDICTION_LIMIT);
@@ -466,7 +440,7 @@ function panel(){
   if(sel){
     const n=N[sel];
     h+=`<div class="row"><b>${"Node "+n.id}</b> Send:`+n.stock.map((k,i)=>k?`<button class="${i===sendType?"on":""}" data-act="s${i}">${T[i][0]} ${Math.ceil(k)}</button>`:"").join("")+`<button data-act="half">${half?"Half":"All"}</button></div>`;
-    if(!n.shop)h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
+    h+=`<div class="row">Produce:`+T.map((t,i)=>`<button class="${(n.pend??n.ut)===i?"on":""}" data-act="p${i}">${t[0]}</button>`).join("")+(n.cd>0?` <small>switching in ${n.cd.toFixed(1)}s</small>`:"")+`</div>`;
   }
   if($("panel").dataset.html!==h){$("panel").dataset.html=h;$("panel").innerHTML=h;}
 }
@@ -478,7 +452,6 @@ function loop(now){
       const countingDown=countdownRemaining>0;
       countdownRemaining=Math.max(0,countdownRemaining-elapsed);
       if(!countingDown){
-      if(lobbyConfig.productionRotation){productionCycle??=startProductionCycle(N,G,T.length,now);if(!over)advanceProductionCycle(productionCycle,N,G,T.length,now)}else productionCycle=null;
       step(dt);
       if(over&&historyReportedRound!==matchRound){
         historyReportedRound=matchRound;
@@ -498,7 +471,6 @@ function loop(now){
     }
     if(!$("match").hidden){
       render();
-      renderProductionCycle(gameStarted?productionCycle:null,T);
       if(now-pl>150){pl=now;panel()}
     }
   }
@@ -553,4 +525,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=41"></script><script>requestAnimationFrame(loop);</script></body></html>
+</script><script src="./bot-ai.js?v=2"></script><script src="./controls.js?v=30"></script><script src="./board-ui.js?v=42"></script><script>requestAnimationFrame(loop);</script></body></html>

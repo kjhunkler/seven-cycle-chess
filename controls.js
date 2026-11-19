@@ -6,12 +6,12 @@ const myPlayer=()=>typeof localPlayer==='undefined'?1:localPlayer;
 let eliminatedBy={};
 function allies(a,b){return sameSide(a,b,transformationConfig().teams?(transformationConfig().teamSize??2):false)}
 function visibleNodes(viewer){
-  if(viewer===0)return new Set(Object.keys(N));
+  if(viewer===0||transformationConfig().fogOfWar===false)return new Set(Object.keys(N));
   if(transformationConfig().teams ? over : isEliminated(viewer))return new Set(Object.keys(N));
   const visible=new Set();
   for(const n of Object.values(N))if(allies(viewer,n.owner)){
     visible.add(n.id);
-    if(!n.shop)for(const id of n.adj)visible.add(id);
+    for(const id of n.adj)visible.add(id);
   }
   return visible;
 }
@@ -28,36 +28,12 @@ function boardViewPoint(p,owner,inverse=false){
  return {x:p.x,y:owner===2?100-p.y:p.y};
 }
 function survivingOwner(owner){while(eliminatedBy[owner])owner=eliminatedBy[owner];return owner}
-function botShopTurn(owner,reserve=2){
-  const homeNode=playerHome(owner);if(!homeNode)return;
-  for(const shop of Object.values(N).filter(n=>n.shop&&n.owner===owner)){
-    if(shop.abilityReady){const ability={kind:'ability',from:shop.id,to:homeNode.id};if(typeof applyCommand==='function')applyCommand(owner,ability);else applyRouteCommand(owner,ability);continue}
-    if(shop.abilityCd>0)continue;
-    const incoming=G.filter(g=>g.to===shop.id&&g.owner===owner).reduce((sum,g)=>sum+g.n,0)+Object.values(N).flatMap(n=>n.orders).filter(o=>o.to===shop.id&&o.owner===owner).reduce((sum,o)=>sum+o.count,0);
-    const type=big(homeNode),count=Math.min(10-shop.charge-incoming,type<0?0:homeNode.stock[type]-reserve);
-    if(count>0)dispatch(homeNode,shop.id,type,count);
-  }
-}
-function removeDefeatedShops(owner){
-  const removed=new Set(Object.values(N).filter(n=>n.shop&&n.owner===owner).map(n=>n.id));
-  if(!removed.size)return;
-  for(const n of Object.values(N)){
-    n.adj=n.adj.filter(id=>!removed.has(id));
-    n.routes=(n.routes||[]).filter(id=>!removed.has(id));
-    n.orders=n.orders.filter(order=>{if(!removed.has(order.to))return true;n.stock[n.ut]+=order.count;return false});
-    if(n.abilityTargets)n.abilityTargets=n.abilityTargets.filter(id=>!removed.has(id));
-  }
-  G=G.filter(g=>{if(!removed.has(g.to)&&!removed.has(g.from))return true;const source=N[g.from];if(source&&!source.shop&&!source.disabled)source.stock[source.ut]+=g.n;return false});
-  for(const id of removed)delete N[id];
-  if(removed.has(sel)){sel=null;closeWheel()}
-  if(removed.has(drag?.from)||removed.has(drag?.to))drag=null;
-}
 function playerHome(owner){return Object.values(N).find(n=>n.home===owner)}
 function isEliminated(owner){return !!eliminatedBy[owner]}
 // Count fruit wherever it is: garrisons, queued departures, and moving troops.
 function bestOpenBot(humans=[1]){
   if(over)return null;
-  const total=owner=>Object.values(N).reduce((sum,n)=>sum+(n.owner===owner&&!n.shop?tot(n):0)+n.orders.reduce((s,o)=>s+(o.owner===owner?o.count:0),0),0)+G.reduce((sum,g)=>sum+(g.owner===owner?g.n:0),0);
+  const total=owner=>Object.values(N).reduce((sum,n)=>sum+(n.owner===owner?tot(n):0)+n.orders.reduce((s,o)=>s+(o.owner===owner?o.count:0),0),0)+G.reduce((sum,g)=>sum+(g.owner===owner?g.n:0),0);
   return Object.values(N).filter(n=>n.home&&!humans.includes(n.home)&&(!transformationConfig().teams||allies(n.home,1)))
     .map(n=>n.home).sort((a,b)=>total(b)-total(a)||a-b)[0]??null;
 }
@@ -68,19 +44,17 @@ window.botGame={
   get paused(){return typeof botConfig!=='undefined'&&botPaused},
   start(){
     if(typeof botConfig==='undefined'||over)return;
-    if(botPaused&&productionCycle)productionCycle.endsAt+=Math.max(0,performance.now()-last);
     last=performance.now();botStarted=true;botPaused=false;render();panel();
   },
   pause(){
     if(typeof botConfig==='undefined')return;
-    if(!botPaused&&productionCycle)productionCycle.endsAt+=Math.max(0,performance.now()-last);
     last=performance.now();botPaused=true;drag=null;closeWheel();render();panel();
   },
   bestBot(){return this.active?bestOpenBot([1]):null},
   exportState(){
     if(typeof botConfig==='undefined')return null;
     return JSON.parse(JSON.stringify({nodes:N,units:G,over,config:botConfig,conquests:eliminatedBy,
-      transformationClock,productionCycle,portionPercent,selection:sel,sendType,soloPlayId}));
+      transformationClock,portionPercent,selection:sel,sendType,soloPlayId}));
   },
   retire(){soloPlayId=undefined}
 };
@@ -88,7 +62,6 @@ function resumePausedBotGameForBoardInput(){
   if(typeof botConfig!=='undefined'&&window.botGame.paused&&!over)window.botGame.start();
 }
 function eliminatePlayer(loser,winner){
-  removeDefeatedShops(loser);
   eliminatedBy[loser]=winner;
   for(const n of Object.values(N)){
     if(n.home===loser)n.home=0;
@@ -105,7 +78,7 @@ function eliminatePlayer(loser,winner){
 }
 function capturedHome(node,loser,winner){
   // Only the name moves. The captured and replacement nodes retain their normal state.
-  const next=transformationConfig().fullElimination?Object.values(N).filter(n=>!n.shop&&n.owner===loser).sort((a,b)=>tot(b)-tot(a)||a.id.localeCompare(b.id))[0]:null;
+  const next=transformationConfig().fullElimination?Object.values(N).filter(n=>n.owner===loser).sort((a,b)=>tot(b)-tot(a)||a.id.localeCompare(b.id))[0]:null;
   node.home=0;
   if(next)next.home=loser;
   else eliminatePlayer(loser,winner);
@@ -159,11 +132,11 @@ function bounceTroop(g,progress){
     g.owner=survivingOwner(g.owner);
     const target=N[g.to];if(!target)return;
     if(target.disabled)return;
-    if(!target.shop&&allies(target.owner,g.owner)&&!canEnter(target,g.owner,g.type)){
+    if(allies(target.owner,g.owner)&&!canEnter(target,g.owner,g.type)){
       bounceTroop(g,0);
       G.push(g);return;
     }
-    if(!target.shop&&target.owner!==g.owner&&allies(target.owner,g.owner)){
+    if(target.owner!==g.owner&&allies(target.owner,g.owner)){
       target.stock[g.type]=Math.min(CONFIG.cap,target.stock[g.type]+Math.ceil(g.n));
       return;
     }
@@ -180,7 +153,7 @@ function bounceTroop(g,progress){
         const type=n.stock[n.ut]>CONFIG.strengthEpsilon&&canEnter(N[to],n.owner,n.ut)?n.ut:-1;
         if(type==null||type<0||n.stock[type]<=CONFIG.strengthEpsilon||!canEnter(N[to],n.owner,type))continue;
         const remaining=n.routeRemaining?.[to];
-        const count=Math.min(1,n.stock[type],remaining??Infinity,tot(n)-(remaining==null?1:0),N[to].shop?shopCapacity(N[to]):Infinity);
+        const count=Math.min(1,n.stock[type],remaining??Infinity,tot(n)-(remaining==null?1:0));
         if(count<=CONFIG.strengthEpsilon)continue;
         n.stock[type]-=count;
         G.push({from:n.id,to,owner:n.owner,type,n:count,t:0});
@@ -196,7 +169,7 @@ function bounceTroop(g,progress){
     }
     baseDepart(n,dt);
   };
-  send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to,portion:portionPercent});};
+  send=function(from,to){if(N[from]?.owner!==myPlayer())return;routeCommand({kind:'route',node:from,to,portion:portionPercent});};
   const baseAct=act;
   act=function(a){
     if(a==='cancel'||/^p\d+$/.test(a))resumePausedBotGameForBoardInput();
@@ -264,7 +237,7 @@ function bounceTroop(g,progress){
   let wheelNode=null;
   closeWheel=function(){typeWheel.hidden=true;wheelNode=null;};
   openWheel=function(id,x,y){
-    const n=N[id];if(over||!n||n.shop||n.owner!==myPlayer())return;
+    const n=N[id];if(over||!n||n.owner!==myPlayer())return;
     select(id);wheelNode=id;typeWheel.dataset.node=id;
     if(drag)drag.held=true;
     typeWheel.innerHTML='';
@@ -318,7 +291,7 @@ function bounceTroop(g,progress){
   };
   const point=(x,y)=>{const p=new DOMPoint(x,y).matrixTransform(map.getScreenCTM().inverse());return boardViewPoint(p,myPlayer(),true);};
   const snap=(id,x,y)=>{
-    const a=N[id],targets=a.shop?a.abilityTargets||[]:a.adj,p=point(x,y),dx=p.x-a.x,dy=p.y-a.y,len=Math.hypot(dx,dy);
+    const a=N[id],targets=a.adj,p=point(x,y),dx=p.x-a.x,dy=p.y-a.y,len=Math.hypot(dx,dy);
     if(len<7)return null;
     let best=null,score=.82;
     for(const to of targets){const b=N[to],vx=b.x-a.x,vy=b.y-a.y,c=(dx*vx+dy*vy)/(len*Math.hypot(vx,vy));if(c>score){best=to;score=c;}}
@@ -326,7 +299,7 @@ function bounceTroop(g,progress){
   };
   const routeTarget=(id,x,y)=>{
     const hit=document.elementFromPoint?.(x,y)?.closest('[data-id]')?.dataset.id;
-    return hit&&(N[id].shop?N[hit]?.owner===myPlayer()&&!N[hit].shop:N[id].adj.includes(hit))?hit:snap(id,x,y);
+    return hit&&N[id].adj.includes(hit)?hit:snap(id,x,y);
   };
   document.addEventListener('pointerdown',e=>{if(!typeWheel.hidden&&!typeWheel.contains(e.target)&&!e.target.closest('[data-id]'))closeWheel();},true);
   document.addEventListener('keydown',e=>{if(e.key==='Escape')closeWheel();});
@@ -383,7 +356,7 @@ function bounceTroop(g,progress){
       typeWheel.querySelectorAll('button').forEach(b=>b.classList.toggle('hover',b===hit));return;
     }
     if(Math.hypot(e.clientX-drag.startX,e.clientY-drag.startY)>tapSlop){drag.moved=true;clearTimeout(holdTimer);}
-    if(drag.moved){if(!N[drag.from]?.shop)select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
+    if(drag.moved){select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
     if(mousePan?.id===e.pointerId){mousePan=null;return;}

@@ -3,7 +3,7 @@ const assert=require('node:assert/strict');
 const {createGame}=require('./game-harness.cjs');
 const {lobbyHarness}=require('./lobby-harness.cjs');
 
-test('bot game waits for Start and Pause freezes troops, production, transformations and rotation',()=>{
+test('bot game waits for Start and Pause freezes troops, production, and transformations',()=>{
   const h=createGame('index.html');
   const button=h.created.find(e=>e.className==='battle-solo-toggle');
   h.run('render();loop(200);loop(1000)');
@@ -13,11 +13,10 @@ test('bot game waits for Start and Pause freezes troops, production, transformat
   button.onclick();assert.ok(button.innerHTML.includes('Pause bot game'));
   h.run('aiT=999;loop(200)');assert.ok(h.run('N.P1.tm')>0);
   button.onclick();assert.ok(button.innerHTML.includes('Resume bot game'));
-  h.run('N.P1.stock.fill(0);G=[{from:"C2",to:"P1",owner:2,type:0,n:10,t:.99}];productionCycle={active:{buff:0,debuff:1},next:{buff:1,debuff:2},endsAt:45100,remaining:45000};last=200');
+  h.run('N.P1.stock.fill(0);G=[{from:"C2",to:"P1",owner:2,type:0,n:10,t:.99}];last=200');
   const before=h.run('JSON.stringify([N,G,transformationClock,aiT])');
   h.run('loop(1200);loop(2200)');
   assert.equal(h.run('JSON.stringify([N,G,transformationClock,aiT])'),before);
-  assert.equal(h.run('productionCycle.endsAt'),47100);
   assert.equal(h.run('over'),0);
   assert.equal(h.run('botGame.bestBot()'),null);
   button.onclick();h.run('loop(200)');assert.equal(h.run('over'),2);

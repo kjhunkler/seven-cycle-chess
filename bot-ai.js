@@ -11,7 +11,6 @@ function runBotTurns(humans){
   for(const node of Object.values(N)){
     if(!node.home||humans.includes(node.home))continue;
     if(level==='easy'){
-      botShopTurn(node.home);
       easyBotTurn(node.home);
     }else{
       planBotTurn(node.home,level==='hard');
@@ -29,7 +28,7 @@ function easyBotTurn(owner){
     let best,score=1;
     for(const id of source.adj){
       const target=N[id];
-      if(target.shop||target.disabled)continue;
+      if(target.disabled)continue;
       const defender=big(target);
       let value;
       if(allies(target.owner,owner))value=target.ut===type&&Math.random()<.3?1.1:0;
@@ -46,8 +45,8 @@ function botAdvantage(type,defender){
 
 function planBotTurn(owner,hard){
   const nodes=Object.values(N);
-  const mine=nodes.filter(n=>n.owner===owner&&!n.shop&&!n.disabled);
-  const neighbors=n=>n.adj.map(id=>N[id]).filter(t=>!t.shop&&!t.disabled);
+  const mine=nodes.filter(n=>n.owner===owner&&!n.disabled);
+  const neighbors=n=>n.adj.map(id=>N[id]).filter(t=>!t.disabled);
   const rivals=n=>neighbors(n).filter(t=>!allies(t.owner,owner));
   // Express incoming strength in the destination's fruit type.
   const incoming=new Map();
@@ -87,8 +86,8 @@ function planBotTurn(owner,hard){
     const donors=neighbors(t).filter(n=>n.owner===owner&&available(n)>0);
     if(!donors.length)continue;
     const transit=Math.min(...donors.map(n=>troopTravelTime({from:n.id,to:t.id})));
-    const growth=t.owner?Math.ceil(transit*productionMultiplier(productionCycle,t.ut)/CONFIG.outpostRate):0;
-    const needed=tot(t)+growth+(t.shields||0)-(incoming.get(t.id)||0);
+    const growth=t.owner?Math.ceil(transit*productionMultiplier(tot(t))/CONFIG.outpostRate):0;
+    const needed=tot(t)+growth-(incoming.get(t.id)||0);
     if(needed<0)continue;
     const powerFrom=n=>available(n)*botAdvantage(n.ut,t.ut);
     donors.sort((a,b)=>powerFrom(b)-powerFrom(a));
@@ -108,8 +107,6 @@ function planBotTurn(owner,hard){
       if(remaining<0)break;
     }
   }
-  const home=playerHome(owner);
-  botShopTurn(owner,Math.max(2,Math.ceil(-(incoming.get(home.id)||0))));
   // Work inward from contested borders so rear garrisons feed the front.
   const distance=new Map(fronts.map(n=>[n,0])),queue=[...fronts];
   for(let i=0;i<queue.length;i++){

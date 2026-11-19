@@ -65,29 +65,6 @@ function radialHomes(players,point=[50,92]){
     return [x,y];
   });
 }
-function customShopPosition(home,kind,occupied){
-  // Try nearby positions first, including alternatives when a home is on the boundary.
-  const neighbors=Object.values(occupied);
-  let best,clearance=-1;
-  for(const radius of [10,16,22])for(let i=0;i<16;i++){
-    const angle=(kind==='shield'?Math.PI:0)+i*Math.PI/8;
-    const x=home.x+radius*Math.cos(angle),y=home.y+radius*Math.sin(angle);
-    if(x<2||x>98||y<2||y>98)continue;
-    const distance=Math.min(...neighbors.map(n=>Math.hypot(n.x-x,n.y-y)));
-    if(distance>=8)return {x,y};
-    if(distance>clearance){best={x,y};clearance=distance}
-  }
-  return best;
-}
-function shopPosition(c,kind,triangular,four=false,players=2){
-  const side=kind==='shield'?-1:1;
-  if(players>4){
-    const angle=Math.atan2(c.y-50,c.x-50);
-    const offset=players===9?9:12;
-    return {x:Math.max(2,Math.min(98,c.x-side*offset*Math.sin(angle))),y:Math.max(2,Math.min(98,c.y+side*offset*Math.cos(angle)))};
-  }
-  return four?{x:c.x+side*15,y:c.y<50?2:98}:triangular?rotateBoardPoint({x:50+side*24,y:90},radialSeatAngle(Number(c.id.slice(1)),3)):{x:Math.max(8,Math.min(92,c.x+side*36)),y:c.y+(c.y<50?5:-5)};
-}
 const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B1-B2 B2-B3 B3-B4 B1-C1 B2-C1 B2-C2 B3-C2 B3-C3 B4-C3 C1-C2 C2-C3 C1-P1 C2-P1 C3-P1".split(" ").map(e=>e.split("-"));
 
 // These transforms match boardViewPoint in controls.js. Three-seat boards rotate
