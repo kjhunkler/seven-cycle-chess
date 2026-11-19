@@ -69,6 +69,23 @@ test('custom spawns keep seat ownership, individual paths and shop positions in 
   }
 });
 
+test('published team symmetry survives catalog loading and validates home paths', () => {
+  const game=createGame(),board=layout(6);
+  board.customHomes=true;board.spawnTeamSize=2;
+  for(let team=0;team<3;team++){
+    board.nodes['P'+(2*team+1)]=radialHomes(3,[44,87])[team];
+    board.nodes['P'+(2*team+2)]=radialHomes(3,[56,87])[team];
+    board.edges.push(['P'+(2*team+1),'P'+(2*team+2)]);
+  }
+  game.context.catalog={maps:[{id:403,revision:1,players:6,name:'Three teams'}],
+    versions:[{key:'403/1',layout:JSON.stringify(board)}]};
+  game.run('loadMapCatalog(catalog);Object.assign(lobbyConfig,selectionConfig(403),{teams:true,teamSize:2});init()');
+  assert.equal(game.run('selectedLayout(lobbyConfig).spawnTeamSize'),2);
+  assert.equal(game.run('N.P5.adj.includes("P6")&&allies(5,6)'),true);
+  assert.throws(()=>mapLayout({...board,edges:board.edges.slice(0,-1)}),/Paths must match/);
+  assert.throws(()=>mapLayout({...board,spawnTeamSize:4}),/team size/);
+});
+
 test('guests recover a lobby packet that arrived before its map subscription', () => {
   const guest=createGame();guest.context.dispatchEvent=()=>{};guest.context.Event=class {};
   guest.run('matchGame.start(2,()=>{})');
@@ -122,13 +139,52 @@ test('editor moves and groups spawns with undo, and preserves the draft through 
   click(33.5,87,'P1');click(50,50,'J1');
   assert.match(get('editor-status').textContent,/empty position/);
   click(26,70);
-  assert.equal(presets.value,'custom');
+  assert.equal(presets.value,'4');
+  assert.match(area.innerHTML,/data-edge="P4-J1" x1="74" y1="70"/);
   assert.match(area.innerHTML,/data-node="P1".*?cx="26" cy="70"/);
   assert.match(area.innerHTML,/data-edge="P1-J1" x1="26" y1="70"/);
   get('editor-undo').onclick();
   assert.equal(area.innerHTML,grouped);
   get('editor-undo').onclick();
   assert.equal(area.innerHTML,standard);
+  tool.value='node';tool.onchange();
+  // The two six-seat presets have different symmetry despite sharing a player count.
+  get('editor-players').onchange({target:{value:'6'}});
+  presets.onchange({target:{value:'3'}});
+  get('editor-grid').checked=true;
+  get('editor-guides').checked=true;
+  tool.value='move';tool.onchange();
+  click(50,87,'P2');click(55,73);
+  assert.match(area.innerHTML,/data-edge="P2-J1" x1="50" y1="70"/);
+  assert.match(area.innerHTML,/data-edge="P5-J1" x1="50" y1="30"/);
+  assert.equal(guides.match(/map-symmetry-line/g).length,2);
+  presets.onchange({target:{value:'2'}});
+  assert.equal(presets.value,'2');
+  assert.equal(guides.match(/map-symmetry-line/g).length,3);
+  tool.value='node';tool.onchange();
+  click(31,42);
+  assert.equal((area.innerHTML.match(/data-node=/g)||[]).length,10);
+  tool.value='move';tool.onchange();
+  click(30,40,'J2');click(42,33);
+  assert.match(area.innerHTML,/data-node="J2"[^>]*><title>[^<]*<\/title><circle cx="40" cy="30"/);
+  const coordinates=id=>{
+    const group=area.innerHTML.split('data-node="'+id+'"')[1];
+    return group.match(/<circle cx="([^"]+)" cy="([^"]+)"/).slice(1).map(Number);
+  };
+  for(const [i,id] of ['J2','J3','J4'].entries()){
+    const expected=radialHomes(3,[40,30])[i],[x,y]=coordinates(id);
+    assert.ok(Math.hypot(x-expected[0],y-expected[1])<0.015);
+  }
+  tool.value='path';tool.onchange();
+  click(44.5,87,'P1');click(40,30,'J2');
+  for(const pair of ['P1-J2','P3-J3','P5-J4'])assert.ok(area.innerHTML.includes('data-edge="'+pair+'"'));
+  const connected=area.innerHTML;
+  presets.onchange({target:{value:'3'}});
+  assert.equal(area.innerHTML,connected);
+  assert.match(get('editor-status').textContent,/could not be applied/);
+  assert.equal(presets.value,'2');
+  get('editor-players').onchange({target:{value:'8'}});
+  get('editor-grid').checked=false;get('editor-guides').checked=false;
   tool.value='node';tool.onchange();
   const touch=(pointerId,clientX,clientY)=>({pointerType:'touch',pointerId,clientX,clientY});
   area.onpointerdown(touch(1,40,54));

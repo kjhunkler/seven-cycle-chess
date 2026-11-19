@@ -86,13 +86,13 @@ small{color:var(--mut)}
   <div class="map-fields editor-identity"><label>Map name <input id="map-name" required maxlength="64"></label>
   <label>Players <select id="editor-players"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select></label>
   </div>
-  <div class="map-fields"><label>Tool <select id="editor-tool"><option value="node">Add node</option><option value="move">Move spawn</option><option value="path">Connect nodes</option><option value="difficulty">Set troops</option><option value="erase">Erase node or path</option></select></label>
+  <div class="map-fields"><label>Tool <select id="editor-tool"><option value="node">Add node</option><option value="move">Move node</option><option value="path">Connect nodes</option><option value="difficulty">Set troops</option><option value="erase">Erase node or path</option></select></label>
   <label id="editor-garrison-field">Starting troops <input type="number" id="editor-difficulty" min="1" max="99" value="5"></label></div>
   <label>Spawn arrangement <select id="editor-spawns"></select></label>
   <div id="editor-board"></div><p id="editor-help"></p>
   <details class="form-options"><summary>Symmetry and view</summary><div class="option-fields">
     <label>Map symmetry <select id="editor-symmetry"></select></label>
-  <div class="map-actions editor-view-tools"><label><input id="editor-grid" type="checkbox"> Grid</label><label><input id="editor-guides" type="checkbox"> Symmetry lines</label><button type="button" id="editor-reset-view">Reset zoom</button></div>
+  <div class="map-actions editor-view-tools"><label><input id="editor-grid" type="checkbox"> Snap to grid</label><label><input id="editor-guides" type="checkbox"> Symmetry lines</label><button type="button" id="editor-reset-view">Reset zoom</button></div>
   </div></details>
   <div class="map-actions editor-footer"><button id="editor-undo">Undo</button><button id="publish-map">Publish map</button></div><p role="status" id="editor-status"></p>
 </dialog><div id="invite-toasts" aria-live="assertive"></div></main>

@@ -92,8 +92,13 @@ const EDGES="P2-A1 P2-A2 P2-A3 A1-A2 A2-A3 A1-B1 A1-B2 A2-B2 A2-B3 A3-B3 A3-B4 B
 
 // These transforms match boardViewPoint in controls.js. Three-seat boards rotate
 // around the hub. Four-seat boards use both reflections to keep seats equivalent.
-function symmetryCopies(point, players, mirror) {
+function symmetryCopies(point, players, mirror, spawnTeamSize) {
   const [x,y]=point;
+  if(spawnTeamSize){
+    const teams=players/spawnTeamSize;
+    if(teams>2)return radialHomes(teams,point);
+    return [point,[x,100-y],[100-x,y],[100-x,100-y]];
+  }
   if(players===3||players>4) {
     const orbit=p=>radialHomes(players,p);
     return mirror ? [...orbit(point),...orbit([100-x,y])] : orbit(point);
@@ -110,7 +115,8 @@ function mapLayout(raw, requireConnected=true) {
   const fail=message=>{throw new Error(message)};
   if(!MAP_SEAT_COUNTS.includes(players)||typeof mirror!=='boolean'||!nodes||Array.isArray(nodes)||!Array.isArray(edges))
     fail('Choose a valid map and seat count.');
-  const {customHomes=false}=raw;
+  const {customHomes=false,spawnTeamSize}=raw;
+  if(spawnTeamSize!==undefined&&(!customHomes||!teamSizes(players).includes(spawnTeamSize)))fail('Invalid spawn team size.');
   if(typeof customHomes!=='boolean')fail('Invalid spawn layout.');
   const ids=Object.keys(nodes);
   if(ids.length>96||edges.length>300)fail('Maps support up to 96 nodes and 300 paths.');
@@ -129,10 +135,10 @@ function mapLayout(raw, requireConnected=true) {
   if(!difficulty||typeof difficulty!=='object'||Array.isArray(difficulty)||
      Object.entries(difficulty).some(([id,d])=>!ids.includes(id)||id.startsWith('P')||!Number.isInteger(d)||d<1||d>99))
     fail('Neutral difficulty must be between 1 and 99.');
-  const seen=new Set(), startGroups=[],copies={};
+  const seen=new Set(customHomes?homes:[]), startGroups=customHomes?[homes]:[],copies={};
   for(const id of ids){
-    if(customHomes&&id.startsWith('P')){if(id==='P1')startGroups.push(homes);continue}
-    const orbit=symmetryCopies(nodes[id],players,mirror).map(p=>nodeAt(nodes,p));
+    if(customHomes&&!spawnTeamSize&&id.startsWith('P'))continue
+    const orbit=symmetryCopies(nodes[id],players,mirror,spawnTeamSize).map(p=>nodeAt(nodes,p));
     if(orbit.some(other=>!other||other.startsWith('P')!==id.startsWith('P')||(difficulty[other]??5)!==(difficulty[id]??5)))fail('Nodes and difficulty must match across all seats.');
     copies[id]=orbit;
     if(!seen.has(id)){const group=[...new Set(orbit)];startGroups.push(group);group.forEach(other=>seen.add(other))}
@@ -148,7 +154,7 @@ function mapLayout(raw, requireConnected=true) {
   const reached=new Set(['P1']);
   for(const id of reached)for(const other of adj[id])reached.add(other);
   if(requireConnected&&reached.size!==ids.length)fail('Connect every node and starting position before publishing.');
-  return {players,mirror,nodes,edges,difficulty,startGroups,...(customHomes?{customHomes:true}:{})};
+  return {players,mirror,nodes,edges,difficulty,startGroups,...(customHomes?{customHomes:true}:{}),...(spawnTeamSize?{spawnTeamSize}:{})};
 }
 const expandedNodes={...POS,D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]};
 const expandedEdges=[...EDGES,...'A1-D1 A3-D2 B1-E1 B4-E2 D1-B1 D2-B4 E1-C1 E2-C3'.split(' ').map(path=>path.split('-'))];
