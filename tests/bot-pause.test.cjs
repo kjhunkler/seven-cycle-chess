@@ -25,6 +25,16 @@ test('bot game waits for Start and Pause freezes troops, production, transformat
   assert.ok(button.innerHTML.includes('Start bot game'));assert.equal(h.run('botGame.active'),false);
 });
 
+test('node drags and transformations resume a paused bot game',()=>{
+  const h=createGame('index.html'),map=h.elements.get('map');
+  const pointer={pointerId:1,button:0,clientX:150,clientY:300,target:{closest:selector=>selector==='[data-id]'?{dataset:{id:'P1'}}:null},preventDefault(){}};
+  map.listeners.get('pointerdown')(pointer);
+  assert.equal(h.run('botGame.active'),true,'starting a node drag resumes the solo game');
+  h.run('botGame.pause();sel="P1";act("p"+((N.P1.ut+1)%T.length))');
+  assert.equal(h.run('botGame.active'),true,'changing production resumes the solo game');
+  assert.ok(h.run('N.P1.cd')>0,'the transformation is applied');
+});
+
 test('paused hosts reject stale friend joins and spectator upgrades, then become joinable on resume',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),friend=hub.add('Friend');
   await hub.pump();assert.equal(host.run('openActivity()'),null);

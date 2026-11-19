@@ -82,6 +82,9 @@ window.botGame={
   },
   retire(){soloPlayId=undefined}
 };
+function resumePausedBotGameForBoardInput(){
+  if(typeof botConfig!=='undefined'&&window.botGame.paused&&!over)window.botGame.start();
+}
 function eliminatePlayer(loser,winner){
   removeDefeatedShops(loser);
   eliminatedBy[loser]=winner;
@@ -194,6 +197,7 @@ function bounceTroop(g,progress){
   send=function(from,to){if(N[from]?.owner!==myPlayer())return;if(N[from]?.shop)routeCommand({kind:'ability',from,to});else routeCommand({kind:'route',node:from,to,portion:portionPercent});};
   const baseAct=act;
   act=function(a){
+    if(a==='cancel'||/^p\d+$/.test(a))resumePausedBotGameForBoardInput();
     if(a==='cancel'){routeCommand({kind:'cancel',node:sel});return;}
     baseAct(a);
   };
@@ -321,6 +325,7 @@ function bounceTroop(g,progress){
     if(myPlayer()===0||e.button!==0||drag)return;e.preventDefault();
     const id=e.target.closest('[data-id]')?.dataset.id;
     if(!id){closeWheel();sel=null;return;}
+    resumePausedBotGameForBoardInput();
     if(over||N[id].owner!==myPlayer()){closeWheel();return;}
     const wasOpen=wheelNode===id;closeWheel();
     drag={id:e.pointerId,from:id,startX:e.clientX,startY:e.clientY,moved:false,wasOpen};
