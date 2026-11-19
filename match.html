@@ -59,7 +59,7 @@ button{min-height:44px}
 
 </section></main>
 <script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=6"></script><script>
-const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:280,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={botDifficulty:"normal",map:2,speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
