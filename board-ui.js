@@ -84,7 +84,6 @@
     soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
     const maps=document.getElementById('open-maps');
     setAction(maps,'maps','Map library');
-    tools.append(soloToggle,maps,settingsButton);
     const profile=document.getElementById('friends-panel');
     profile.addEventListener('toggle',()=>{
       if(profile.open&&window.botGame.active)window.botGame.pause();
@@ -94,7 +93,7 @@
     soloReplay.hidden=true;
     setAction(soloReplay,'replay','Play again');
     soloReplay.onclick=()=>playAgain();
-    tools.append(soloReplay);
+    tools.append(soloToggle,soloReplay,maps,settingsButton);
   }
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
   const boardPreferences='<div class="option-fields board-preferences"><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div></div>';

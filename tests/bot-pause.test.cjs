@@ -62,7 +62,7 @@ test('solo toolbar keeps playback first and battle settings pause a running game
   const shell=h.created.find(e=>e.className==='battle-shell');
   const play=h.created.find(e=>e.className==='battle-solo-toggle');
   const settings=shell.querySelector('.battle-settings-button');
-  assert.deepEqual(shell.querySelector('.battle-tools').children.slice(0,3),[play,h.elements.get('open-maps'),settings]);
+  assert.deepEqual(shell.querySelector('.battle-tools').children.filter(e=>!e.hidden),[play,h.elements.get('open-maps'),settings]);
   settings.onclick();
   assert.equal(h.run('botGame.started'),false);
   play.onclick();
@@ -77,6 +77,7 @@ test('solo toolbar keeps playback first and battle settings pause a running game
   h.run('over=1;render()');
   assert.equal(play.hidden,true);
   assert.equal(replay.hidden,false);
+  assert.deepEqual(shell.querySelector('.battle-tools').children.filter(e=>!e.hidden),[replay,h.elements.get('open-maps'),settings]);
   replay.onclick();
   assert.equal(h.run('over'),0);
   assert.equal(play.hidden,false);
