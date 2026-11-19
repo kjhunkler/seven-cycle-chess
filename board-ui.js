@@ -117,6 +117,7 @@
       <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
       <label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label>
       <label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label>
+      <label class="shop-setting"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
       <label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label>
     </div></details>
     <details class="form-options"><summary>Board preferences</summary>${boardPreferences}</details>
@@ -124,7 +125,7 @@
   </form>`;
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=transformationPenalty]').checked=!!botConfig.transformationPenalty;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
   const fullscreenButton=shell.querySelector('.battle-fullscreen-button');
   setAction(fullscreenButton,'expand','Full screen');
@@ -216,9 +217,9 @@
   drawCombatHelper(0);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
-      const {map,speed,shops,productionRotation,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
-      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,fullElimination:!!fullElimination?.checked};
-      const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
+      const {map,speed,shops,productionRotation,transformationPenalty,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
+      const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,transformationPenalty:!!transformationPenalty?.checked,fullElimination:!!fullElimination?.checked};
+      const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.transformationPenalty!==!!botConfig.transformationPenalty||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
       showSoloPreview();
       if(reset){

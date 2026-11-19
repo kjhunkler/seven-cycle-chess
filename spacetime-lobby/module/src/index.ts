@@ -115,12 +115,13 @@ const storedMatchRules = t.object('StoredMatchRules', {
   fullElimination: t.bool(),
   portionControl: t.bool(),
   productionRotation: t.bool(),
+  transformationPenalty: t.bool(),
   transformationWave: t.bool(),
   transformationTime: t.f64(),
 });
 const matchRules = t.object('MatchRules', {
   map: t.u8(), teamSize: t.option(t.u8()), speed:t.f64(), shops:t.bool(),
-  fullElimination:t.bool(), portionControl:t.bool(), productionRotation:t.bool(),
+  fullElimination:t.bool(), portionControl:t.bool(), productionRotation:t.bool(), transformationPenalty:t.bool(),
   transformationWave:t.bool(), transformationTime:t.f64(),
 });
 

@@ -42,6 +42,7 @@ button{min-height:44px}
       <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
       <label class="shop-toggle"><input name="shops" type="checkbox"> Shop abilities</label>
       <label class="shop-toggle"><input name="productionRotation" type="checkbox"> Production rotation</label>
+      <label class="shop-toggle"><input name="transformationPenalty" type="checkbox"> Transformation penalty</label>
       <label class="shop-toggle"><input name="fullElimination" type="checkbox"> Full elimination</label>
     </div></details>
     <p class="variant-status" role="status">Waiting for players…</p><div id="match-roster"></div><div id="match-invites"></div><button type="button" id="ready-button">Ready</button><button type="button" id="setup-leave">Leave match</button></form></dialog>
@@ -59,7 +60,7 @@ button{min-height:44px}
 <script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
 const CONFIG={timeScale:0.5,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
-let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
+let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={map:2,speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
 let countdownRemaining=0,countdownSyncedAt=0,matchRound=0;
 let historyReportedRound=-1;
 let spectatorSeats=[];
@@ -264,12 +265,12 @@ function snapshot(viewer=2){
   }));
   return {kind:"state",round:matchRound,sequence:sequence++,ack:lastCommands[viewer]??-1,nodes,units:G.filter(g=>allies(g.owner,viewer)||visible.has(g.from)||visible.has(g.to)),over,gameStarted,countdownRemaining,members:lobbyMembers,transformationClock,productionCycle,conquests:eliminatedBy,config:lobbyConfig,humans:humanPlayers,connected:connectedPlayers};
 }
-function validConfig(config){return config&&Number.isInteger(config.map)&&!!selectedLayout(config)&&validTeams(config)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&selectedLayout(config).players>=Math.max(...humanPlayers)}
+function validConfig(config){return config&&Number.isInteger(config.map)&&!!selectedLayout(config)&&validTeams(config)&&[.5,1,1.5].includes(config.speed)&&typeof config.shops==="boolean"&&(config.transformationWave===undefined||typeof config.transformationWave==="boolean")&&(config.transformationTime===undefined||Number.isFinite(config.transformationTime)&&config.transformationTime>=1&&config.transformationTime<=120)&&(config.portionControl===undefined||typeof config.portionControl==="boolean")&&(config.transformationPenalty===undefined||typeof config.transformationPenalty==="boolean")&&(config.fullElimination===undefined||typeof config.fullElimination==="boolean")&&(config.productionRotation===undefined||typeof config.productionRotation==="boolean")&&selectedLayout(config).players>=Math.max(...humanPlayers)}
 function sendLobby(){if(localPlayer===1)peerSend?.({kind:"lobby",round:matchRound,config:lobbyConfig,ready:lobbyReady,revision:++lobbyRevision,configVersion,humans:humanPlayers,connected:connectedPlayers,members:lobbyMembers,countdownRemaining,started:gameStarted})}
 function variantField(name){return $("variant-form").querySelector(`[name="${name}"]`)}
 function updateLobbyUI(){
   const d=$("variant-dialog"),f=$("variant-form");if(!d.open&&!gameStarted){if(typeof d.showModal==="function")d.showModal();else d.setAttribute("open","")}
-  variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;
+  variantField("speed").value=String(lobbyConfig.speed);variantField("shops").checked=lobbyConfig.shops;variantField("fullElimination").checked=!!lobbyConfig.fullElimination;variantField("productionRotation").checked=!!lobbyConfig.productionRotation;variantField("transformationPenalty").checked=!!lobbyConfig.transformationPenalty;
   teamSetting($("variant-form"),mapPlayerCount(lobbyConfig.map),lobbyConfig);
   showMapPreview();
   $("ready-button").textContent=lobbyReady[localPlayer-1]?"Not ready":"Ready";
@@ -297,7 +298,7 @@ function lobbyAction(owner,data){
   sendLobby();updateLobbyUI();beginMatch();
 }
 function submitLobby(action,fields){const data={kind:"lobby-action",action,...fields,round:matchRound};if(localPlayer===1)lobbyAction(1,data);else peerSend?.(data)}
-$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{...matchMapChoice(Number(variantField("map").value),variantField("teams").checked),teams:!!variantField("teams").checked,teamSize:Number(variantField("teamSize").value)||2,speed:Number(variantField("speed").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,productionRotation:variantField("productionRotation").checked}}));
+$("variant-form").addEventListener("change",()=>submitLobby("config",{config:{...matchMapChoice(Number(variantField("map").value),variantField("teams").checked),teams:!!variantField("teams").checked,teamSize:Number(variantField("teamSize").value)||2,speed:Number(variantField("speed").value),shops:variantField("shops").checked,fullElimination:variantField("fullElimination").checked,productionRotation:variantField("productionRotation").checked,transformationPenalty:variantField("transformationPenalty").checked}}));
 $("ready-button").onclick=()=>submitLobby("ready",{value:!lobbyReady[localPlayer-1],configVersion});
 $("variant-dialog").addEventListener("cancel",event=>event.preventDefault());
 $("setup-leave").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
@@ -335,7 +336,7 @@ window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
     historyReportedRound=-1;
-    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(8).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:mapForPlayers(Math.max(2,...humans)),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=.5;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(8).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={map:mapForPlayers(Math.max(2,...humans)),speed:.5,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=.5;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
     $("join-game").hidden=player!==0;
     if(player===0){$("variant-dialog").close();msg="Spectating. Join to take over an available bot."}

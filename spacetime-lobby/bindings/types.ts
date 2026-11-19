@@ -204,6 +204,7 @@ export const MatchRules = __t.object("MatchRules", {
   fullElimination: __t.bool(),
   portionControl: __t.bool(),
   productionRotation: __t.bool(),
+  transformationPenalty: __t.bool(),
   transformationWave: __t.bool(),
   transformationTime: __t.f64(),
 });
@@ -330,6 +331,7 @@ export const StoredMatchRules = __t.object("StoredMatchRules", {
   fullElimination: __t.bool(),
   portionControl: __t.bool(),
   productionRotation: __t.bool(),
+  transformationPenalty: __t.bool(),
   transformationWave: __t.bool(),
   transformationTime: __t.f64(),
 });

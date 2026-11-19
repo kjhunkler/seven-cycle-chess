@@ -389,7 +389,7 @@ function renderMatchHistory(data) {
     const speed=rules.speed===.5?"Relaxed":rules.speed===1?"Standard":"Fast";
     const extras=[
       teams&&"Teams of "+teams,rules.shops&&"Shop Nodes",rules.fullElimination&&"Full elimination",rules.portionControl&&"Portion control",
-      rules.productionRotation&&"Production rotation",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
+      rules.productionRotation&&"Production rotation",rules.transformationPenalty&&"Transformation penalty",rules.transformationWave&&("Transformation Wave ("+rules.transformationTime+"s)"),
     ].filter(Boolean);
     const date=dateFormat.format(Number(match.finishedAt/1000n));
     const winnerLabel=won?"":teams?"Team "+teamNumber(match.winner,teams||2)+" won":(winner?.name||"Bot "+match.winner)+" won";

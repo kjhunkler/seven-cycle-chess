@@ -126,7 +126,7 @@ function applyRouteCommand(owner,data){
     }
   }
   if(data.kind==='stop'){n.routes=[];n.routeRemaining={};n.routeIndex=0;}
-  if(data.kind==='cancel'){n.pend=null;n.cd=0;n.transformAt=null;}
+  if(data.kind==='cancel'){n.pend=null;n.cd=0;n.transformAt=null;delete n.transformationPenaltyTotal;delete n.transformationPenaltyLost;delete n.transformationPenaltyDuration;}
   return true;
 }
 function routeCommand(data){
