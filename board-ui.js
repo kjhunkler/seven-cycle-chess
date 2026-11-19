@@ -43,7 +43,22 @@
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
-  shell.innerHTML = '<div class="battle-tools"><button type="button" class="battle-fit-button" title="Fit the whole board">Fit board</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button><button type="button" class="battle-settings-button" aria-label="Battle settings" title="Battle settings">⚙</button></div>';
+  shell.innerHTML = '<div class="battle-tools"><div class="battle-menu"><button type="button" class="battle-menu-toggle" aria-label="Board options" title="Board options" aria-expanded="false" aria-controls="battle-menu-actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button><div id="battle-menu-actions" class="battle-menu-actions" hidden><button type="button" class="battle-fit-button" title="Fit the whole board">Fit board</button><button type="button" class="battle-settings-button">Battle settings</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button></div></div></div>';
+  const boardMenu=shell.querySelector('.battle-menu');
+  const menuToggle=shell.querySelector('.battle-menu-toggle');
+  const menuActions=shell.querySelector('.battle-menu-actions');
+  const closeBoardMenu=(restoreFocus=false)=>{
+    menuActions.hidden=true;
+    menuToggle.setAttribute('aria-expanded','false');
+    if(restoreFocus)menuToggle.focus();
+  };
+  menuToggle.onclick=()=>{
+    menuActions.hidden=!menuActions.hidden;
+    menuToggle.setAttribute('aria-expanded',String(!menuActions.hidden));
+  };
+  menuActions.addEventListener('click',event=>{if(event.target.closest('button'))closeBoardMenu(!settingsDialog.open);});
+  document.addEventListener('pointerdown',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
+  document.addEventListener('focusin',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
@@ -100,6 +115,11 @@
     else if(nativeFullscreen){nativeFullscreen=false;setBoardFullscreen(false);}
   });
   document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&!menuActions.hidden){
+      closeBoardMenu(true);
+      e.preventDefault();
+      return;
+    }
     if(e.key==='Escape'&&boardFullscreen&&!document.querySelector('dialog[open]')){
       setBoardFullscreen(false);
       if(nativeFullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
