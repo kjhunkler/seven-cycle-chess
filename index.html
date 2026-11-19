@@ -32,7 +32,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=32"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=33"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
@@ -44,23 +44,29 @@ small{color:var(--mut)}
 <svg id="map" viewBox="-4 -4 108 112"></svg>
 <div class="card" id="panel"></div>
 
-<details id="friends-panel" class="card"><summary id="friend-summary" aria-label="Player profile and friends" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><section class="card" id="lobby" aria-label="Online lobby">
+<details id="friends-panel" class="card"><summary id="friend-summary" aria-label="Player profile and friends" title="Player profile"><svg class="account-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="8" r="4"/><path d="M4 21c.5-4 3.3-6 8-6s7.5 2 8 6"/></svg></summary><section id="lobby" aria-label="Online lobby">
   <div class="profile-name-row"><strong id="profile-name"></strong><button type="button" id="edit-profile-name" aria-label="Edit your name" title="Edit name">✎</button></div>
   <form class="row" hidden><label for="display-name">Your name</label>
     <input id="display-name" name="name" required maxlength="32" autocomplete="nickname">
     <button>Save</button>
   </form>
+  <section class="friends-section" aria-labelledby="friends-title">
+    <header class="friends-heading"><h2 id="friends-title">Friends</h2><small id="online-count"></small></header>
+    <p id="lobby-status" role="status">Connecting to players…</p>
+    <ul id="friends"></ul>
+  </section>
+  <details class="profile-settings"><summary>Profile settings</summary>
   <label>Compact board <select id="profile-compact-board" aria-label="Compact board"></select></label>
   <div id="profile-account" hidden>
     <button type="button" id="account-action">Sign in with email</button>
     <small id="account-status" role="status"></small>
   </div>
-  <p role="status">Connecting to players…</p>
-  <p id="player-stats" hidden></p><strong>Friends</strong><ul id="friends"></ul>
+  </details>
   <details id="match-history" hidden>
     <summary>Match history</summary>
     <small id="history-owner">Casual results reported by the host. Your history is linked to this browser.</small>
     <p id="history-status" role="status"></p>
+    <p id="player-stats" hidden></p>
     <h3>Recent matches</h3><ul id="recent-matches"></ul>
     <h3>Head-to-head</h3><ul id="head-to-head"></ul>
   </details>
@@ -345,4 +351,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=34"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=4"></script><script src="./lobby.js?v=2"></script></body></html>
+</script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=34"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=4"></script><script src="./lobby.js?v=3"></script></body></html>

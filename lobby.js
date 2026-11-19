@@ -139,20 +139,32 @@ function statsLine({wins,played},solo) {
 }
 function renderRoster(friends){
   lastFriends=friends;roster.replaceChildren();
-  for(const friend of friends){const row=document.createElement("li");const dot=document.createElement("span");dot.className="presence-dot"+(friend.online===false?" offline":"");
+  const ordered=[...friends].sort((a,b)=>Number(a.online===false)-Number(b.online===false)||a.name.localeCompare(b.name));
+  document.querySelector("#online-count").textContent=friends.filter(friend=>friend.online!==false).length+" online";
+  for(const friend of ordered){const row=document.createElement("li");const dot=document.createElement("span");dot.className="presence-dot"+(friend.online===false?" offline":"");
     const identity=document.createElement("strong");identity.textContent=friend.name;
     const detail=document.createElement("small");
-    detail.textContent=(friend.online===false?(friend.lastOnline?"Last online "+new Date(friend.lastOnline).toLocaleString():"Last online unknown"):"Online")+
-      (friend.played!==undefined?" · "+statsLine(friend,friend.solo):"");
-    row.append(dot,identity,detail);
-    if(friend.online===false){roster.append(row);continue}
+    detail.textContent=friend.online===false
+      ? (friend.lastOnline?"Last online "+new Date(friend.lastOnline).toLocaleString():"Offline")
+      : (friend.activity?(friend.activity.join?"In game · Open to join":"In game"):"Online");
+    const info=document.createElement("div");
+    info.append(identity,detail);
+    row.append(dot,info);
+    roster.append(row);
+    if(friend.online===false)continue;
+
+    const actions=document.createElement("div");
+    actions.className="friend-actions";
+    actions.setAttribute("role","group");
+    actions.setAttribute("aria-label","Actions for "+friend.name);
+    row.append(actions);
     if(friend.activity){
-      const watch=addAction("Spectate",()=>enterGame(friend.id,"spectate"));watch.disabled=session;row.append(watch);
-      if(friend.activity.join){const join=addAction("Join game",()=>enterGame(friend.id,"join"));join.disabled=session;row.append(join)}
+      const watch=addAction("Spectate",()=>enterGame(friend.id,"spectate"));watch.disabled=session;actions.append(watch);
+      if(friend.activity.join){const join=addAction("Join",()=>enterGame(friend.id,"join"));join.disabled=session;actions.append(join)}
     }
     const invite=[...pendingInvites.values()].find(i=>i.from===friend.id);
     const button=invite?addAction("Accept",()=>acceptInvite(invite)):addAction("Invite",()=>invitePlayer(friend.id));
-    button.disabled=session&&(player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started||[...links.values()].some(l=>l.id===friend.id));row.append(button);roster.append(row);
+    button.disabled=session&&(player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started||[...links.values()].some(l=>l.id===friend.id));actions.append(button);
   }
   if(!friends.length){const row=document.createElement("li");row.textContent="No other players yet.";roster.append(row)}
   game()?.setFriends(availableFriends());

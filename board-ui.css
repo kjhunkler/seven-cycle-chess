@@ -91,12 +91,12 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 #friends-panel>summary::-webkit-details-marker,#match-profile>summary::-webkit-details-marker{display:none}
 #friends-panel[open]>summary,#match-profile[open]>summary{margin-left:auto;margin-bottom:4px}
 .account-icon{width:20px;height:20px;fill:currentColor;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}.account-icon circle{stroke:none}
-#friends-panel[open]{width:330px;box-shadow:0 12px 35px #0007}#lobby{max-height:65dvh;overflow:auto}#lobby input{width:100%}#lobby form[hidden]{display:none}.profile-name-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}.profile-name-row strong{font-size:15px}.profile-name-row button{min-width:32px;min-height:32px;padding:3px}#invite-toasts{position:fixed;z-index:50;top:calc(16px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 24px));display:grid;gap:8px;pointer-events:none}#invite-toasts:empty{display:none}.invite-toast{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px;margin:0;border:1px solid var(--p1);border-radius:10px;background:var(--card);box-shadow:0 8px 24px #0005;font-size:12px;pointer-events:auto}
+#friends-panel[open]{box-sizing:border-box;width:350px;box-shadow:0 12px 35px #0007}#lobby{max-height:65dvh;overflow:auto}#lobby input{width:100%}#lobby form[hidden]{display:none}.profile-name-row{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:0 0 10px}.profile-name-row strong{font-size:15px}.profile-name-row button{min-width:32px;min-height:32px;padding:3px}#invite-toasts{position:fixed;z-index:50;top:calc(16px + env(safe-area-inset-top));left:50%;transform:translateX(-50%);width:min(420px,calc(100vw - 24px));display:grid;gap:8px;pointer-events:none}#invite-toasts:empty{display:none}.invite-toast{display:flex;align-items:center;flex-wrap:wrap;gap:6px;padding:9px;margin:0;border:1px solid var(--p1);border-radius:10px;background:var(--card);box-shadow:0 8px 24px #0005;font-size:12px;pointer-events:auto}
 @media(max-width:1099px){
  html{padding:0;overscroll-behavior:none;height:100%;overflow:hidden}
  body{height:100dvh;overflow:hidden;overscroll-behavior:none}
  main,.orchard main,.signal main{box-sizing:border-box;height:100dvh;width:100%;padding:calc(8px + env(safe-area-inset-top)) 8px calc(156px + env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:4px}
- h1{font-size:21px;margin:4px 0;line-height:32px}#friends-panel{top:calc(8px + env(safe-area-inset-top));right:8px;max-width:65vw}
+ h1{font-size:21px;margin:4px 0;line-height:32px}#friends-panel{top:calc(8px + env(safe-area-inset-top));right:8px;max-width:calc(100vw - 16px)}
  #msg{font-size:11px;line-height:1.3;min-height:28px;margin:2px 0;flex-shrink:0}
  .battle-shell{flex:1;min-height:0;border-radius:14px;display:flex;flex-direction:column}
  #map{flex:1;width:100%;height:100%;min-height:0;max-height:none}
@@ -128,10 +128,21 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 
 .portion-control{display:grid;gap:4px;flex-shrink:0;width:min(260px,calc(100% - 80px));margin:8px 12px;font-size:12px;font-weight:650}.portion-control[hidden]{display:none}.portion-control>span:first-child{display:flex;justify-content:space-between}.portion-control input{width:100%;margin:0;accent-color:var(--p1)}.portion-ticks{display:flex;justify-content:space-between;color:var(--mut);font-size:10px}
 
-#friends{padding:0;list-style:none}
-#friends li{display:grid;grid-template-columns:10px 1fr auto;gap:2px 8px;align-items:center;padding:6px 0}
-#friends small{grid-column:2;line-height:1.4}
-#friends li button{grid-column:3;grid-row:1/3}
+#lobby{padding:0 6px 4px}
+.profile-name-row strong,#friends strong{overflow-wrap:anywhere}
+.friends-section,.profile-settings{border-top:1px solid var(--bd);padding-top:10px}
+.friends-heading{display:flex;align-items:baseline;justify-content:space-between;gap:12px}
+.friends-heading h2{font-size:16px;margin:0}
+#lobby-status{margin:2px 0 6px;color:var(--mut);font-size:12px}
+#friends{padding:0;list-style:none;margin:0 0 12px}
+#friends li{padding:8px 0}
+#friends li:has(.presence-dot){display:grid;grid-template-columns:9px minmax(0,1fr);align-items:baseline;gap:4px 9px}
+#friends li+li{border-top:1px solid var(--bd)}
+#friends small{display:block;font-size:12px}
+.friend-actions{grid-column:2;display:flex;gap:6px;flex-wrap:wrap}
+.friend-actions button{font-size:13px;min-height:32px;padding:3px 12px}
+.profile-settings summary{font-weight:700;cursor:pointer}
+.profile-settings label{display:flex;align-items:center;justify-content:space-between;gap:8px;margin:10px 0}
 .presence-dot{width:9px;height:9px;border-radius:50%;background:#238541}
 .presence-dot.offline{background:var(--mut)}
 #player-stats{font-weight:650}
