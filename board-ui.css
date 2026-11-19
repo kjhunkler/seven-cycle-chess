@@ -259,3 +259,17 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 #chat-panel header,#chat-form{display:flex;align-items:center;gap:8px}#chat-panel header{justify-content:space-between}#chat-close{font-size:20px;line-height:1}
 #chat-log{overflow:auto;overscroll-behavior:contain;height:min(240px,38dvh);margin:10px 0;padding:8px 0;border-block:1px solid var(--bd);font-size:14px;overflow-wrap:anywhere}
 #chat-log p{margin:0 0 6px;white-space:pre-wrap}#chat-form input{flex:1;min-width:0;font-size:16px}#chat-status:not(:empty){display:block;margin-top:6px}
+
+@media (any-pointer: coarse) {
+  /* A popup pinch would zoom the whole page and leave the board controls offscreen. */
+  :is(dialog, #friends-panel, #match-profile, #chat-panel, .combat-helper, .invite-toast),
+  :is(dialog, #friends-panel, #match-profile, #chat-panel, .combat-helper, .invite-toast) *,
+  dialog::backdrop {
+    touch-action: pan-x pan-y;
+  }
+
+  /* Keep iOS from zooming the page when a small form control receives focus. */
+  :is(dialog, #friends-panel, #match-profile, #chat-panel) :is(input, select, textarea) {
+    font-size: max(16px, 1em);
+  }
+}
