@@ -65,6 +65,20 @@ function radialHomes(players,point=[50,92]){
     return [x,y];
   });
 }
+function customShopPosition(home,kind,occupied){
+  // Try nearby positions first, including alternatives when a home is on the boundary.
+  const neighbors=Object.values(occupied);
+  let best,clearance=-1;
+  for(const radius of [10,16,22])for(let i=0;i<16;i++){
+    const angle=(kind==='shield'?Math.PI:0)+i*Math.PI/8;
+    const x=home.x+radius*Math.cos(angle),y=home.y+radius*Math.sin(angle);
+    if(x<2||x>98||y<2||y>98)continue;
+    const distance=Math.min(...neighbors.map(n=>Math.hypot(n.x-x,n.y-y)));
+    if(distance>=8)return {x,y};
+    if(distance>clearance){best={x,y};clearance=distance}
+  }
+  return best;
+}
 function shopPosition(c,kind,triangular,four=false,players=2){
   const side=kind==='shield'?-1:1;
   if(players>4){
@@ -96,6 +110,8 @@ function mapLayout(raw, requireConnected=true) {
   const fail=message=>{throw new Error(message)};
   if(!MAP_SEAT_COUNTS.includes(players)||typeof mirror!=='boolean'||!nodes||Array.isArray(nodes)||!Array.isArray(edges))
     fail('Choose a valid map and seat count.');
+  const {customHomes=false}=raw;
+  if(typeof customHomes!=='boolean')fail('Invalid spawn layout.');
   const ids=Object.keys(nodes);
   if(ids.length>96||edges.length>300)fail('Maps support up to 96 nodes and 300 paths.');
   for(const id of ids){
@@ -109,12 +125,13 @@ function mapLayout(raw, requireConnected=true) {
   const [hx,hy]=nodes.P1;
   const seats=players>4?radialHomes(players,nodes.P1):players===4?[[hx,hy],[100-hx,hy],[hx,100-hy],[100-hx,100-hy]]:
     players===3?[0,2,1].map(i=>symmetryCopies(nodes.P1,3,false)[i]):[[hx,hy],[hx,100-hy]];
-  if(seats.some((p,i)=>nodeAt(nodes,p)!==homes[i]))fail('Starting nodes must match the seat perspectives.');
+  if(!customHomes&&seats.some((p,i)=>nodeAt(nodes,p)!==homes[i]))fail('Starting nodes must match the seat perspectives.');
   if(!difficulty||typeof difficulty!=='object'||Array.isArray(difficulty)||
      Object.entries(difficulty).some(([id,d])=>!ids.includes(id)||id.startsWith('P')||!Number.isInteger(d)||d<1||d>99))
     fail('Neutral difficulty must be between 1 and 99.');
   const seen=new Set(), startGroups=[],copies={};
   for(const id of ids){
+    if(customHomes&&id.startsWith('P')){if(id==='P1')startGroups.push(homes);continue}
     const orbit=symmetryCopies(nodes[id],players,mirror).map(p=>nodeAt(nodes,p));
     if(orbit.some(other=>!other||other.startsWith('P')!==id.startsWith('P')||(difficulty[other]??5)!==(difficulty[id]??5)))fail('Nodes and difficulty must match across all seats.');
     copies[id]=orbit;
@@ -127,11 +144,11 @@ function mapLayout(raw, requireConnected=true) {
     if(!ids.includes(a)||!ids.includes(b)||a===b||paths.has(key(a,b)))fail('Paths must join two different nodes once.');
     paths.add(key(a,b));adj[a].push(b);adj[b].push(a);
   }
-  for(const [a,b] of edges)if(copies[a].some((other,i)=>!paths.has(key(other,copies[b][i]))))fail('Paths must match across all seats.');
+  for(const [a,b] of edges)if(copies[a]&&copies[b]&&copies[a].some((other,i)=>!paths.has(key(other,copies[b][i]))))fail('Paths must match across all seats.');
   const reached=new Set(['P1']);
   for(const id of reached)for(const other of adj[id])reached.add(other);
   if(requireConnected&&reached.size!==ids.length)fail('Connect every node and starting position before publishing.');
-  return {players,mirror,nodes,edges,difficulty,startGroups};
+  return {players,mirror,nodes,edges,difficulty,startGroups,...(customHomes?{customHomes:true}:{})};
 }
 const expandedNodes={...POS,D1:[18,34],D2:[82,34],E1:[18,66],E2:[82,66]};
 const expandedEdges=[...EDGES,...'A1-D1 A3-D2 B1-E1 B4-E2 D1-B1 D2-B4 E1-C1 E2-C3'.split(' ').map(path=>path.split('-'))];

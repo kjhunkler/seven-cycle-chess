@@ -78,7 +78,49 @@ const mapLibrary=(()=>{
     for(let i=1;i<=players;i++){const id='P'+i;nodes[id]=radial?radial[i-1]:[...homes[id]];edges.push([id,'J1'])}
     return {players,mirror:players===2||players===4,nodes,edges,difficulty:{}};
   }
+  function teamHomes(players,size){
+    const teams=players/size;
+    return Array.from({length:players},(_,i)=>{
+      const offset=(i%size-(size-1)/2)*11;
+      const point=rotateBoardPoint({x:50+offset,y:87},Math.floor(i/size)*2*Math.PI/teams);
+      return [point.x,point.y];
+    });
+  }
+  function placeHomes(positions,custom){
+    const occupied=Object.entries(draft.nodes).filter(([id])=>!id.startsWith('P')).map(([,p])=>p);
+    positions.forEach((p,i)=>{
+      if(occupied.some(q=>Math.hypot(q[0]-p[0],q[1]-p[1])<8))throw Error('Leave space between spawns and other nodes.');
+      draft.nodes['P'+(i+1)]=p;occupied.push(p);
+    });
+    if(custom)draft.customHomes=true;
+    else delete draft.customHomes;
+    first=null;
+  }
+  function spawnOptions(players){
+    const standard=starter(players).nodes;
+    return [
+      {value:'default',name:'Standard',positions:Array.from({length:players},(_,i)=>standard['P'+(i+1)])},
+      ...teamSizes(players).map(size=>({
+        value:String(size),name:'Grouped teams · '+Array(players/size).fill(size).join(' v '),
+        positions:teamHomes(players,size)
+      }))
+    ];
+  }
+  function spawnField(){
+    const field=get('editor-spawns'),options=spawnOptions(draft.players);
+    const match=options.find(({value,positions})=>
+      (value!=='default')===!!draft.customHomes&&positions.every(([x,y],i)=>{
+        const p=draft.nodes['P'+(i+1)];
+        return Math.hypot(p[0]-x,p[1]-y)<0.015;
+      }));
+    if(!match)options.push({value:'custom',name:'Custom positions'});
+    field.replaceChildren(...options.map(({value,name})=>{
+      const option=document.createElement('option');option.value=value;option.textContent=name;option.disabled=value==='custom';return option;
+    }));
+    field.value=match?.value??'custom';
+  }
   function symmetryField(){
+    spawnField();
     const field=get('editor-symmetry');
     const names=draft.players===3||draft.players>4?[`${draft.players}-fold rotation`,'Rotation and reflection']:['Top and bottom','Both axes'];
     field.replaceChildren(...names.map((name,i)=>{const option=document.createElement('option');option.value=String(i);option.textContent=name;return option}));
@@ -108,7 +150,7 @@ const mapLibrary=(()=>{
       area.firstChild.append(mark);area.firstChild.focus();
     }
     get('editor-undo').disabled=!undo.length;
-    const hints={node:'Place a neutral node. Its copies are added automatically.',path:first?'Choose the other end of the path.':'Choose the first node of a path.',difficulty:'Choose a neutral node to set its garrison and all matching copies.',erase:'Choose a node or path to remove it and its matching copies.'};
+    const hints={move:first?'Choose an empty position for '+first+'. Its paths follow it.':'Choose the spawn to move.',node:'Place a neutral node. Its copies are added automatically.',path:first?'Choose the other end of the path.':'Choose the first node of a path.',difficulty:'Choose a neutral node to set its garrison and all matching copies.',erase:'Choose a node or path to remove it and its matching copies.'};
     const tool=get('editor-tool').value;
     get('editor-garrison-field').hidden=tool!=='node'&&tool!=='difficulty';
     get('editor-help').textContent=hints[tool]+' Use arrow keys and Enter on the board, or tap.';
@@ -116,7 +158,7 @@ const mapLibrary=(()=>{
   function openEditor(m){
     editing=m?.id??0;baseRevision=m?.revision??0;undo=[];first=null;keyboard=false;
     view={...fullView};touches.clear();pinch=null;suppressTap=false;
-    draft=m?structuredClone({nodes:m.nodes,edges:m.edges,players:m.players,mirror:m.mirror,difficulty:m.difficulty}):starter(2);
+    draft=m?structuredClone({nodes:m.nodes,edges:m.edges,players:m.players,mirror:m.mirror,difficulty:m.difficulty,customHomes:m.customHomes}):starter(2);
     get('map-name').value=m?.name??'';get('editor-players').value=String(draft.players);get('editor-players').disabled=!!m;
     get('editor-tool').value='node';get('editor-difficulty').value=5;
     symmetryField();draw();editorMessage(profile===undefined?'Sign in from Friends to publish this map.':'');
@@ -131,6 +173,10 @@ const mapLibrary=(()=>{
     get('editor-players').value=String(draft.players);symmetryField();draw();
   }
   get('editor-players').onchange=e=>change(()=>{draft=starter(Number(e.target.value));first=null});
+  get('editor-spawns').onchange=e=>change(()=>{
+    const preset=spawnOptions(draft.players).find(option=>option.value===e.target.value);
+    placeHomes(preset.positions,preset.value!=='default');
+  });
   get('editor-symmetry').onchange=e=>change(()=>{draft.mirror=e.target.value==='1'});
   get('editor-tool').onchange=()=>{first=null;draw()};
   get('editor-undo').onclick=()=>{
@@ -143,9 +189,19 @@ const mapLibrary=(()=>{
     const related=id=>orbit(nodes[id]).map(p=>nodeAt(nodes,p));
     const edgeKey=(a,b)=>[a,b].sort().join('-');
     const difficulty=Number(get('editor-difficulty').value);
+    if(tool==='move'&&!first){
+      if(!node?.startsWith('P')){editorMessage('Choose a starting node.');return}
+      first=node;editorMessage('');draw();return;
+    }
     if(tool==='path' && node && !first){first=node;draw();return}
     change(()=>{
-      if(tool==='node'){
+      if(tool==='move'){
+        if(node)throw Error('Choose an empty position.');
+        const position=point.map(n=>Math.round(n/2)*2);
+        if(Object.entries(nodes).some(([id,p])=>id!==first&&Math.hypot(p[0]-position[0],p[1]-position[1])<8))throw Error('Leave space between nodes.');
+        if(position.some(n=>n<1||n>99))throw Error('Choose a position on the board.');
+        nodes[first]=position;draft.customHomes=true;first=null;
+      }else if(tool==='node'){
         if(node)throw Error('Choose an empty position.');
         const position=point.map(n=>Math.round(n/2)*2);
         for(const p of orbit(position)){
@@ -156,11 +212,13 @@ const mapLibrary=(()=>{
         }
       }else if(tool==='path'){
         if(!node||!first||first===node)throw Error('Choose two different nodes.');
-        const starts=related(first),ends=related(node),keys=new Set(draft.edges.map(([a,b])=>edgeKey(a,b)));
+        const single=draft.customHomes&&(first.startsWith('P')||node.startsWith('P'));
+        const starts=single?[first]:related(first),ends=single?[node]:related(node),keys=new Set(draft.edges.map(([a,b])=>edgeKey(a,b)));
         starts.forEach((a,i)=>{const b=ends[i],k=edgeKey(a,b);if(!keys.has(k)){draft.edges.push([a,b]);keys.add(k)}});
         first=null;
       }else if(tool==='erase'&&edge){
-        const [a,b]=edge.split('-'),ends=related(b),keys=new Set(related(a).map((id,i)=>edgeKey(id,ends[i])));
+        const [a,b]=edge.split('-'),single=draft.customHomes&&(a.startsWith('P')||b.startsWith('P'));
+        const ends=single?[b]:related(b),keys=new Set((single?[a]:related(a)).map((id,i)=>edgeKey(id,ends[i])));
         draft.edges=draft.edges.filter(pair=>!keys.has(edgeKey(...pair)));
       }else{
         if(!node||node.startsWith('P'))throw Error('Choose a neutral node.');

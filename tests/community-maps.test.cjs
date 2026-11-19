@@ -51,6 +51,24 @@ for (const players of [2,3,4,5,6,7,8,9]) test(players+' seats can play a publish
   }
 });
 
+test('custom spawns keep seat ownership, individual paths and shop positions in solo and online play', () => {
+  const board=layout(4);
+  board.customHomes=true;
+  board.nodes.P2=[35,20];
+  board.edges.push(['P1','P2']);
+  assert.throws(()=>mapLayout({...board,customHomes:false}),/perspectives/);
+  for(const page of ['index.html','match.html']){
+    const game=createGame(page),config=page==='index.html'?'botConfig':'lobbyConfig';
+    game.context.catalog={maps:[{id:403,revision:1,players:4,name:'Team camp'}],
+      versions:[{key:'403/1',layout:JSON.stringify(board)}]};
+    game.run('loadMapCatalog(catalog);Object.assign('+config+',selectionConfig(403),{teams:true,teamSize:2,shops:true});init()');
+    assert.equal(game.run('N.P2.owner===2&&allies(1,2)&&N.P2.adj.includes("P1")'),true);
+    assert.equal(game.run('boardViewPoint(N.P2,2).x'),35);
+    assert.equal(game.run('boardViewPoint(N.P2,2,true).y'),20);
+    assert.equal(game.run('Object.values(N).filter(n=>n.shop).every(s=>Object.values(N).every(n=>s===n||Math.hypot(s.x-n.x,s.y-n.y)>=8))'),true);
+  }
+});
+
 test('guests recover a lobby packet that arrived before its map subscription', () => {
   const guest=createGame();guest.context.dispatchEvent=()=>{};guest.context.Event=class {};
   guest.run('matchGame.start(2,()=>{})');
@@ -61,7 +79,7 @@ test('guests recover a lobby packet that arrived before its map subscription', (
   assert.equal(guest.run('configVersion'),3);
 });
 
-test('editor pinch zoom preserves the draft and guide changes preserve the zoom', () => {
+test('editor moves and groups spawns with undo, and preserves the draft through pinch zoom', () => {
   const game=createGame('index.html'),get=game.context.document.getElementById;
   const library=get('map-library'),query=library.querySelector.bind(library);
   library.querySelector=selector=>['.team-settings','[name="teams"]','[name="teamSize"]'].includes(selector)?null:query(selector);
@@ -92,6 +110,26 @@ test('editor pinch zoom preserves the draft and guide changes preserve the zoom'
   assert.equal(get('editor-status').textContent,'');
   assert.equal((area.innerHTML.match(/data-node=/g)||[]).length,10);
   get('editor-players').onchange({target:{value:'8'}});
+  const presets=get('editor-spawns'),tool=get('editor-tool');
+  const standard=area.innerHTML;
+  presets.onchange({target:{value:'4'}});
+  assert.equal(presets.value,'4');
+  assert.match(area.innerHTML,/data-node="P1".*?cx="33.5" cy="87"/);
+  assert.match(area.innerHTML,/data-node="P4".*?cx="66.5" cy="87"/);
+  const grouped=area.innerHTML;
+  tool.value='move';tool.onchange();
+  const click=(x,y,node)=>area.onclick({clientX:x+4,clientY:y+4,target:{closest:()=>node&&{dataset:{node}},dataset:{}}});
+  click(33.5,87,'P1');click(50,50,'J1');
+  assert.match(get('editor-status').textContent,/empty position/);
+  click(26,70);
+  assert.equal(presets.value,'custom');
+  assert.match(area.innerHTML,/data-node="P1".*?cx="26" cy="70"/);
+  assert.match(area.innerHTML,/data-edge="P1-J1" x1="26" y1="70"/);
+  get('editor-undo').onclick();
+  assert.equal(area.innerHTML,grouped);
+  get('editor-undo').onclick();
+  assert.equal(area.innerHTML,standard);
+  tool.value='node';tool.onchange();
   const touch=(pointerId,clientX,clientY)=>({pointerType:'touch',pointerId,clientX,clientY});
   area.onpointerdown(touch(1,40,54));
   area.onpointerdown(touch(2,68,54));

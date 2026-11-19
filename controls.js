@@ -17,7 +17,9 @@ function visibleNodes(viewer){
 }
 // Forward/inverse view transforms keep pointer directions aligned with the map.
 function boardViewPoint(p,owner,inverse=false){
- const players=selectedLayout(transformationConfig())?.players;
+ const layout=selectedLayout(transformationConfig());
+ if(layout?.customHomes)return {x:p.x,y:p.y};
+ const players=layout?.players;
  if(players>4)return rotateBoardPoint(p,(inverse?1:-1)*radialSeatAngle(owner||1,players));
  if(owner===0)owner=1;
  if(N.P4 && transformationConfig().teams)return {x:p.x,y:N['P'+owner].y<50?100-p.y:p.y};

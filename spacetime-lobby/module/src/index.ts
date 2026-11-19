@@ -268,8 +268,8 @@ export const saveMap = lobby.reducer({mapId:t.u32(),revision:t.u32(),name:t.stri
   // Explicit seed keys do not advance SpacetimeDB's auto-increment sequence.
   if(!mapId)row.id=Math.max(11,...Array.from(ctx.db.communityMap.iter(),m=>m.id))+1;
   const saved=old?ctx.db.communityMap.id.update(row):ctx.db.communityMap.insert(row);
-  const {players,mirror,nodes,edges,difficulty}=board;
-  ctx.db.mapVersion.insert({key:saved.id+'/'+row.revision,mapId:saved.id,revision:row.revision,layout:JSON.stringify({players,mirror,nodes,edges,difficulty})});
+  const {players,mirror,nodes,edges,difficulty,customHomes}=board;
+  ctx.db.mapVersion.insert({key:saved.id+'/'+row.revision,mapId:saved.id,revision:row.revision,layout:JSON.stringify({players,mirror,nodes,edges,difficulty,customHomes})});
 });
 export const voteMap=lobby.reducer({mapId:t.u32(),value:t.i8()},(ctx,{mapId,value})=>{
   const {profile}=signedIn(ctx);
