@@ -115,7 +115,7 @@ function shopCapacity(target,includeOrders=true){
 function canEnter(target,owner,type){
   if(!target||target.disabled)return false;
   if(target.shop)return target.owner===owner&&shopCapacity(target,false)>CONFIG.strengthEpsilon;
-  return target.owner!==owner||target.ut===type;
+  return !allies(target.owner,owner)||target.ut===type;
 }
 function dispatch(source,to,type,count){
   const target=N[to];

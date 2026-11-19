@@ -9,18 +9,25 @@ function start(page='match.html',seat=1){
   return h;
 }
 for(const page of ['index.html','match.html']){
-  test(page+' allied routes reinforce a different fruit type without fighting or taking ownership',()=>{
+  test(page+' allied reinforcement requires matching fruit and transfers control on arrival',()=>{
     const h=start(page);
     h.run('N.A1.owner=2;N.A1.ut=3;N.A1.stock=[0,0,0,4,0,0,0];N.A1.shields=2;N.P1.ut=0;N.P1.stock=[6,0,0,0,0,0,0];send("P1","A1");depart(N.P1,.01)');
-    assert.equal(h.run('G[0].from==="P1" && G[0].to==="A1"'),true);
-    h.run('arrive(G.shift())');
-    assert.equal(h.run('N.A1.stock[3]'),5);
-    assert.equal(h.run('N.A1.stock[0]'),0);
+    assert.equal(h.run('G.length'),0);
+    assert.equal(h.run('N.P1.stock[0]'),6);
+    h.run('N.A1.ut=0;N.A1.stock=[4,0,0,0,0,0,0];depart(N.P1,.1);arrive(G.shift())');
+    assert.equal(h.run('N.A1.stock[0]'),5);
     assert.equal(h.run('N.A1.owner===2 && N.A1.shields===2'),true);
-    h.run('G=[{owner:1,from:"P1",to:"A1",type:0,t:.49,n:1},{owner:2,from:"A1",to:"P1",type:3,t:.49,n:1}];step(.04)');
-    assert.equal(h.run('G.filter(g=>g.t>.5).length'),2);
-    h.run('N.A1.stock[3]=98;arrive({owner:1,type:4,n:8,to:"A1"})');
-    assert.equal(h.run('tot(N.A1)'),99);
+    h.run('N.A1.routes=["P1"];depart(N.A1,.1)');
+    assert.equal(h.run('G[0].owner'),2);
+  });
+  test(page+' allied troops bounce when the destination changes type',()=>{
+    const h=start(page);
+    h.run('CONFIG.outpostRate=Infinity;N.A1.owner=2;N.A1.ut=0;N.P1.ut=0;N.P1.stock=[6,0,0,0,0,0,0];send("P1","A1");depart(N.P1,.01);G[0].t=.4;beginTransformation(N.A1,1);N.A1.cd=.01;step(.01)');
+    assert.equal(h.run('G[0].from+":"+G[0].to'), 'A1:P1');
+    assert.equal(h.run('G[0].owner'),1);
+    h.run('step(CONFIG.travel*10)');
+    assert.equal(h.run('G.length'),0);
+    assert.equal(h.run('N.P1.stock[0]'),6);
   });
   test(page+' a surviving teammate wins for both players',()=>{
     const h=start(page);
@@ -76,7 +83,7 @@ for(const [players,size] of [[6,3],[8,4],[6,2],[8,2],[9,3]]){
     assert.equal(h.run('validConfig({...lobbyConfig,teamSize:5})'),false);
     for(let seat=1;seat<=players;seat++)assert.equal(h.run(`allies(1,${seat})`),seat<=size);
     assert.equal(h.run('JSON.stringify([...vis(1)].sort())===JSON.stringify([...vis(2)].sort())'),true);
-    h.run('N.P2.stock.fill(0);arrive({to:"P2",owner:1,type:0,n:3})');
+    h.run('N.P2.stock.fill(0);N.P2.ut=0;arrive({to:"P2",owner:1,type:0,n:3})');
     assert.equal(h.run('N.P2.owner===2 && tot(N.P2)===3'),true);
     for(let seat=size+1;seat<=players;seat++)h.run(`N.P${seat}.stock.fill(0);arrive({to:'P${seat}',owner:1,type:0,n:1})`);
     assert.equal(h.run('over'),1);

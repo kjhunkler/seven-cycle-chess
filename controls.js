@@ -159,13 +159,13 @@ function bounceTroop(g,progress){
     g.owner=survivingOwner(g.owner);
     const target=N[g.to];if(!target)return;
     if(target.disabled)return;
-    if(!target.shop && target.owner!==g.owner && allies(target.owner,g.owner)){
-      target.stock[target.ut]=Math.min(CONFIG.cap,target.stock[target.ut]+Math.ceil(g.n));
-      return;
-    }
-    if(!target.shop&&target.owner===g.owner&&!canEnter(target,g.owner,g.type)){
+    if(!target.shop&&allies(target.owner,g.owner)&&!canEnter(target,g.owner,g.type)){
       bounceTroop(g,0);
       G.push(g);return;
+    }
+    if(!target.shop&&target.owner!==g.owner&&allies(target.owner,g.owner)){
+      target.stock[g.type]=Math.min(CONFIG.cap,target.stock[g.type]+Math.ceil(g.n));
+      return;
     }
     const owner=target.owner,home=target.home;baseArrive(g);
     if(home&&target.owner!==owner)capturedHome(target,home,g.owner);

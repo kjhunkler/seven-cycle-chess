@@ -4,10 +4,12 @@ export function createGlobalChat(send) {
   const toggle = root.querySelector('#chat-toggle');
   const panel = root.querySelector('#chat-panel');
   const log = root.querySelector('#chat-log');
+  const feed = root.querySelector('#chat-feed');
   const form = root.querySelector('form');
   const input = form.querySelector('input');
   const status = root.querySelector('#chat-status');
-  let profile, rows = [];
+  let profile, rows = [], initialized = false;
+  const seen = new Set(), timers = new Set();
   const lines = new Map();
 
   function render() {
@@ -34,13 +36,28 @@ export function createGlobalChat(send) {
     }
     if (follow) log.scrollTop = log.scrollHeight;
   }
+  function clearFeed() {
+    for (const timer of timers) clearTimeout(timer);
+    timers.clear();
+    feed.replaceChildren();
+  }
+  function showMessage(row) {
+    const line = document.createElement('p');
+    const author = document.createElement('strong');
+    author.textContent = row.name;
+    line.append(author, document.createTextNode(' ' + row.body));
+    feed.append(line);
+    while (feed.children.length > 4) feed.firstElementChild.remove();
+    const timer = setTimeout(() => { line.remove(); timers.delete(timer); }, 8000);
+    timers.add(timer);
+  }
   function expand(open) {
     panel.hidden = !open;
     toggle.setAttribute('aria-expanded', String(open));
     if (open) {
+      clearFeed();
       render();
       log.scrollTop = log.scrollHeight;
-      input.focus();
     } else if (!root.hidden) toggle.focus();
   }
   toggle.onclick = () => expand(panel.hidden);
@@ -75,6 +92,18 @@ export function createGlobalChat(send) {
       status.textContent = '';
       log.replaceChildren();
       lines.clear();
+      clearFeed();
+      seen.clear();
+      initialized = false;
+    }
+    if (account !== undefined) {
+      for (const row of messages) {
+        if (initialized && !seen.has(row.id) && panel.hidden) showMessage(row);
+        seen.add(row.id);
+      }
+      initialized = true;
+      const current = new Set(messages.map(row => row.id));
+      for (const id of seen) if (!current.has(id)) seen.delete(id);
     }
     profile = account;
     rows = account === undefined ? [] : messages;

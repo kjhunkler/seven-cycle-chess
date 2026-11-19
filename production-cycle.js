@@ -49,7 +49,7 @@ function finishTransformation(node){
 function bounceTransformedTroops(transformed){
  for(const group of G){
   const target=N[group.to];
-  if(transformed.includes(target)&&survivingOwner(group.owner)===target.owner&&group.type!==target.ut){
+  if(transformed.includes(target)&&allies(survivingOwner(group.owner),target.owner)&&group.type!==target.ut){
    bounceTroop(group,1-group.t);
   }
  }

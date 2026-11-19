@@ -1,4 +1,4 @@
-function createPublicLobby(loadDirectory = () => import('./spacetime-lobby-client.js?v=global-chat-1')) {
+function createPublicLobby(loadDirectory = () => import('./spacetime-lobby-client.js?v=global-chat-2')) {
   const id = crypto.randomUUID();
   const friends = new Map(), rooms = new Map(), inbox = [];
   let opening, directory, keys, publicKey;
