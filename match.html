@@ -58,7 +58,7 @@ button{min-height:44px}
 <div class="card" id="panel"></div>
 
 </section></main>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=6"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let localPlayer=1, online=false, peerSend, nextSync=0, syncedAt=0, sequence=0, lastSequence=-1, commandSequence=0, lastCommand=-1, gameStarted=false, lobbyConfig={botDifficulty:"normal",map:2,speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10}, lobbyReady=[false,false], lobbyRevision=0, lastLobbyRevision=-1, shakeNodes={};
@@ -235,7 +235,7 @@ function command(data){
   }
 }
 function applyCommand(owner,data){
-  if(!Number.isInteger(owner)||owner<1||owner>8)return;
+  if(!Number.isInteger(owner)||owner<1||owner>MAX_PLAYERS)return;
   if(!online||!gameStarted||countdownRemaining>0||over||!data||typeof data!=="object"||isEliminated(owner))return;
   if(data.kind==="ability"&&typeof data.from==="string"&&typeof data.to==="string"){
     const s=N[data.from],t=N[data.to];if(s?.shop&&s.owner===owner&&s.abilityReady&&s.abilityCd<=0&&t?.owner===owner&&!t.shop){if(s.shop==="shield")t.shields=(t.shields||0)+1;else t.boost=Math.max(t.boost||0,7);s.abilityReady=false;s.charge=0;s.abilityCd=10;}return;
@@ -284,7 +284,7 @@ function updateLobbyUI(){
 }
 function beginMatch(){if(gameStarted||humanPlayers.length<2||!humanPlayers.every(p=>connectedPlayers.includes(p)&&lobbyReady[p-1]))return;CONFIG.timeScale=lobbyConfig.speed;init();gameStarted=true;countdownRemaining=5000;countdownSyncedAt=performance.now();last=countdownSyncedAt;nextSync=0;$("variant-dialog").close();msg="Drag from a node to send fruit.";parent.postMessage({kind:"match-history-start",round:matchRound,rules:lobbyConfig,seats:humanPlayers},location.origin);sendLobby()}
 function resetMatchLobby(){
-  gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyReady=Array(8).fill(false);
+  gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyReady=Array(MAX_PLAYERS).fill(false);
   pendingCommands=[];unitCorrections.clear();last=performance.now();nextSync=0;
   init();msg="Choose match settings and ready up.";updateLobbyUI();
 }
@@ -295,7 +295,7 @@ function lobbyAction(owner,data){
     matchRound++;configVersion++;resetMatchLobby();sendLobby();return;
   }
   if(gameStarted)return;
-  if(data.action==="config"&&validConfig(data.config)){lobbyConfig={...data.config};configVersion++;lobbyReady=Array(8).fill(false)}
+  if(data.action==="config"&&validConfig(data.config)){lobbyConfig={...data.config};configVersion++;lobbyReady=Array(MAX_PLAYERS).fill(false)}
   else if(data.action==="ready"&&data.configVersion===configVersion&&typeof data.value==="boolean")lobbyReady[owner-1]=data.value;
   sendLobby();updateLobbyUI();beginMatch();
 }
@@ -324,7 +324,7 @@ window.matchGame={
     msg="Match open. Continue playing.";
   },
   takeSeat(seat){
-    if(localPlayer!==0||!Number.isInteger(seat)||seat<2||seat>8)return;
+    if(localPlayer!==0||!Number.isInteger(seat)||seat<2||seat>MAX_PLAYERS)return;
     localPlayer=seat;pendingCommands=[];commandSequence=0;sel=null;drag=null;closeWheel();
     $("join-game").hidden=true;
     msg="You joined the match.";
@@ -338,7 +338,7 @@ window.matchGame={
   reconnect(send){peerSend=send;nextSync=0},
   start(player,send,humans=[1,2]){
     historyReportedRound=-1;
-    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(8).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={botDifficulty:"normal",map:mapForPlayers(Math.max(2,...humans)),speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=1;init();
+    localPlayer=player;peerSend=send;online=true;matchRound=0;pendingCommands=[];roundTrip=0;nextPing=0;awaitingPing=false;unitCorrections.clear();nextSync=0;sequence=0;lastSequence=-1;commandSequence=0;lastCommand=-1;lastCommands={};lobbyRevision=0;lastLobbyRevision=-1;configVersion=0;gameStarted=false;countdownRemaining=0;countdownSyncedAt=0;lobbyMembers=[];lobbyReady=Array(MAX_PLAYERS).fill(false);humanPlayers=[...humans];connectedPlayers=[...humans];lobbyConfig={botDifficulty:"normal",map:mapForPlayers(Math.max(2,...humans)),speed:1,shops:false,fullElimination:false,portionControl:false,productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10};Object.assign(lobbyConfig,selectionConfig(lobbyConfig.map));CONFIG.timeScale=1;init();
     msg="Choose match settings and ready up.";$("match").hidden=false;updateLobbyUI();if(player===1)sendLobby();
     $("join-game").hidden=player!==0;
     if(player===0){$("variant-dialog").close();msg="Spectating. Join to take over an available bot."}
@@ -350,11 +350,11 @@ window.matchGame={
     if(localPlayer!==1)return;
     const seats=members.map(m=>m.seat).sort(),changed=JSON.stringify(seats)!==JSON.stringify(humanPlayers);
     lobbyMembers=members;humanPlayers=seats;connectedPlayers=members.filter(m=>m.connected).map(m=>m.seat);
-    if(changed&&!gameStarted){if(Math.max(...seats)>mapPlayerCount(lobbyConfig.map)){delete lobbyConfig.mapRevision;Object.assign(lobbyConfig,selectionConfig(mapForPlayers(Math.max(...seats))))}if(!validTeams(lobbyConfig))lobbyConfig.teams=false;configVersion++;lobbyReady=Array(8).fill(false)}
+    if(changed&&!gameStarted){if(Math.max(...seats)>mapPlayerCount(lobbyConfig.map)){delete lobbyConfig.mapRevision;Object.assign(lobbyConfig,selectionConfig(mapForPlayers(Math.max(...seats))))}if(!validTeams(lobbyConfig))lobbyConfig.teams=false;configVersion++;lobbyReady=Array(MAX_PLAYERS).fill(false)}
     sendLobby();updateLobbyUI();beginMatch();
   },
   setFriends(friends){
-    const host=$("match-invites");host.replaceChildren();if(localPlayer!==1||gameStarted||humanPlayers.length>=8)return;
+    const host=$("match-invites");host.replaceChildren();if(localPlayer!==1||gameStarted||humanPlayers.length>=MAX_PLAYERS)return;
     for(const friend of friends){const button=document.createElement("button");button.type="button";button.textContent="Invite "+friend.name;button.onclick=()=>parent.postMessage({kind:"invite-player",to:friend.id},location.origin);host.append(button)}
   },
   stop(){online=false;clearTimeout(holdTimer);closeWheel();drag=null;$("match").hidden=true},
@@ -553,4 +553,4 @@ if(parent===window){
   $("leave-match").onclick=()=>parent.postMessage({kind:"leave-match"},location.origin);
   $("rename-match").onsubmit=event=>{event.preventDefault();parent.postMessage({kind:"rename",name:$("match-name").value},location.origin)};
 }
-</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=40"></script><script>requestAnimationFrame(loop);</script></body></html>
+</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=41"></script><script>requestAnimationFrame(loop);</script></body></html>

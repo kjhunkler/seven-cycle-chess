@@ -36,7 +36,7 @@
     const friends=seats.filter(seat=>seat!==viewer&&allies(seat,viewer));
     const enemies=seats.filter(seat=>!allies(seat,viewer));
     if(allies(owner,viewer))return ['#65cd85','#8bd5ff','#53c9ba'][friends.indexOf(owner)];
-    return ['#ee857e','#eeb251','#f5d565','#ed91c4','#f16b49','#dbafd9'][enemies.indexOf(owner)];
+    return ['#ee857e','#eeb251','#f5d565','#ed91c4','#f16b49','#dbafd9','#c24968','#ad874e','#b878aa'][enemies.indexOf(owner)];
   };
   const art = i => compactBoard ? `<circle cx="12" cy="12" r="9" fill="${troopColors[i]}"/>` : `<g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g>`;
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;

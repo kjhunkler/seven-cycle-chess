@@ -1,5 +1,5 @@
 const {test}=require('node:test');const assert=require('node:assert/strict');const {lobbyHarness}=require('./lobby-harness.cjs');
-for(const count of [2,3,4])test(`${count} browsers join one room, start together and route commands by seat`,async()=>{
+for(const count of [2,3,4,9])test(`${count} browsers join one room, start together and route commands by seat`,async()=>{
  const hub=lobbyHarness(),clients=Array.from({length:count},(_,i)=>hub.add('Player '+(i+1)));await hub.pump();const host=clients[0];
  for(let i=1;i<count;i++){
   await host.run(`invitePlayer(lastFriends.find(f=>f.name==='Player ${i+1}').id)`);await hub.pump();await clients[i].run('acceptInvite([...pendingInvites.values()][0])');await hub.pump();

@@ -11,8 +11,8 @@ function layout(players, difficulty=5) {
     edges:homes.map(([id])=>[id,'J1']),difficulty:{J1:difficulty}};
 }
 
-test('database and playable fallback share thirteen connected, seat-symmetric defaults', () => {
-  assert.equal(Object.keys(defaultMaps).length,13);
+test('database and playable fallback share fourteen connected, seat-symmetric defaults', () => {
+  assert.equal(Object.keys(defaultMaps).length,14);
   for (const map of Object.values(defaultMaps)) assert.deepEqual(mapLayout(map).startGroups,map.startGroups);
 });
 
@@ -25,7 +25,7 @@ test('publishing rejects asymmetric neutral strength, missing paths, invalid sea
   assert.throws(()=>mapLayout({...map,difficulty:{D1:100}}),/between 1 and 99/);
 });
 
-for (const players of [2,3,4,5,6,7,8]) test(players+' seats can play a published revision with the same perspective and garrison', () => {
+for (const players of [2,3,4,5,6,7,8,9]) test(players+' seats can play a published revision with the same perspective and garrison', () => {
   const host=createGame();
   const catalog={maps:[{id:403,revision:1,players,name:'Canopy'}],
     versions:[{key:'403/1',layout:JSON.stringify(layout(players,17))}]};

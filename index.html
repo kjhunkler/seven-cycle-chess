@@ -84,7 +84,7 @@ small{color:var(--mut)}
 </dialog>
 <dialog id="map-editor" aria-labelledby="editor-title"><div class="map-heading"><h2 id="editor-title">Map editor</h2><button type="button" data-close>Close</button></div>
   <div class="map-fields editor-identity"><label>Map name <input id="map-name" required maxlength="64"></label>
-  <label>Players <select id="editor-players"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option></select></label>
+  <label>Players <select id="editor-players"><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option><option>7</option><option>8</option><option>9</option></select></label>
   </div>
   <div class="map-fields"><label>Tool <select id="editor-tool"><option value="node">Add node</option><option value="path">Connect nodes</option><option value="difficulty">Set troops</option><option value="erase">Erase node or path</option></select></label>
   <label id="editor-garrison-field">Starting troops <input type="number" id="editor-difficulty" min="1" max="99" value="5"></label></div>
@@ -106,7 +106,7 @@ small{color:var(--mut)}
     <small id="chat-status" role="status"></small>
   </section>
 </aside>
-<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
+<script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=6"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let productionCycle;
@@ -350,4 +350,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=40"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=4"></script><script src="./map-library.js?v=6"></script><script src="./lobby.js?v=3"></script></body></html>
+</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=41"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=4"></script><script src="./map-library.js?v=6"></script><script src="./lobby.js?v=4"></script></body></html>

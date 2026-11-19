@@ -1,7 +1,7 @@
 import { schema, type ReducerCtx, SenderError, table, t } from 'spacetimedb/server';
 import { ScheduleAt } from 'spacetimedb';
 
-import { defaultMaps, mapLayout, sameSide } from '../../../duel-maps.js';
+import { defaultMaps, mapLayout, sameSide, teamSizes } from '../../../duel-maps.js';
 
 const totals = table({}, {
   profile: t.u64().primaryKey(), played: t.u32(), wins: t.u32(),
@@ -662,7 +662,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   const entry=ctx.db.communityMap.id.find(mapId);
   const version=revision && ctx.db.mapVersion.key.find(mapId+'/'+revision);
   const seatCount = entry?.players ?? (rules.map === 4 ? 4 : [3,6].includes(rules.map) ? 3 : 2);
-  if ((teams && (![4,6,8].includes(seatCount) || ![2,seatCount/2].includes(Number(teams)) || !entry || rules.map!==(mapId<=11?mapId:0))) || (revision!==undefined ? !version || !entry : !entry && (rules.map < 2 || rules.map > 11)) || ![.5, 1, 1.5].includes(rules.speed) ||
+  if ((teams && (!teamSizes(seatCount).includes(Number(teams)) || !entry || rules.map!==(mapId<=11?mapId:0))) || (revision!==undefined ? !version || !entry : !entry && (rules.map < 2 || rules.map > 11)) || ![.5, 1, 1.5].includes(rules.speed) ||
       !Number.isFinite(rules.transformationTime) || rules.transformationTime < 1 || rules.transformationTime > 120 ||
       winner < 1 || winner > seatCount || durationSeconds > 86400 || guests.length < 1 || guests.length >= seatCount ||
       !hostName.trim() || hostName.length > 32) {
@@ -692,7 +692,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
     addResult(ctx,players,winner,teams);
     countPlay(ctx,id,mapId);
   }
-  if(entry && revision)ctx.db.playedMap.insert({id,mapId,name:entry.name});
+  if(entry && (revision || mapId>11))ctx.db.playedMap.insert({id,mapId,name:entry.name});
   const profiles = new Map(players.map(player => [player.profile, player]));
   const winning = winningProfiles(players,winner,teams);
   for (const player of profiles.values()) {
@@ -718,7 +718,12 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   }
 }
 export const recordMatch=lobby.reducer(resultFields,(ctx,result)=>storeResult(ctx,result,result.rules.map));
-export const recordCatalogMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>storeResult(ctx,result,result.mapId,result.revision));
+export const recordCatalogMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>{
+  const {mapId,revision}=result;
+  if(!revision && (mapId<=11 || !defaultMaps[mapId] || result.rules.map!==0))
+    throw new SenderError('Invalid catalog map.');
+  storeResult(ctx,result,mapId,revision||undefined);
+});
 export const recordTeamMatch=lobby.reducer({...resultFields,mapId:t.u32(),revision:t.u32()},(ctx,result)=>
   storeResult(ctx,result,result.mapId,result.revision||undefined,result.rules.teamSize??2));
 export const myTeamMatches=lobby.view({public:true},t.array(teamMatch.rowType),ctx=>{

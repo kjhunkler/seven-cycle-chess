@@ -56,7 +56,8 @@ const LARGE_THREE_EDGES=THREE_PATHS.flatMap(([a,b],i)=>{
 });
 LARGE_THREE_EDGES.push(..."M9-M10 M10-M11 M11-M9 M0-M6 M0-M8 M1-M7 M1-M4 M2-M3 M2-M5".split(" ").map(e=>e.split("-")));
 const rotateBoardPoint=(p,angle)=>({x:50+(p.x-50)*Math.cos(angle)-(p.y-50)*Math.sin(angle),y:50+(p.x-50)*Math.sin(angle)+(p.y-50)*Math.cos(angle)});
-const MAP_SEAT_COUNTS=[2,3,4,5,6,7,8];
+const MAX_PLAYERS=9;
+const MAP_SEAT_COUNTS=Array.from({length:MAX_PLAYERS-1},(_,i)=>i+2);
 const radialSeatAngle=(seat,players)=>(seat-1)*2*Math.PI/players;
 function radialHomes(players,point=[50,92]){
   return Array.from({length:players},(_,i)=>{
@@ -68,7 +69,8 @@ function shopPosition(c,kind,triangular,four=false,players=2){
   const side=kind==='shield'?-1:1;
   if(players>4){
     const angle=Math.atan2(c.y-50,c.x-50);
-    return {x:Math.max(2,Math.min(98,c.x-side*12*Math.sin(angle))),y:Math.max(2,Math.min(98,c.y+side*12*Math.cos(angle)))};
+    const offset=players===9?9:12;
+    return {x:Math.max(2,Math.min(98,c.x-side*offset*Math.sin(angle))),y:Math.max(2,Math.min(98,c.y+side*offset*Math.cos(angle)))};
   }
   return four?{x:c.x+side*15,y:c.y<50?2:98}:triangular?rotateBoardPoint({x:50+side*24,y:90},radialSeatAngle(Number(c.id.slice(1)),3)):{x:Math.max(8,Math.min(92,c.x+side*36)),y:c.y+(c.y<50?5:-5)};
 }
@@ -98,7 +100,7 @@ function mapLayout(raw, requireConnected=true) {
   if(ids.length>96||edges.length>300)fail('Maps support up to 96 nodes and 300 paths.');
   for(const id of ids){
     const p=nodes[id];
-    if(!/^(?:P[1-8]|[A-OQ-RT-Z][0-9]{1,5})$/.test(id)||!Array.isArray(p)||p.length!==2||
+    if(!/^(?:P[1-9]|[A-OQ-RT-Z][0-9]{1,5})$/.test(id)||!Array.isArray(p)||p.length!==2||
       p.some(v=>!Number.isFinite(v)||v<1||v>99)||nodeAt(nodes,p)!==id)fail('Node positions must be distinct and on the board.');
   }
   const homes=Array.from({length:players},(_,i)=>'P'+(i+1));
@@ -139,7 +141,7 @@ const defaultMaps=Object.fromEntries([
   [5,'Twin branches',2,BRANCH_POS,BRANCH_EDGES],[6,'Expanded three groves',3,LARGE_THREE_POS,LARGE_THREE_EDGES],
   ...Object.entries(TWO_PLAYER_MAPS).map(([id,m])=>[Number(id),m.name,2,m.nodes,m.edges])
 ].map(([id,name,players,nodes,edges])=>[id,{id,name,...mapLayout({players,nodes,edges,mirror:players!==3,difficulty:{}})}]));
-for(const players of [6,8]){
+for(const players of [6,8,9]){
  const homes=radialHomes(players),inner=radialHomes(players,[50,68]);
  const nodes={J0:[50,50]},edges=[];
  for(let i=0;i<players;i++){const p='P'+(i+1),j='J'+(i+1);nodes[p]=homes[i];nodes[j]=inner[i];edges.push([p,j],[j,'J0'],[j,'J'+((i+1)%players+1)])}
@@ -156,11 +158,11 @@ function selectionConfig(id){
   const revision=latestMaps.get(id)?.revision;
   return revision?{map:id,mapRevision:revision}:{map:id};
 }
-// Four-seat maps put P1/P2 on one edge and P3/P4 on the opposite edge.
-function teamNumber(seat,size=2){return seat>0 && seat<=8 ? Math.ceil(seat/size) : 0}
+// Adjacent seats belong to the same team.
+function teamNumber(seat,size=2){return seat>0 && seat<=MAX_PLAYERS ? Math.ceil(seat/size) : 0}
 function sameSide(a,b,teams){return a>0 && b>0 && (a===b || (teams && teamNumber(a,typeof teams==='number'?teams:2)===teamNumber(b,typeof teams==='number'?teams:2)))}
 function matchMapChoice(mapId,teams){return selectionConfig(teams && !teamSizes(mapPlayerCount(mapId)).length ? 4 : mapId)}
-function teamSizes(players){return players===4?[2]:players===6?[3,2]:players===8?[4,2]:[]}
+function teamSizes(players){return players===4?[2]:players===6?[3,2]:players===8?[4,2]:players===9?[3]:[]}
 function validTeams(config){return (config.teams===undefined||typeof config.teams==='boolean')&&(!config.teams||teamSizes(mapPlayerCount(config.map)).includes(config.teamSize??2))}
 function teamSetting(container,players,config){
  const group=container.querySelector('.team-settings');
@@ -171,7 +173,7 @@ function teamSetting(container,players,config){
  size.replaceChildren(...sizes.map(n=>{const o=document.createElement('option');o.value=String(n);o.textContent=Array(players/n).fill(n).join(' v ');return o}));
  size.value=String(sizes.includes(config.teamSize??2)?config.teamSize??2:sizes[0]);
 }
-if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide,radialHomes};
+if(typeof module!=='undefined')module.exports={mapLayout,defaultMaps,symmetryCopies,nodeAt,sameSide,radialHomes,teamSizes};
 
 function loadMapCatalog(catalog) {
   for(const version of catalog.versions){
@@ -196,7 +198,7 @@ function drawMapPreview(layout,editable=false,selected=''){
   });
   return '<svg class="map-preview" viewBox="-4 -4 108 108" '+(editable?'tabindex="0" role="application" aria-label="Map editor board"':'role="img" aria-label="'+layout.players+'-player map preview"')+'>'+lines.join('')+dots.join('')+'</svg>';
 }
-function setupMapPicker(container, config, {minimum=()=>2, maximum=()=>8, showDetails=true}={}) {
+function setupMapPicker(container, config, {minimum=()=>2, maximum=()=>MAX_PLAYERS, showDetails=true}={}) {
   const select=container.querySelector('[name="map"]');
   const counts=container.querySelector('.map-player-count');
   const navigation=container.querySelector('.map-navigation');

@@ -179,7 +179,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
           const rules={teamSize:teams?(settings.teamSize??2):undefined,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10,...settings,map:map<=11?map:0};
           const payload={...result,rules};
           if(teams)await conn.reducers.recordTeamMatch({...payload,mapId:map,revision:mapRevision??0});
-          else if(mapRevision)await conn.reducers.recordCatalogMatch({...payload,mapId:map,revision:mapRevision});
+          else if(mapRevision || map>11)await conn.reducers.recordCatalogMatch({...payload,mapId:map,revision:mapRevision??0});
           else await conn.reducers.recordMatch(payload);
         }
       } catch (error) {

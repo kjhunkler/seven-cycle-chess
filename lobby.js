@@ -173,7 +173,7 @@ function renderRoster(friends){
     }
     const invite=[...pendingInvites.values()].find(i=>i.from===friend.id);
     const button=invite?addAction("Accept",()=>acceptInvite(invite)):addAction("Invite",()=>invitePlayer(friend.id));
-    button.disabled=session&&(player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started||[...links.values()].some(l=>l.id===friend.id));actions.append(button);
+    button.disabled=session&&(player!==1||[...links.values()].filter(l=>l.seat>0).length>=MAX_PLAYERS-1||game()?.started||[...links.values()].some(l=>l.id===friend.id));actions.append(button);
   }
   if(!friends.length){const row=document.createElement("li");row.textContent="No other players yet.";roster.append(row)}
   game()?.setFriends(availableFriends());
@@ -212,11 +212,11 @@ function joinSpectatedGame(link){
   updateMembers();sendLink(link,{kind:"welcome",seat});game()?.rebind(transmit);game()?.reportParticipants();
 }
 async function invitePlayer(id){
-  if(inviting||player!==1||[...links.values()].filter(l=>l.seat>0).length>=7||game()?.started)return;
+  if(inviting||player!==1||[...links.values()].filter(l=>l.seat>0).length>=MAX_PLAYERS-1||game()?.started)return;
   const friend=lastFriends.find(f=>f.id===id);if(!friend||friend.online===false||[...links.values()].some(l=>l.id===id))return;
   inviting=true;let reservation;
   try{
-    const seat=[2,3,4,5,6,7,8].find(p=>![...links.values()].some(l=>l.seat===p));
+    const seat=MAP_SEAT_COUNTS.find(p=>![...links.values()].some(l=>l.seat===p));
     // Reserve the seat before awaiting the service so ready-up cannot race an invite.
     reservation=makeLink("pending:"+crypto.randomUUID(),seat,id,friend.name);session=true;showMatch();launchGame();updateMembers();
     const result=await request("invite",{to:id});
@@ -294,7 +294,7 @@ function receiveGame(link,data){
   if(data.kind==="join-game"&&player===1){joinSpectatedGame(link);return}
   if(data.kind==="join-unavailable"){status("No eligible teammate or bot is available to join.");return}
   if(data.kind==="welcome"&&player!==1){
-    if(!Number.isInteger(data.seat)||data.seat<0||data.seat===1||data.seat>8||(player!==null&&player!==0&&player!==data.seat))return;
+    if(!Number.isInteger(data.seat)||data.seat<0||data.seat===1||data.seat>MAX_PLAYERS||(player!==null&&player!==0&&player!==data.seat))return;
     if(player===0&&data.seat>0)game()?.takeSeat(data.seat);
     player=data.seat;link.connected=true;launchGame();sendLink(link,{kind:"welcome-ack"});return;
   }

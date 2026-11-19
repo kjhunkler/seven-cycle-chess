@@ -22,7 +22,8 @@ function lobbyHarness({setup}={}){
  const context=vm.createContext({document:doc,location:{hostname:'localhost',origin:'http://localhost',href:'http://localhost/'},history:{pushState(){},replaceState(){}},localStorage:{getItem:key=>key==='fruit-wars-name'?name:null,setItem(){}},crypto,URL,fetch,AbortSignal,performance:{now:()=>now},Date:class extends Date{static now(){return now}},setTimeout:fn=>{timeouts.push(fn);return fn},clearTimeout(){},setInterval:fn=>{intervals.push(fn);return fn},clearInterval(){},addEventListener:(name,fn)=>events[name]=fn,RTCPeerConnection:class{constructor(){throw Error('force relay')}},console});context.window=context;
  context.botGame=solo.context.botGame;
  setup?.(context,{match,solo});
- vm.runInContext(fs.readFileSync(path.join(__dirname,'../lobby.js'),'utf8'),context);const client={context,match,solo,els,events,intervals,run:code=>vm.runInContext(code,context)};clients.push(client);return client;
+ for(const file of ['duel-maps.js','lobby.js'])vm.runInContext(fs.readFileSync(path.join(__dirname,'..',file),'utf8'),context);
+ const client={context,match,solo,els,events,intervals,run:code=>vm.runInContext(code,context)};clients.push(client);return client;
  }
  async function pump(n=10){for(let i=0;i<n;i++){await Promise.all(clients.map(c=>c.run('poll()')));await new Promise(setImmediate)}}
  return {add,pump,clients,holdFrames:()=>{holdFrames=true},releaseFrames:()=>{holdFrames=false;for(const load of frameLoads.splice(0))load()},block:c=>blocked.add('Bearer '+c.run('token')),unblock:c=>blocked.delete('Bearer '+c.run('token')),advance:ms=>{now+=ms},beat:async()=>{for(const c of clients)for(const fn of c.intervals)fn();await pump()},players};

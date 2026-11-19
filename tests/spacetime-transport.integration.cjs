@@ -9,10 +9,10 @@ const {DbConnection,tables,createLobbyDirectory}=compiled.exports;
 const server=process.env.FRUIT_WARS_TEST_SERVER||'http://127.0.0.1:3017';
 const database=process.env.FRUIT_WARS_TEST_DB||'fruit-wars-transport-test';
 const connections=[];
-async function connect(){
+async function connect(extraTables=[]){
  return new Promise((resolve,reject)=>{
   const conn=DbConnection.builder().withUri(server).withDatabaseName(database).onConnect(c=>{
-   c.subscriptionBuilder().onApplied(()=>resolve(c)).onError(reject).subscribe([tables.player,tables.gameActivity,tables.myLobbyMessages,tables.pendingInvitations]);
+   c.subscriptionBuilder().onApplied(()=>resolve(c)).onError(reject).subscribe([tables.player,tables.gameActivity,tables.myLobbyMessages,tables.pendingInvitations,...extraTables]);
   }).onConnectError((_,e)=>reject(e)).build();connections.push(conn);
  });
 }
@@ -26,6 +26,38 @@ async function announce(conn){
  const jwk=await crypto.subtle.exportKey('jwk',key.publicKey), id=crypto.randomUUID();
  await conn.reducers.announce({id,name:'Test '+id.slice(0,6),key:JSON.stringify(jwk)});return id;
 }
+
+test('nine-player orchard history records free-for-all and credits all teammates in 3 v 3 v 3',{timeout:15000},async t=>{
+ const {defaultMaps}=require('../duel-maps.js');
+ const {id:mapId,name:mapName}=Object.values(defaultMaps).find(map=>map.players===9);
+ const players=await Promise.all(Array.from({length:3},()=>connect([tables.communityMap,tables.myMatches,tables.myRivalries,tables.myPlayedMaps])));
+ t.after(()=>players.forEach(p=>p.disconnect()));
+ const [host,ally,winner]=players;
+ const ids=await Promise.all(players.map(announce));
+ await Promise.all(players.map(p=>p.reducers.registerHistory({credential:crypto.randomUUID()})));
+ await host.reducers.initializeCommunity();
+ assert.equal((await waitFor(()=>host.db.communityMap.id.find(mapId))).players,9);
+ const guests=await Promise.all([ally,winner].map(async (p,i)=>{
+  const room=crypto.randomUUID();
+  await host.reducers.sendInvitation({to:ids[i+1],room});
+  await p.reducers.acceptHistoryInvite({room});
+  return {room,seat:i+8,name:'Player '+(i+8)};
+ }));
+ const rules={map:0,teamSize:3,speed:1,shops:false,fullElimination:false,portionControl:false,
+  productionRotation:false,transformationPenalty:false,transformationWave:false,transformationTime:10};
+ const result={id:crypto.randomUUID(),hostName:'Host',guests,winner:9,rules,durationSeconds:60,mapId,revision:1};
+ await assert.rejects(host.reducers.recordTeamMatch({...result,rules:{...rules,teamSize:2}}));
+ await host.reducers.recordTeamMatch(result);
+ const match=await waitFor(()=>[...ally.db.myMatches.iter()].find(m=>m.id===result.id));
+ assert.equal(match.rules.teamSize,3);
+ assert.equal(match.winner,9);
+ const rivalries=await waitFor(()=>[...ally.db.myRivalries.iter()].length&&[...ally.db.myRivalries.iter()]);
+ assert.deepEqual(rivalries.map(r=>[r.name,r.wins,r.opponentWins]),[['Host',1,0]]);
+ const soloWinner={...result,id:crypto.randomUUID(),rules:{...rules,teamSize:undefined},revision:0};
+ await host.reducers.recordCatalogMatch(soloWinner);
+ const recordedMap=await waitFor(()=>[...winner.db.myPlayedMaps.iter()].find(m=>m.id===soloWinner.id));
+ assert.equal(recordedMap.name,mapName);
+});
 
 test('real database enforces recipient privacy, room membership, snapshot replacement and expiry', {timeout:45000}, async t=>{
  t.after(()=>{for(const c of connections)c.disconnect()});
