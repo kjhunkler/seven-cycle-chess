@@ -15,7 +15,7 @@
   const reduced = matchMedia('(prefers-reduced-motion: reduce)');
   const storage = { get(key) { try { return localStorage.getItem(key); } catch { return null; } }, set(key, value) { try { localStorage.setItem(key, value); } catch {} } };
   let motion = storage.get('fw-motion') !== 'off', haptics = storage.get('fw-haptics') !== 'off';
-  let compactPreference = storage.get('fw-compact-board') || 'auto', compactBoard = false;
+  let compactPreference = storage.get('fw-compact-board') || 'off', compactBoard = false;
   const troopColors = ['#ee6976','#ffad48','#f5d565','#8bc56b','#8299ed','#b28be4','#bc8b65'];
   const animated = () => motion && !reduced.matches;
   const vibrate = pattern => { if (haptics && typeof navigator.vibrate === 'function' && !document.hidden) { try { navigator.vibrate(pattern); } catch {} } };
@@ -217,7 +217,7 @@
   syncCompactSettings();
   window.addEventListener('storage',event=>{
     if(event.key!=='fw-compact-board')return;
-    compactPreference=event.newValue||'auto';
+    compactPreference=event.newValue||'off';
     syncCompactSettings();
     render();
   });

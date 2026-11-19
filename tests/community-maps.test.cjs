@@ -45,7 +45,7 @@ for (const players of [2,3,4,5,6,7,8]) test(players+' seats can play a published
   solo.run('loadMapCatalog(catalog);Object.assign(botConfig,selectionConfig(403));init();render()');
   assert.equal(solo.run('tot(N.J1)'),21);
   if(players>4){
-    assert.match(solo.elements.get('map').innerHTML,/compact-troop-count/);
+    assert.doesNotMatch(solo.elements.get('map').innerHTML,/compact-troop-count/,'the full board is the default even on larger maps');
     assert.throws(()=>mapLayout({...layout(players),edges:layout(players).edges.slice(1)}),/Paths must match/);
     assert.equal(host.run(`gameStarted=true;applyCommand(${players},{kind:'route',node:'P${players}',to:'J1'});N.P${players}.routes.includes('J1')`),true);
   }

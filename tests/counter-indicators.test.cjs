@@ -5,6 +5,7 @@ for(const page of ['index.html','match.html']){
  test(page+': compact profile setting preserves combat comparisons and node progress',()=>{
   const game=createGame(page);
   const profile=game.elements.get('profile-compact-board');
+  assert.equal(profile.value,'off','compact board defaults to off');
   const markup=()=>game.elements.get('map').innerHTML;
   const setMode=value=>{profile.value=value;profile.onchange();};
   const saved=new Map();
