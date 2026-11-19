@@ -251,3 +251,11 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 .team-settings[hidden]{display:none}
 .team-settings label{display:flex;align-items:center;gap:8px}
 .team-settings select{flex:1;min-width:0}
+
+#global-chat{position:fixed;z-index:101;bottom:calc(8px + env(safe-area-inset-bottom));left:calc(8px + env(safe-area-inset-left))}
+#global-chat button{cursor:pointer}
+#chat-toggle{display:grid;place-items:center;width:44px;height:44px;padding:0;border-radius:50%;background:var(--card);border:1px solid var(--bd);color:var(--fg);box-shadow:0 3px 12px #0002}
+#chat-panel{position:absolute;bottom:52px;left:0;box-sizing:border-box;width:min(340px,calc(100vw - 32px));padding:12px;border:1px solid var(--bd);border-radius:14px;background:var(--card);color:var(--fg);box-shadow:0 8px 28px #0003}
+#chat-panel header,#chat-form{display:flex;align-items:center;gap:8px}#chat-panel header{justify-content:space-between}#chat-close{font-size:20px;line-height:1}
+#chat-log{overflow:auto;overscroll-behavior:contain;height:min(240px,38dvh);margin:10px 0;padding:8px 0;border-block:1px solid var(--bd);font-size:14px;overflow-wrap:anywhere}
+#chat-log p{margin:0 0 6px;white-space:pre-wrap}#chat-form input{flex:1;min-width:0;font-size:16px}#chat-status:not(:empty){display:block;margin-top:6px}

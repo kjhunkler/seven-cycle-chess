@@ -44,6 +44,7 @@ import CommentMapReducer from "./comment_map_reducer";
 import ConnectAccountReducer from "./connect_account_reducer";
 import FinishSoloMatchReducer from "./finish_solo_match_reducer";
 import InitializeCommunityReducer from "./initialize_community_reducer";
+import PostChatReducer from "./post_chat_reducer";
 import RecordCatalogMatchReducer from "./record_catalog_match_reducer";
 import RecordMatchReducer from "./record_match_reducer";
 import RecordTeamMatchReducer from "./record_team_match_reducer";
@@ -64,6 +65,7 @@ import VoteMapReducer from "./vote_map_reducer";
 // Import all table schema definitions
 import CommunityMapRow from "./community_map_table";
 import GameActivityRow from "./game_activity_table";
+import GlobalChatRow from "./global_chat_table";
 import LiveProfileRow from "./live_profile_table";
 import MapCommentRow from "./map_comment_table";
 import MapVersionRow from "./map_version_table";
@@ -183,6 +185,13 @@ const tablesSchema = __schema({
       { name: 'solo_standing_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, SoloStandingRow),
+  globalChat: __table({
+    name: 'global_chat',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, GlobalChatRow),
   myAccount: __table({
     name: 'my_account',
     indexes: [
@@ -253,6 +262,7 @@ const reducersSchema = __reducers(
   __reducerSchema("connect_account", ConnectAccountReducer),
   __reducerSchema("finish_solo_match", FinishSoloMatchReducer),
   __reducerSchema("initialize_community", InitializeCommunityReducer),
+  __reducerSchema("post_chat", PostChatReducer),
   __reducerSchema("record_catalog_match", RecordCatalogMatchReducer),
   __reducerSchema("record_match", RecordMatchReducer),
   __reducerSchema("record_team_match", RecordTeamMatchReducer),

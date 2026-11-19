@@ -32,7 +32,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=38"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=39"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
@@ -95,6 +95,17 @@ small{color:var(--mut)}
   </div></details>
   <div class="map-actions editor-footer"><button id="editor-undo">Undo</button><button id="publish-map">Publish map</button></div><p role="status" id="editor-status"></p>
 </dialog><div id="invite-toasts" aria-live="assertive"></div></main>
+<aside id="global-chat" aria-label="Global chat" hidden>
+  <button type="button" id="chat-toggle" aria-label="Global chat" title="Global chat" aria-controls="chat-panel" aria-expanded="false">
+    <svg width="23" height="23" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M20.5 11.5a8.5 8.5 0 0 1-8.5 8.5 10 10 0 0 1-4-.9l-5 1.4 1.4-4.7a8.5 8.5 0 1 1 16.1-4.3Z"/><path d="M8 10h8m-8 4h5"/></svg>
+  </button>
+  <section id="chat-panel" hidden>
+    <header><strong>Global chat</strong><button id="chat-close" type="button" aria-label="Close global chat">×</button></header>
+    <div id="chat-log" role="log" aria-label="Messages"></div>
+    <form id="chat-form"><input id="chat-input" aria-label="Message" placeholder="Write a message…" maxlength="280" autocomplete="off" required><button type="submit">Send</button></form>
+    <small id="chat-status" role="status"></small>
+  </section>
+</aside>
 <script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
 const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
@@ -339,4 +350,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=40"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=6"></script><script src="./lobby.js?v=3"></script></body></html>
+</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=40"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=4"></script><script src="./map-library.js?v=6"></script><script src="./lobby.js?v=3"></script></body></html>

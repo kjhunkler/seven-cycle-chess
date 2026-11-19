@@ -1,5 +1,6 @@
 import { DbConnection, tables } from './bindings/index';
 import { createProfileAuth } from './profile-auth.js';
+import { createGlobalChat } from './global-chat.js';
 
 const historyCredentialKey = 'fruit-wars-history-profile';
 const pendingMatchPrefix = 'fruit-wars-pending-match:';
@@ -50,6 +51,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
   let nextAccountAttempt = 0;
   let guestLinked = false;
   const auth = authClient ? createProfileAuth(authClient) : undefined;
+  const updateChat = auth && createGlobalChat(body => connected().reducers.postChat({ body }));
 
   const credentialKey = historyCredentialKey + ':' + host + '/' + database;
   const queuePrefix = pendingMatchPrefix + host + '/' + database + ':';
@@ -70,13 +72,32 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
           table.onDelete(invalidate);
         }
         invalidate();
+        let refreshChat;
+        if (updateChat) {
+          let pending = false;
+          refreshChat = () => {
+            if (pending) return;
+            pending = true;
+            queueMicrotask(() => {
+              pending = false;
+              if (connection !== conn || !synced) return;
+              const account = [...conn.db.myAccount.iter()][0];
+              const messages = account ? [...conn.db.globalChat.iter()].sort((a,b) => Number(a.id-b.id)) : [];
+              updateChat(account?.profile, messages);
+            });
+          };
+          for (const table of [conn.db.myAccount, conn.db.globalChat]) {
+            table.onInsert(refreshChat);
+            table.onDelete(refreshChat);
+          }
+        }
         conn.db.myLobbyMessages.onInsert(()=>{void drainMessages().catch(()=>{})});
         conn.subscriptionBuilder()
-          .onApplied(() => { synced = true; void drainMessages().catch(()=>{}); })
+          .onApplied(() => { synced = true; refreshChat?.(); void drainMessages().catch(()=>{}); })
           .onError(() => conn.disconnect())
           .subscribe([
             tables.player, tables.gameActivity, tables.myLobbyMessages, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.myTeamMatches, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
-            ...(auth ? [tables.myAccount] : []),
+            ...(auth ? [tables.myAccount, tables.globalChat] : []),
           ]);
       })
       .onAutomaticReconnect((_conn, _identity, authToken) => {
@@ -88,6 +109,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       .onDisconnect((ctx, _error, nextAttempt) => {
         if (connection !== ctx) return;
         synced = false;
+        updateChat?.(undefined, []);
         announcedName = undefined;
         lastActivity=undefined;
         lastActivityAt=0;

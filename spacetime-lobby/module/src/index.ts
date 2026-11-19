@@ -25,6 +25,10 @@ const mapVote = table({public:true}, {
 const mapComment = table({public:true}, {
   id:t.u64().primaryKey().autoInc(), mapId:t.u32(), profile:t.u64(), body:t.string(), postedAt:t.u64(),
 });
+const chatMessage = table({}, {
+  id: t.u64().primaryKey().autoInc(), room: t.u8().index('btree'),
+  name: t.string(), body: t.string(), postedAt: t.u64(),
+});
 const soloRound = table({}, {id:t.string().primaryKey(), profile:t.u64(), mapId:t.u32(), win:t.bool()});
 const soloTotals = table({}, {profile:t.u64().primaryKey(), played:t.u32(), wins:t.u32()});
 // Directory keys are transient lobby IDs for guests and stable profile keys for members.
@@ -115,7 +119,6 @@ const storedMatchRules = t.object('StoredMatchRules', {
   fullElimination: t.bool(),
   portionControl: t.bool(),
   productionRotation: t.bool(),
-  transformationPenalty: t.bool(),
   transformationWave: t.bool(),
   transformationTime: t.f64(),
 });
@@ -135,6 +138,7 @@ const matchResult = table({}, {
   winner: t.u8(),
   rules: storedMatchRules,
   players: t.array(matchPlayer),
+  transformationPenalty: t.bool().default(false),
 });
 
 const matchEntry = table({}, {
@@ -154,7 +158,7 @@ const rivalry = table({}, {
 });
 
 const lobby = schema({
-  gameActivity, lobbyRoom, lobbyMessage, lobbyCleanup,
+  gameActivity, lobbyRoom, lobbyMessage, lobbyCleanup, chatMessage,
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
   account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, teamMatch, matchTeamSize, migration, soloRound, soloTotals, soloStanding,
 }, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()), FRUIT_WARS_DEFAULT_MAP_OWNER:t.option(t.string()) } });
@@ -274,6 +278,28 @@ export const voteMap=lobby.reducer({mapId:t.u32(),value:t.i8()},(ctx,{mapId,valu
   ctx.db.mapVote.key.delete(key);
   if(value)ctx.db.mapVote.insert({key,mapId,profile,value});
 });
+const globalChatLimit = 100;
+export const globalChat = lobby.view({ public: true }, t.array(chatMessage.rowType), ctx => {
+  if (!ctx.db.accountSession.lobbyIdentity.find(ctx.sender)) return [];
+  return [...ctx.db.chatMessage.room.filter(0)];
+});
+
+export const postChat = lobby.reducer({ body: t.string() }, (ctx, { body }) => {
+  const user = accountFor(ctx);
+  if (!user) throw new SenderError('Sign in to chat.');
+  body = body.trim();
+  if (!body || body.length > 280) throw new SenderError('Enter a message of up to 280 characters.');
+  const messages = ctx.db.chatMessage;
+  if (messages.count() >= BigInt(globalChatLimit)) {
+    let oldest: bigint | undefined;
+    for (const message of messages.iter()) {
+      if (oldest === undefined || message.id < oldest) oldest = message.id;
+    }
+    if (oldest !== undefined) messages.id.delete(oldest);
+  }
+  messages.insert({ id: 0n, room: 0, name: user.name, body, postedAt: ctx.timestamp.microsSinceUnixEpoch });
+});
+
 export const commentMap=lobby.reducer({mapId:t.u32(),body:t.string()},(ctx,{mapId,body})=>{
   const {profile}=signedIn(ctx);body=body.trim();
   if(!ctx.db.communityMap.id.find(mapId)||!body||body.length>1000)throw new SenderError('Enter a comment of up to 1,000 characters.');
@@ -496,7 +522,7 @@ export const myMatches = lobby.view({ public: true }, t.array(matchSummary), ctx
   if (!identity) return [];
   return [...ctx.db.matchEntry.profile.filter(identity.profile)].flatMap(entry => {
     const result = ctx.db.matchResult.id.find(entry.matchId);
-    return result ? [{...result, rules:{...result.rules, teamSize:ctx.db.matchTeamSize.id.find(result.id)?.size}}] : [];
+    return result ? [{...result, rules:{...result.rules, transformationPenalty:result.transformationPenalty, teamSize:ctx.db.matchTeamSize.id.find(result.id)?.size}}] : [];
   });
 });
 
@@ -658,7 +684,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
     players.push({ profile: ticket.guest, seat, name });
   }
   players.sort((a, b) => a.seat - b.seat);
-  ctx.db.matchResult.insert({ id, host, finishedAt: now, durationSeconds, winner, rules, players });
+  ctx.db.matchResult.insert({ id, host, finishedAt: now, durationSeconds, winner, rules, players, transformationPenalty:rules.transformationPenalty });
 
   if(teams)ctx.db.teamMatch.insert({id});
   if(teams)ctx.db.matchTeamSize.insert({id,size:Number(teams)});

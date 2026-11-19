@@ -36,6 +36,15 @@ export const AccountSummary = __t.object("AccountSummary", {
 });
 export type AccountSummary = __Infer<typeof AccountSummary>;
 
+export const ChatMessage = __t.object("ChatMessage", {
+  id: __t.u64(),
+  room: __t.u8(),
+  name: __t.string(),
+  body: __t.string(),
+  postedAt: __t.u64(),
+});
+export type ChatMessage = __Infer<typeof ChatMessage>;
+
 export const CommunityMap = __t.object("CommunityMap", {
   id: __t.u32(),
   name: __t.string(),
@@ -53,6 +62,9 @@ export const GameActivity = __t.object("GameActivity", {
   updatedAt: __t.u64(),
 });
 export type GameActivity = __Infer<typeof GameActivity>;
+
+export const GlobalChat = __t.object("GlobalChat", {});
+export type GlobalChat = __Infer<typeof GlobalChat>;
 
 export const GuestSeat = __t.object("GuestSeat", {
   room: __t.string(),
@@ -193,6 +205,7 @@ export const MatchResult = __t.object("MatchResult", {
   get players() {
     return __t.array(MatchPlayer);
   },
+  transformationPenalty: __t.bool(),
 });
 export type MatchResult = __Infer<typeof MatchResult>;
 
@@ -331,7 +344,6 @@ export const StoredMatchRules = __t.object("StoredMatchRules", {
   fullElimination: __t.bool(),
   portionControl: __t.bool(),
   productionRotation: __t.bool(),
-  transformationPenalty: __t.bool(),
   transformationWave: __t.bool(),
   transformationTime: __t.f64(),
 });
