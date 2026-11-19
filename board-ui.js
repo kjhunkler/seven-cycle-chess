@@ -42,7 +42,7 @@
   const icon = (i, cls='fruit-icon') => `<svg class="${cls}" viewBox="0 0 24 24" aria-hidden="true">${art(i)}</svg>`;
   const escape = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
   const actionPaths={
-    fit:'<rect x="4" y="4" width="16" height="16" rx="2"/><path d="M8 12h8m-4-4v8"/>',
+    replay:'<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
     settings:'<path d="m9 4 1-2h4l1 2 2 1 2-.1 2 3.4-1 1.7v4l1 1.7-2 3.4-2-.1-2 1-1 2h-4l-1-2-2-1-2 .1-2-3.4 1-1.7v-4L3 8.4 5 5l2 .1Z"/><circle cx="12" cy="12" r="3"/>',
     expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
     collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>',
@@ -56,7 +56,7 @@
   };
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
-  shell.innerHTML = '<div class="battle-tools"><div class="battle-menu"><button type="button" class="battle-menu-toggle" aria-label="Board options" title="Board options" aria-expanded="false" aria-controls="battle-menu-actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button><div id="battle-menu-actions" class="battle-menu-actions" hidden><button type="button" class="battle-fit-button" title="Fit the whole board">Fit board</button><button type="button" class="battle-settings-button">Battle settings</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button></div></div></div>';
+  shell.innerHTML = '<div class="battle-tools"><div class="battle-menu"><button type="button" class="battle-menu-toggle" aria-label="Board options" title="Board options" aria-expanded="false" aria-controls="battle-menu-actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button><div id="battle-menu-actions" class="battle-menu-actions" hidden><button type="button" class="battle-settings-button">Battle settings</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button></div></div></div>';
   const boardMenu=shell.querySelector('.battle-menu');
   const menuToggle=shell.querySelector('.battle-menu-toggle');
   const menuActions=shell.querySelector('.battle-menu-actions');
@@ -74,9 +74,6 @@
   document.addEventListener('pointerdown',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
   document.addEventListener('focusin',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
   menuActions.hidden=true;
-  const fitButton=shell.querySelector('.battle-fit-button');
-  fitButton.hidden=true;
-  setAction(fitButton,'fit','Fit board');
   setAction(shell.querySelector('.battle-settings-button'),'settings','Battle settings');
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
@@ -95,12 +92,18 @@
     portionPercent=value;portionOutput.textContent=value+'%';portionSlider.setAttribute('aria-valuetext',value+'%');
   });
   shell.append(portionControl);
-  let soloToggle;
+  let soloToggle,soloReplay;
   if(typeof online==='undefined'){
     soloToggle=document.createElement('button');
     soloToggle.type='button';soloToggle.className='battle-solo-toggle';
     soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
     shell.querySelector('.battle-tools').append(soloToggle,boardMenu);
+    soloReplay=document.createElement('button');
+    soloReplay.type='button';soloReplay.className='battle-solo-replay';
+    soloReplay.hidden=true;
+    setAction(soloReplay,'replay','Play again');
+    soloReplay.onclick=()=>{closeBoardMenu(true);playAgain();};
+    menuActions.append(soloReplay);
   }
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
@@ -116,11 +119,6 @@
     boardFullscreen=active;
     document.documentElement.classList.toggle('board-fullscreen',active);
     setAction(fullscreenButton,active?'collapse':'expand',active?'Exit full screen':'Full screen');
-    fitButton.hidden=!active;
-    if(soloToggle){
-      if(active)menuActions.append(soloToggle);
-      else shell.querySelector('.battle-tools').append(soloToggle,boardMenu);
-    }
     fullscreenButton.setAttribute('aria-pressed',String(active));
     window.boardViewport.fit();
   };
@@ -150,7 +148,6 @@
       if(nativeFullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
     }
   });
-  shell.querySelector('.battle-fit-button').onclick=()=>window.boardViewport.fit();
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>window.boardViewport.resize()).observe(board);
   window.addEventListener('resize',()=>window.boardViewport.resize());
   window.boardViewport.fit();
@@ -206,11 +203,12 @@
   const endgameMessage=endgame.querySelector('.endgame-message'),retryButton=endgame.querySelector('.endgame-retry'),closeButton=endgame.querySelector('.endgame-close');
   const closeEndgame=()=>{if(typeof endgame.close==='function')endgame.close();else endgame.removeAttribute?.('open');};
   closeButton.addEventListener('click',closeEndgame);
-  retryButton.addEventListener('click',()=>{
+  const playAgain=()=>{
     closeEndgame();
-    if(typeof online==='undefined')act('restart');
+    if(typeof online==='undefined'){act('restart');render();panel();}
     else window.matchGame?.returnToLobby();
-  });
+  };
+  retryButton.addEventListener('click',playAgain);
   const updateSettings = () => {
     document.documentElement.dataset.motion = animated() ? 'on' : 'off';
     const m=document.getElementById('motion-toggle'), h=document.getElementById('haptic-toggle');
@@ -362,6 +360,7 @@
       const paused=window.botGame.paused;
       setAction(soloToggle,paused?'play':'pause',!window.botGame.started?'Start bot game':paused?'Resume bot game':'Pause bot game');
       soloToggle.hidden=!!over;
+      soloReplay.hidden=!over;
       soloToggle.disabled=!!over;
     }
   };

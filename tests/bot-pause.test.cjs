@@ -73,31 +73,56 @@ test('board menu pauses solo play on opening and closing leaves it paused',()=>{
 });
 
 for(const page of ['index.html','match.html']){
-  test(page+': fullscreen controls show relevant actions and relocate solo play only',async()=>{
+  test(page+': fullscreen keeps bot playback on the left and omits Fit board',async()=>{
     const h=createGame(page);
     const shell=h.created.find(e=>e.className==='battle-shell');
     const tools=shell.querySelector('.battle-tools');
     const menu=shell.querySelector('.battle-menu');
     const actions=shell.querySelector('.battle-menu-actions');
-    const fit=shell.querySelector('.battle-fit-button');
     const fullscreen=shell.querySelector('.battle-fullscreen-button');
     const play=h.created.find(e=>e.className==='battle-solo-toggle');
-    assert.equal(fit.hidden,true);
+    assert.ok(!shell.innerHTML.includes('battle-fit-button'));
     if(play)assert.deepEqual(tools.children.slice(-2),[play,menu]);
     else assert.equal(play,undefined);
     await fullscreen.onclick();
-    assert.equal(fit.hidden,false);
+
     assert.ok(fullscreen.innerHTML.includes('Exit full screen'));
-    if(play)assert.equal(actions.children.at(-1),play);
+    if(play){
+      assert.deepEqual(tools.children.slice(-2),[play,menu]);
+      assert.ok(!actions.children.includes(play));
+    }
     await fullscreen.onclick();
-    assert.equal(fit.hidden,true);
+    assert.ok(!shell.innerHTML.includes('battle-fit-button'));
     if(play)assert.deepEqual(tools.children.slice(-2),[play,menu]);
     let pauses=0;
     h.context.botGame.pause=()=>pauses++;
     shell.querySelector('.battle-menu-toggle').onclick();
     assert.equal(pauses,0,'unstarted solo games and multiplayer never receive a pause command');
-    for(const selector of ['.battle-fit-button','.battle-settings-button','.battle-fullscreen-button']){
+    for(const selector of ['.battle-settings-button','.battle-fullscreen-button']){
       assert.ok(shell.querySelector(selector).innerHTML.includes('aria-hidden="true"'),'each action has a decorative icon');
     }
+  });
+}
+
+for(const fullscreen of [false,true]){
+  test('completed bot game offers Play again in '+(fullscreen?'fullscreen':'normal view'),async()=>{
+    const h=createGame('index.html');
+    const shell=h.created.find(e=>e.className==='battle-shell');
+    const replay=h.created.find(e=>e.className==='battle-solo-replay');
+    assert.equal(replay.hidden,true);
+    if(fullscreen)await shell.querySelector('.battle-fullscreen-button').onclick();
+    h.run('over=1;render()');
+    assert.equal(replay.hidden,false);
+    assert.ok(replay.innerHTML.includes('Play again'));
+    shell.querySelector('.battle-menu-toggle').onclick();
+    shell.querySelector('.battle-menu-toggle').focus=()=>{};
+    replay.onclick();
+    assert.equal(h.run('over'),0);
+    assert.equal(replay.hidden,true);
+    assert.equal(shell.querySelector('.battle-menu-actions').hidden,true);
+    const play=h.created.find(e=>e.className==='battle-solo-toggle');
+    assert.equal(play.hidden,false);
+    play.onclick();
+    assert.equal(h.run('botGame.active'),true);
   });
 }
