@@ -171,6 +171,49 @@
   footer.className = 'battle-footer';
   footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Two fingers to zoom / pan</span>';
   shell.append(footer);
+  // A separate desktop reference leaves the battlefield and mobile controls untouched.
+  const combatHelper=document.createElement('aside');
+  combatHelper.className='combat-helper card';
+  combatHelper.setAttribute('aria-label','Fruit counters and troop combat');
+  document.getElementById('panel').after(combatHelper);
+  const drawCombatHelper=selected=>{
+    const point=i=>{const a=2*Math.PI*i/T.length-Math.PI/2;return {x:150+112*Math.cos(a),y:150+112*Math.sin(a)};};
+    const name=i=>escape(T[i][1]);
+    const ratio=(a,d)=>Number((mult(a,d)/mult(d,a)).toFixed(2));
+    const relations=[
+      {offset:1,kind:'hard',direction:'wins',label:'Strong counter'},
+      {offset:2,kind:'soft',direction:'wins',label:'Weak counter'},
+      {offset:-1,kind:'hard',direction:'loses',label:'Strong countered by'},
+      {offset:-2,kind:'soft',direction:'loses',label:'Weak countered by'}
+    ].map(r=>({...r,type:(selected+r.offset+T.length)%T.length}));
+    const lines=relations.map(r=>{
+      const from=point(r.direction==='wins'?selected:r.type),to=point(r.direction==='wins'?r.type:selected);
+      const dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy),ux=dx/length,uy=dy/length;
+      const x=to.x-ux*27,y=to.y-uy*27;
+      return `<g class="combat-${r.direction} combat-${r.kind}"><path class="combat-link" d="M${from.x+ux*27} ${from.y+uy*27} L${x} ${y}"/><path d="M${x-ux*8-uy*4} ${y-uy*8+ux*4} L${x} ${y} L${x-ux*8+uy*4} ${y-uy*8-ux*4}"/></g>`;
+    }).join('');
+    combatHelper.innerHTML=`<span class="eyebrow">FIELD GUIDE</span><h2>Fruit counters</h2>
+      <p>Choose a fruit. Arrows point toward the fruit it beats.</p>
+      <div class="combat-wheel"><svg viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="112"/>${lines}</svg>
+      ${T.map((_,i)=>{const p=point(i);return `<button type="button" data-fruit="${i}" style="left:${p.x/3}%;top:${p.y/3}%" aria-label="Show ${name(i)} counters" aria-pressed="${i===selected}"><svg class="fruit-icon" viewBox="0 0 24 24" aria-hidden="true"><g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g></svg><span>${name(i)}</span></button>`;}).join('')}
+      <span class="combat-wheel-center">${name(selected)}</span></div>
+      <div class="combat-legend"><span>━ Strong / hard</span><span>┄ Weak / soft</span></div>
+      <ul class="combat-relations" aria-live="polite">${relations.map(r=>`<li class="combat-${r.direction}"><span>${r.label}</span><strong>${name(r.type)}</strong><small>${ratio(selected,r.type)}×</small></li>`).join('')}</ul>
+      <p>Ratios compare both sides’ strength. Same fruit and fruits three or four steps apart are even (1×).</p>
+      <section class="combat-rules"><h3>How troop combat works</h3>
+      <p>Each side’s strength = troop count × its matchup multiplier. The stronger side survives with the strength difference ÷ its own multiplier. A tie removes both sides.</p>
+      <p>The same rule resolves enemy troops crossing on a path and attacks on a node. At nodes, attackers fight the largest defending fruit stack first. Surviving attackers capture an emptied node and round up to whole troops; defenders and traveling survivors keep fractional strength.</p>
+      <p>Current matchup multipliers, clockwise from the same fruit:</p>
+      <code class="combat-multipliers">${escape(JSON.stringify(CONFIG.mult))}</code>
+      <pre aria-label="Actual troop combat source code"><code>const mult = ${escape(mult.toString())};\n\n${escape(fight.toString())}</code></pre>
+      <small>at / dt = attacker / defender fruit index; an / dn = troop counts. Returns [winner, survivors]: 0 = tie, 1 = attacker, 2 = defender. Differences within ${CONFIG.strengthEpsilon} count as a tie.</small></section>`;
+    combatHelper.querySelectorAll('[data-fruit]').forEach(button=>{button.onclick=()=>{
+      const type=Number(button.dataset.fruit);
+      drawCombatHelper(type);
+      combatHelper.querySelector(`[data-fruit="${type}"]`).focus({preventScroll:true});
+    };});
+  };
+  drawCombatHelper(0);
   if(typeof online==='undefined'){
     const applySettings=(restart=false)=>{
       const {map,speed,shops,productionRotation,fullElimination,teams,teamSize}=settingsDialog.querySelector('form').elements;
