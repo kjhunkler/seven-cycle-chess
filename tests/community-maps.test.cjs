@@ -87,6 +87,10 @@ test('editor pinch zoom preserves the draft and guide changes preserve the zoom'
   library.querySelector('[data-close]').onclick();
   assert.equal(game.run('botGame.paused'),true);
   get('new-map').onclick();
+  get('editor-players').onchange({target:{value:'9'}});
+  assert.equal(get('editor-players').value,'9');
+  assert.equal(get('editor-status').textContent,'');
+  assert.equal((area.innerHTML.match(/data-node=/g)||[]).length,10);
   get('editor-players').onchange({target:{value:'8'}});
   const touch=(pointerId,clientX,clientY)=>({pointerType:'touch',pointerId,clientX,clientY});
   area.onpointerdown(touch(1,40,54));
