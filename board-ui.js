@@ -61,6 +61,13 @@
     portionPercent=value;portionOutput.textContent=value+'%';portionSlider.setAttribute('aria-valuetext',value+'%');
   });
   shell.append(portionControl);
+  let soloToggle;
+  if(typeof online==='undefined'){
+    soloToggle=document.createElement('button');
+    soloToggle.type='button';soloToggle.className='battle-solo-toggle';
+    soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
+    shell.querySelector('.battle-tools').append(soloToggle);
+  }
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
   settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
@@ -306,6 +313,7 @@
     board.innerHTML=h;if(focused)board.querySelector(`[data-id="${focused}"]`)?.focus({preventScroll:true});
     refreshWheel();
     shell.classList.toggle('battle-ended',!!over);
+    if(soloToggle){soloToggle.textContent=!window.botGame.started?'Start bot game':window.botGame.paused?'Resume bot game':'Pause bot game';soloToggle.disabled=!!over;}
   };
   panel=function(){
     const me=player();

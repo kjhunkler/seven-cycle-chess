@@ -7,7 +7,7 @@ test('multiplayer pauses the solo game and its defeat popup until returning to s
  const solo=createGame('index.html'),match=createGame();
  match.run('matchGame.start(1,()=>{});gameStarted=true');
  const dialog=solo.context.document.body.children.find(el=>el.className==='endgame-dialog');
- solo.run('botConfig.map=2;init();aiT=999;N.P1.stock.fill(0);G=[{from:"C2",to:"P1",owner:2,type:0,n:10,t:.99}];productionCycle={active:{buff:0,debuff:1},next:{buff:1,debuff:2},endsAt:45100,remaining:45000};document.querySelector("main").inert=true;last=100;loop(200);loop(1000)');
+ solo.run('botConfig.map=2;init();botGame.start();aiT=999;N.P1.stock.fill(0);G=[{from:"C2",to:"P1",owner:2,type:0,n:10,t:.99}];productionCycle={active:{buff:0,debuff:1},next:{buff:1,debuff:2},endsAt:45100,remaining:45000};document.querySelector("main").inert=true;last=100;loop(200);loop(1000)');
  assert.equal(solo.run('over'),0);
  assert.equal(solo.run('G[0].t'),.99,'background troops do not arrive');
  assert.equal(solo.run('N.P1.tm'),0,'background production pauses');

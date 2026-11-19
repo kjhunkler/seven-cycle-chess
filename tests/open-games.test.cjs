@@ -6,7 +6,7 @@ const plain=value=>JSON.parse(JSON.stringify(value));
 
 test('bot selection counts garrisons, queued departures and traveling fruit, with stable ties',()=>{
   const g=createGame('index.html');
-  g.run('botConfig.map=4;init();for(const n of Object.values(N))n.stock.fill(0);N.P2.stock[0]=20;N.P3.stock[1]=8;N.P3.orders=[{owner:3,count:8,to:N.P3.adj[0],type:1}];G=[{owner:3,n:5}];N.P4.stock[0]=20');
+  g.run('botConfig.map=4;init();botGame.start();for(const n of Object.values(N))n.stock.fill(0);N.P2.stock[0]=20;N.P3.stock[1]=8;N.P3.orders=[{owner:3,count:8,to:N.P3.adj[0],type:1}];G=[{owner:3,n:5}];N.P4.stock[0]=20');
   assert.equal(g.run('botGame.bestBot()'),3);
   g.run('G=[]');assert.equal(g.run('botGame.bestBot()'),2);
   assert.equal(g.run('bestOpenBot([1,2])'),4);
@@ -18,7 +18,7 @@ test('bot selection counts garrisons, queued departures and traveling fruit, wit
 
 test('watching a solo game keeps it solo; joining preserves its live board and starts no countdown',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),watcher=hub.add('Watcher'),joiner=hub.add('Joiner');
-  host.solo.run('botConfig.map=4;botConfig.shops=true;botConfig.fullElimination=true;botConfig.portionControl=true;init();N.P3.stock[0]=80;N.P1.routes=[N.P1.adj[0]];N.P1.routeRemaining={[N.P1.adj[0]]:3};N.P1.pend=2;N.P1.cd=3;G=[{from:"P3",to:N.P3.adj[0],owner:3,type:0,n:2,t:.4}];transformationClock=17;portionPercent=25');
+  host.solo.run('botConfig.map=4;botConfig.shops=true;botConfig.fullElimination=true;botConfig.portionControl=true;init();botGame.start();N.P3.stock[0]=80;N.P1.routes=[N.P1.adj[0]];N.P1.routeRemaining={[N.P1.adj[0]]:3};N.P1.pend=2;N.P1.cd=3;G=[{from:"P3",to:N.P3.adj[0],owner:3,type:0,n:2,t:.4}];transformationClock=17;portionPercent=25');
   await hub.pump();
   assert.equal(watcher.run('lastFriends.find(f=>f.name==="Host").activity.join'),true);
   await watcher.run('enterGame(lastFriends.find(f=>f.name==="Host").id,"spectate")');await hub.pump();await hub.beat();
@@ -48,7 +48,7 @@ test('watching a solo game keeps it solo; joining preserves its live board and s
 
 test('spectators upgrade in place, teammates are reserved once, and rematches retain the group',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),a=hub.add('A'),b=hub.add('B');
-  host.solo.run('botConfig.map=4;botConfig.teams=true;init();N.P3.stock[0]=99');
+  host.solo.run('botConfig.map=4;botConfig.teams=true;init();botGame.start();N.P3.stock[0]=99');
   await hub.pump();
   for(const c of [a,b]){await c.run('enterGame(lastFriends.find(f=>f.name==="Host").id,"spectate")');await hub.pump()}
   await hub.beat();
@@ -70,7 +70,7 @@ test('spectators upgrade in place, teammates are reserved once, and rematches re
 
 test('simultaneous free-for-all join requests reserve distinct strongest bots',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),a=hub.add('A'),b=hub.add('B');
-  host.solo.run('botConfig.map=4;init();N.P3.stock[0]=80;N.P4.stock[0]=60');await hub.pump();
+  host.solo.run('botConfig.map=4;init();botGame.start();N.P3.stock[0]=80;N.P4.stock[0]=60');await hub.pump();
   await Promise.all([a,b].map(c=>c.run('enterGame(lastFriends.find(f=>f.name==="Host").id,"join")')));await hub.pump();
   assert.deepEqual([a.run('player'),b.run('player')].sort(),[3,4]);
   assert.deepEqual(plain(host.match.run('humanPlayers')),[1,3,4]);
@@ -81,7 +81,7 @@ test('simultaneous free-for-all join requests reserve distinct strongest bots',a
 
 test('entries arriving during the iframe handoff wait and join distinct seats',async()=>{
   const hub=lobbyHarness(),host=hub.add('Host'),a=hub.add('A'),b=hub.add('B');
-  host.solo.run('botConfig.map=4;init();N.P3.stock[0]=80;N.P4.stock[0]=60');await hub.pump();
+  host.solo.run('botConfig.map=4;init();botGame.start();N.P3.stock[0]=80;N.P4.stock[0]=60');await hub.pump();
   hub.holdFrames();
   await a.run('enterGame(lastFriends.find(f=>f.name==="Host").id,"join")');await hub.pump();
   assert.equal(host.run('adopting'),true);

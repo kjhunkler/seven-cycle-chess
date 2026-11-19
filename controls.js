@@ -61,8 +61,20 @@ function bestOpenBot(humans=[1]){
 }
 // The solo board stays live for spectators. Only a joining player triggers a handoff.
 window.botGame={
-  get active(){return typeof botConfig!=='undefined'&&!over},
-  bestBot(){return bestOpenBot([1])},
+  get active(){return typeof botConfig!=='undefined'&&botStarted&&!botPaused&&!over},
+  get started(){return typeof botConfig!=='undefined'&&botStarted},
+  get paused(){return typeof botConfig!=='undefined'&&botPaused},
+  start(){
+    if(typeof botConfig==='undefined'||over)return;
+    if(botPaused&&productionCycle)productionCycle.endsAt+=Math.max(0,performance.now()-last);
+    last=performance.now();botStarted=true;botPaused=false;render();panel();
+  },
+  pause(){
+    if(typeof botConfig==='undefined')return;
+    if(!botPaused&&productionCycle)productionCycle.endsAt+=Math.max(0,performance.now()-last);
+    last=performance.now();botPaused=true;drag=null;closeWheel();render();panel();
+  },
+  bestBot(){return this.active?bestOpenBot([1]):null},
   exportState(){
     if(typeof botConfig==='undefined')return null;
     return JSON.parse(JSON.stringify({nodes:N,units:G,over,config:botConfig,conquests:eliminatedBy,

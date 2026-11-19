@@ -149,7 +149,7 @@ for (const page of ['index.html', 'match.html']) {
     if (page === 'index.html') assert.match(get('production-countdown').textContent, /Next in \d+s/);
     // Exercise the real frame loop: production must not finish at the old 2s cadence.
     if (page === 'match.html') vm.runInContext('matchGame.start(1, () => {});gameStarted=true;lobbyConfig.productionRotation=true', context);
-    else vm.runInContext('init()', context);
+    else vm.runInContext('init();botGame.start()', context);
     vm.runInContext('productionCycle=startProductionCycle(N,G,T.length,100);productionCycle.active={buff:1,debuff:2}; N.P1.ut=0;N.P1.stock.fill(0);N.P1.stock[0]=6; last=100; for(let now=200;now<=3100;now+=100)loop(now)', context);
     assert.equal(vm.runInContext('N.P1.stock[0]', context), 6, 'still producing after 3 real seconds');
     vm.runInContext('for(let now=3200;now<=6300;now+=100)loop(now)', context);
@@ -158,7 +158,7 @@ for (const page of ['index.html', 'match.html']) {
     assert.equal(get('production-active-buff').textContent, '🍎');
     assert.equal(get('production-progress').value, 0);
     if (page === 'index.html') {
-      vm.runInContext('botConfig.productionRotation=false;act("restart");loop(45200)', context);
+      vm.runInContext('botConfig.productionRotation=false;act("restart");botGame.start();loop(45200)', context);
       assert.equal(get('production-cycle').hidden, true);
       assert.equal(vm.runInContext('productionMultiplier(productionCycle, 0)', context), 1);
       vm.runInContext('botConfig.productionRotation=true;act("restart");loop(45300)', context);
