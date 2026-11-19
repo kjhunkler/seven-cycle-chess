@@ -1,3 +1,9 @@
+// Movement uses map coordinates so viewport size does not affect speed.
+// CONFIG.travel is the time to cross a standard 22-unit connection.
+function troopTravelTime(unit){
+ const from=N[unit.from],to=N[unit.to];
+ return CONFIG.travel*Math.max(Math.hypot(to.x-from.x,to.y-from.y),1e-8)/22;
+}
 // Simulation time is authoritative; wave boundaries follow game speed and pause with play.
 let transformationClock=0;
 function transformationConfig(){return typeof botConfig!=='undefined'?botConfig:lobbyConfig}
