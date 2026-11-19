@@ -42,6 +42,7 @@ const mapLibrary=(()=>{
     get('map-auth-hint').hidden=profile!==undefined;
   }
   function openLibrary(id){
+    if(window.botGame.active)window.botGame.pause();
     selectedId=latestMaps.has(id)?id:botConfig.map;
     syncPicker();
     renderLibrary();message('');if(!library.open)library.showModal();

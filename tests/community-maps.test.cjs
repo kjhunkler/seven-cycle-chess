@@ -80,6 +80,12 @@ test('editor pinch zoom preserves the draft and guide changes preserve the zoom'
   game.context.structuredClone=structuredClone;
   game.context.location.href='http://localhost/';
   game.run(fs.readFileSync(path.join(__dirname,'../map-library.js'),'utf8'));
+  game.run('botGame.start()');
+  get('open-maps').onclick();
+  assert.equal(library.open,true);
+  assert.equal(game.run('botGame.paused'),true);
+  library.querySelector('[data-close]').onclick();
+  assert.equal(game.run('botGame.paused'),true);
   get('new-map').onclick();
   get('editor-players').onchange({target:{value:'8'}});
   const touch=(pointerId,clientX,clientY)=>({pointerType:'touch',pointerId,clientX,clientY});

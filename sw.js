@@ -1,4 +1,4 @@
-const CACHE = "fruit-wars-v69-fullscreen-board";
+const CACHE = "fruit-wars-v70-battle-toolbar";
 const ASSETS = ["./", "index.html", "orchard.html", "signal.html", "match.html", "lobby.js", "public-lobby.js", "lobby-config.js", "editions.css", "board-ui.css", "board-ui.js", "controls.js", "bot-ai.js", "production-cycle.js", "duel-maps.js", "map-library.js",
   "manifest.webmanifest", "icon-192.png", "icon-512.png"].map(path => new URL(path, self.registration.scope).href);
 

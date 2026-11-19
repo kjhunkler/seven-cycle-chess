@@ -69,6 +69,10 @@ test('solo toolbar keeps playback first and battle settings pause a running game
   settings.onclick();
   assert.equal(h.run('botGame.paused'),true);
   assert.ok(play.innerHTML.includes('Resume bot game'));
+  const dialog=h.created.find(e=>e.className==='battle-settings-dialog');
+  dialog.querySelector('[data-close]').onclick();
+  assert.equal(dialog.open,false);
+  assert.equal(h.run('botGame.paused'),true);
   const replay=h.created.find(e=>e.className==='battle-solo-replay');
   h.run('over=1;render()');
   assert.equal(play.hidden,true);
@@ -76,4 +80,17 @@ test('solo toolbar keeps playback first and battle settings pause a running game
   replay.onclick();
   assert.equal(h.run('over'),0);
   assert.equal(play.hidden,false);
+});
+
+test('opening the profile pauses a running bot game and closing it leaves the game paused',()=>{
+  const h=createGame('index.html');
+  const profile=h.elements.get('friends-panel');
+  const toggle=profile.listeners.get('toggle');
+  h.run('botGame.start()');
+  profile.open=true;
+  toggle();
+  assert.equal(h.run('botGame.paused'),true);
+  profile.open=false;
+  toggle();
+  assert.equal(h.run('botGame.paused'),true);
 });

@@ -85,6 +85,10 @@
     const maps=document.getElementById('open-maps');
     setAction(maps,'maps','Map library');
     tools.append(soloToggle,maps,settingsButton);
+    const profile=document.getElementById('friends-panel');
+    profile.addEventListener('toggle',()=>{
+      if(profile.open&&window.botGame.active)window.botGame.pause();
+    });
     soloReplay=document.createElement('button');
     soloReplay.type='button';soloReplay.className='battle-solo-replay';
     soloReplay.hidden=true;
@@ -94,7 +98,9 @@
   }
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
   const boardPreferences='<div class="option-fields board-preferences"><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div></div>';
-  settingsDialog.innerHTML=`<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2>
+  const settingsHeading='<div class="map-heading"><h2 id="battle-settings-title">Battle settings</h2><button type="button" data-close>Close</button></div>';
+  settingsDialog.setAttribute('aria-labelledby','battle-settings-title');
+  settingsDialog.innerHTML=`<form method="dialog" class="battle-settings-form">${settingsHeading}
     <fieldset class="map-player-count"><legend>Players</legend></fieldset>
     <label>Map <select name="map"></select></label>
     <div class="map-navigation"></div>
@@ -108,7 +114,7 @@
       <label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label>
     </div></details>
     <details class="form-options"><summary>Board preferences</summary>${boardPreferences}</details>
-    <div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div>
+    <div class="settings-actions"><button type="button" class="settings-restart">Restart game</button></div>
   </form>`;
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
@@ -161,14 +167,15 @@
     const lines=relations.map(r=>{
       const from=point(r.direction==='wins'?selected:r.type),to=point(r.direction==='wins'?r.type:selected);
       const dx=to.x-from.x,dy=to.y-from.y,length=Math.hypot(dx,dy),ux=dx/length,uy=dy/length;
-      const x=to.x-ux*27,y=to.y-uy*27;
-      return `<g class="combat-${r.direction} combat-${r.kind}"><path class="combat-link" d="M${from.x+ux*27} ${from.y+uy*27} L${x} ${y}"/><path d="M${x-ux*8-uy*4} ${y-uy*8+ux*4} L${x} ${y} L${x-ux*8+uy*4} ${y-uy*8-ux*4}"/></g>`;
+      const inset=15;
+      const x=to.x-ux*inset,y=to.y-uy*inset;
+      return `<g class="combat-${r.direction} combat-${r.kind}"><path class="combat-link" d="M${from.x+ux*inset} ${from.y+uy*inset} L${x} ${y}"/><path d="M${x-ux*8-uy*4} ${y-uy*8+ux*4} L${x} ${y} L${x-ux*8+uy*4} ${y-uy*8-ux*4}"/></g>`;
     }).join('');
     combatHelper.innerHTML=`<span class="eyebrow">FIELD GUIDE</span><h2>Fruit counters</h2>
       <p>Choose a fruit. Arrows point toward the fruit it beats.</p>
-      <div class="combat-wheel"><svg viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="112"/>${lines}</svg>
+      <div class="combat-wheel"><svg viewBox="0 0 300 300" aria-hidden="true"><circle cx="150" cy="150" r="112"/></svg>
       ${T.map((_,i)=>{const p=point(i);return `<button type="button" data-fruit="${i}" style="left:${p.x/3}%;top:${p.y/3}%" aria-label="Show ${name(i)} counters" aria-pressed="${i===selected}"><svg class="fruit-icon" viewBox="0 0 24 24" aria-hidden="true"><g stroke="#ffffff80" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round">${fruitPaths[i]}</g></svg><span>${name(i)}</span></button>`;}).join('')}
-      <span class="combat-wheel-center">${name(selected)}</span></div>
+      <span class="combat-wheel-center">${name(selected)}</span><svg class="combat-arrows" viewBox="0 0 300 300" aria-hidden="true">${lines}</svg></div>
       <div class="combat-legend"><span>━ Strong / hard</span><span>┄ Weak / soft</span></div>
       <ul class="combat-relations" aria-live="polite">${relations.map(r=>`<li class="combat-${r.direction}"><span>${r.label}</span><strong>${name(r.type)}</strong><small>${ratio(selected,r.type)}×</small></li>`).join('')}</ul>
       <p>Ratios compare both sides’ strength. Same fruit and fruits three or four steps apart are even (1×).</p>
@@ -198,7 +205,8 @@
     };
     settingsDialog.querySelector('.settings-restart').onclick=()=>{applySettings(true);settingsDialog.close();};
     settingsDialog.addEventListener('change',event=>{if(event?.target?.id!=='battle-compact-board')applySettings();});
-  }else settingsDialog.querySelector('.battle-settings-form').innerHTML='<h2>Battle settings</h2><p>Settings are chosen before an online match begins.</p>'+boardPreferences+'<button value="close">Close</button>';
+  }else settingsDialog.querySelector('.battle-settings-form').innerHTML=settingsHeading+'<p>Settings are chosen before an online match begins.</p>'+boardPreferences;
+  settingsDialog.querySelector('[data-close]').onclick=()=>settingsDialog.close();
   const compactOptions='<option value="auto">Automatic (5+ players)</option><option value="on">On</option><option value="off">Off</option>';
   const battleCompactSetting=document.createElement('label');
   battleCompactSetting.innerHTML='Compact board <select id="battle-compact-board"></select>';
