@@ -25,7 +25,7 @@
     '<path d="M4 7Q4 5 5 3" fill="none" stroke="#a57a40" stroke-width="2.2"/><path d="M4 6C5 15 13 18 21 11C19 18 13 22 7 19C2 17 1 10 4 6Z" fill="#f5d565"/><path d="M5 12Q8 19 15 17" fill="none" stroke="#d8ab48"/>',
     '<path d="M12 2c5 0 3 5 8 11 5 10-19 14-17 1C4 8 8 2 12 2Z" fill="#8bc56b" stroke="#477e59"/><circle cx="12" cy="15" r="4" fill="#a66a47" stroke="none"/>',
     '<g fill="#8299ed" stroke="#5268ad"><circle cx="8" cy="14" r="6"/><circle cx="16" cy="15" r="6"/><circle cx="12" cy="7" r="6"/></g><ellipse cx="10.5" cy="5" rx="1.6" ry="1" fill="#b6c5fa" stroke="none"/>',
-    '<path d="M12 6C1 1 0 21 11 22 23 23 23 4 15 5Z" fill="#b28be4"/><path d="M12 6c0-4 3-5 6-4-1 3-3 4-6 4" fill="#8fcba4"/><path d="M7 10c-1 2-1 4 0 6"/>',
+    '<path d="M12 6C1 1 0 21 11 22 23 23 23 4 15 5Z" fill="#b28be4"/><path d="M12 6c0-4 3-5 6-4-1 3-3 4-6 4" fill="#8fcba4"/><path d="M7 10c-1 2-1 4 0 6" fill="none"/>',
     '<circle cx="12" cy="12" r="10" fill="#a67954"/><ellipse cx="12" cy="10" rx="8" ry="7" fill="#fff0cf"/><ellipse cx="12" cy="10" rx="4" ry="3" fill="#d9ba8b" stroke="none"/>'
   ];
   const ownerColor = owner => {
