@@ -1,4 +1,5 @@
 import { schema, type ReducerCtx, SenderError, table, t } from 'spacetimedb/server';
+import { ScheduleAt } from 'spacetimedb';
 
 import { defaultMaps, mapLayout, sameSide } from '../../../duel-maps.js';
 
@@ -57,6 +58,20 @@ const invitation = table({}, {
   expiresAt: t.u64(),
   delivered: t.bool(),
 });
+
+// Separate tables keep the existing presence and match-history schemas intact.
+const gameActivity = table({public:true}, {
+  id:t.string().primaryKey(), join:t.bool(), updatedAt:t.u64(),
+});
+const lobbyRoom = table({}, {
+  room:t.string().primaryKey(), host:t.identity().index('btree'), guest:t.identity().index('btree'),
+  hostId:t.string(), guestId:t.string(), accepted:t.bool(), expiresAt:t.u64(),
+});
+const lobbyMessage = table({}, {
+  id:t.u64().primaryKey().autoInc(), sender:t.identity().index('btree'), recipient:t.identity().index('btree'),
+  from:t.string(), room:t.string().index('btree'), kind:t.string(), iv:t.string(), payload:t.string(), expiresAt:t.u64(),
+});
+const lobbyCleanup = table({}, {id:t.u64().primaryKey(), scheduledAt:t.scheduleAt()});
 
 const historyProfile = table({}, {
   id: t.u64().primaryKey().autoInc(),
@@ -138,6 +153,7 @@ const rivalry = table({}, {
 });
 
 const lobby = schema({
+  gameActivity, lobbyRoom, lobbyMessage, lobbyCleanup,
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
   account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, teamMatch, matchTeamSize, migration, soloRound, soloTotals, soloStanding,
 }, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()), FRUIT_WARS_DEFAULT_MAP_OWNER:t.option(t.string()) } });
@@ -284,6 +300,90 @@ export const pendingInvitations = lobby.view(
   ctx => [...ctx.db.invitation.recipient.filter(ctx.sender)].filter(row => !row.delivered),
 );
 
+export const myLobbyMessages = lobby.view(
+  {public:true}, t.array(lobbyMessage.rowType),
+  ctx => [...ctx.db.lobbyMessage.recipient.filter(ctx.sender)],
+);
+
+export const setGameActivity = lobby.reducer({active:t.bool(), join:t.bool()}, (ctx,{active,join}) => {
+  const current=ctx.db.session.identity.find(ctx.sender);
+  if(!current)throw new SenderError('Join the lobby first.');
+  const now=ctx.timestamp.microsSinceUnixEpoch;
+  if(active){
+    const row={id:current.id,join,updatedAt:now};
+    if(ctx.db.gameActivity.id.find(current.id))ctx.db.gameActivity.id.update(row);
+    else ctx.db.gameActivity.insert(row);
+  }else ctx.db.gameActivity.id.delete(current.id);
+  for(const room of [...ctx.db.lobbyRoom.host.filter(ctx.sender),...ctx.db.lobbyRoom.guest.filter(ctx.sender)]){
+    const peer=ctx.db.player.id.find(room.host.isEqual(ctx.sender)?room.guestId:room.hostId);
+    if(room.accepted&&peer?.lastSeen!==undefined&&now-peer.lastSeen<120_000_000n)
+      ctx.db.lobbyRoom.room.update({...room,expiresAt:now+120_000_000n});
+  }
+  if(!ctx.db.lobbyCleanup.id.find(1n))ctx.db.lobbyCleanup.insert({id:1n,scheduledAt:ScheduleAt.interval(10_000_000n)});
+});
+
+export const requestGameEntry = lobby.reducer({to:t.string(),mode:t.string()},(ctx,{to,mode})=>{
+  const current=ctx.db.session.identity.find(ctx.sender), target=ctx.db.session.id.find(to);
+  const profile=current&&ctx.db.player.id.find(current.id), activity=ctx.db.gameActivity.id.find(to);
+  const now=ctx.timestamp.microsSinceUnixEpoch;
+  if(!profile||!target||to===profile.id||!['join','spectate'].includes(mode)||!activity||
+      now-activity.updatedAt>30_000_000n||(mode==='join'&&!activity.join))throw new SenderError('Game is unavailable.');
+  const sent=[...ctx.db.lobbyMessage.sender.filter(ctx.sender)].filter(m=>m.kind==='entry-request');
+  for(const m of sent)if(m.expiresAt<=now)ctx.db.lobbyMessage.id.delete(m.id);
+  if(sent.some(m=>m.recipient.isEqual(target.identity)&&m.expiresAt>now))return;
+  if(sent.filter(m=>m.expiresAt>now).length>=16||[...ctx.db.lobbyMessage.recipient.filter(target.identity)].length>=128)
+    throw new SenderError('Too many pending requests. Try again shortly.');
+  ctx.db.lobbyMessage.insert({id:0n,sender:ctx.sender,recipient:target.identity,from:profile.id,room:'',kind:'entry-request',
+    iv:'',payload:JSON.stringify({name:profile.name,mode}),expiresAt:now+30_000_000n});
+});
+
+export const acceptLobbyRoom = lobby.reducer({room:t.string()},(ctx,{room})=>{
+  const row=ctx.db.lobbyRoom.room.find(room), now=ctx.timestamp.microsSinceUnixEpoch;
+  if(!row||!row.guest.isEqual(ctx.sender)||row.expiresAt<=now)throw new SenderError('Invitation expired.');
+  ctx.db.lobbyRoom.room.update({...row,accepted:true,expiresAt:now+120_000_000n});
+});
+
+export const sendLobbyMessage = lobby.reducer(
+  {room:t.string(),iv:t.string(),payload:t.string(),state:t.bool()},(ctx,{room,iv,payload,state})=>{
+    const row=ctx.db.lobbyRoom.room.find(room), now=ctx.timestamp.microsSinceUnixEpoch;
+    const isHost=row?.host.isEqual(ctx.sender), isGuest=row?.guest.isEqual(ctx.sender);
+    if(!row||(!isHost&&!isGuest)||row.expiresAt<=now)throw new SenderError('Room is unavailable.');
+    if(!/^[A-Za-z0-9+/]{16}$/.test(iv)||payload.length<24||payload.length>1_500_000||! /^[A-Za-z0-9+/]+={0,2}$/.test(payload))
+      throw new SenderError('Invalid lobby message.');
+    if(state&&!row.accepted)throw new SenderError('Accept the invitation first.');
+    const pending=[...ctx.db.lobbyMessage.room.filter(room)].filter(m=>m.sender.isEqual(ctx.sender));
+    for(const m of pending)if(m.expiresAt<=now||(state&&m.kind==='state'))ctx.db.lobbyMessage.id.delete(m.id);
+    if(!state&&pending.filter(m=>m.expiresAt>now&&m.kind!=='state').length>=128)
+      throw new SenderError('Too many pending messages.');
+    ctx.db.lobbyMessage.insert({id:0n,sender:ctx.sender,recipient:isHost?row.guest:row.host,
+      from:isHost?row.hostId:row.guestId,room,kind:state?'state':'envelope',iv,payload,
+      expiresAt:now+(state?5_000_000n:30_000_000n)});
+  },
+);
+
+export const acknowledgeLobbyMessages = lobby.reducer({ids:t.array(t.u64())},(ctx,{ids})=>{
+  if(ids.length>256)throw new SenderError('Too many acknowledgements.');
+  for(const id of ids){const row=ctx.db.lobbyMessage.id.find(id);if(row?.recipient.isEqual(ctx.sender))ctx.db.lobbyMessage.id.delete(id)}
+});
+
+export const closeLobbyRoom = lobby.reducer({room:t.string()},(ctx,{room})=>{
+  const row=ctx.db.lobbyRoom.room.find(room);
+  if(!row||(!row.host.isEqual(ctx.sender)&&!row.guest.isEqual(ctx.sender)))return;
+  // Keep the last encrypted leave notification until the other participant receives it.
+  ctx.db.lobbyRoom.room.update({...row,expiresAt:ctx.timestamp.microsSinceUnixEpoch+30_000_000n,accepted:false});
+});
+
+export const expireLobbyTraffic = lobby.reducer({onSchedule:lobbyCleanup},{arg:lobbyCleanup.rowType},ctx=>{
+  const now=ctx.timestamp.microsSinceUnixEpoch;
+  for(const m of ctx.db.lobbyMessage.iter())if(m.expiresAt<=now)ctx.db.lobbyMessage.id.delete(m.id);
+  for(const activity of ctx.db.gameActivity.iter())if(now-activity.updatedAt>30_000_000n)ctx.db.gameActivity.id.delete(activity.id);
+  for(const invite of ctx.db.invitation.iter())if(invite.expiresAt<=now)ctx.db.invitation.room.delete(invite.room);
+  for(const room of ctx.db.lobbyRoom.iter())if(room.expiresAt<=now){
+    for(const m of ctx.db.lobbyMessage.room.filter(room.room))ctx.db.lobbyMessage.id.delete(m.id);
+    ctx.db.lobbyRoom.room.delete(room.room);
+  }
+});
+
 export const announce = lobby.reducer(
   { id: t.string(), name: t.string(), key: t.string() },
   (ctx, { id, name, key }) => {
@@ -330,6 +430,7 @@ export const disconnect = lobby.clientDisconnected(ctx => {
   ctx.db.soloStanding.id.delete(current.id);
   ctx.db.liveProfile.id.delete(current.id);
   ctx.db.player.id.delete(current.id);
+  ctx.db.gameActivity.id.delete(current.id);
   ctx.db.session.identity.delete(ctx.sender);
   ctx.db.historyIdentity.identity.delete(ctx.sender);
   ctx.db.accountSession.lobbyIdentity.delete(ctx.sender);
@@ -373,6 +474,8 @@ export const sendInvitation = lobby.reducer(
       expiresAt: now + inviteLifetime,
       delivered: false,
     });
+    ctx.db.lobbyRoom.insert({room,host:ctx.sender,guest:target.identity,hostId:profile.id,guestId:to,
+      accepted:false,expiresAt:now+inviteLifetime});
   },
 );
 

@@ -1,6 +1,6 @@
 const fs=require('node:fs'),vm=require('node:vm'),crypto=require('node:crypto'),path=require('node:path');
 const {createGame,Element}=require('./game-harness.cjs');
-function lobbyHarness(){
+function lobbyHarness({setup}={}){
  let now=100000,holdFrames=false;const clients=[],players=new Map(),matches=new Map(),blocked=new Set(),frameLoads=[];
  async function fetch(url,options){const body=JSON.parse(options.body),token=options.headers.Authorization;if(blocked.has(token))throw Error('offline');let p=players.get(token);if(!p){p={id:crypto.randomUUID(),events:[],name:body.name};players.set(token,p)}
  let data={};const other=id=>[...players.values()].find(p=>p.id===id);
@@ -21,6 +21,7 @@ function lobbyHarness(){
  }};
  const context=vm.createContext({document:doc,location:{hostname:'localhost',origin:'http://localhost',href:'http://localhost/'},history:{pushState(){},replaceState(){}},localStorage:{getItem:key=>key==='fruit-wars-name'?name:null,setItem(){}},crypto,URL,fetch,AbortSignal,performance:{now:()=>now},Date:class extends Date{static now(){return now}},setTimeout:fn=>{timeouts.push(fn);return fn},clearTimeout(){},setInterval:fn=>{intervals.push(fn);return fn},clearInterval(){},addEventListener:(name,fn)=>events[name]=fn,RTCPeerConnection:class{constructor(){throw Error('force relay')}},console});context.window=context;
  context.botGame=solo.context.botGame;
+ setup?.(context,{match,solo});
  vm.runInContext(fs.readFileSync(path.join(__dirname,'../lobby.js'),'utf8'),context);const client={context,match,solo,els,events,intervals,run:code=>vm.runInContext(code,context)};clients.push(client);return client;
  }
  async function pump(n=10){for(let i=0;i<n;i++){await Promise.all(clients.map(c=>c.run('poll()')));await new Promise(setImmediate)}}

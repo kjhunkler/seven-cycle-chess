@@ -8,9 +8,9 @@ const context=vm.createContext({});
 vm.runInContext(source.slice(source.indexOf('export function directoryRoster'),source.indexOf('export function createLobbyDirectory')).replace('export ',''),context);
 const now=100000;
 const player=(id,seen=now)=>({id,name:id,key:'{}',lastSeen:BigInt(seen)*1000n});
-function roster(players,live=[],members=[]){
+function roster(players,live=[],members=[],activities,gameActivities=[]){
   const table=rows=>({iter:()=>rows,id:{find:id=>rows.find(row=>row.id===id)}});
-  return context.directoryRoster({player:table(players),liveProfile:table(live),member:table(members),soloStanding:table([])},'self',now);
+  return context.directoryRoster({player:table(players),gameActivity:table(gameActivities),liveProfile:table(live),member:table(members),soloStanding:table([])},'self',now,activities);
 }
 const member={profile:1n,name:'Member',played:4,wins:2,lastOnline:70000000n};
 
@@ -40,4 +40,26 @@ test('any fresh member tab keeps the account online, even when another tab is st
 
 test('the current account and its other tabs stay out of its own directory',()=>{
   assert.equal(roster([player('self'),player('other')],[{id:'self',member:1n},{id:'other',member:1n}],[member]).length,0);
+});
+
+test('a running game represents a member instead of an earlier idle tab',()=>{
+  const live=[{id:'idle',member:1n},{id:'playing',member:1n}];
+  const activities=new Map([['playing',{activity:{join:true},seen:now}]]);
+  const rows=roster([player('idle'),player('playing')],live,[member],activities);
+  assert.equal(rows.length,1);
+  assert.equal(rows[0].id,'playing');
+  activities.clear();
+  assert.equal(roster([player('idle'),player('playing')],live,[member],activities)[0].id,'idle');
+  assert.equal(roster([player('idle'),player('playing',now-30001)],live,[member],new Map([['playing',{activity:{join:true}}]]))[0].id,'idle');
+});
+
+test('database activity selects the playing tab and stale advertisements disappear',()=>{
+  const live=[{id:'idle',member:1n},{id:'playing',member:1n}];
+  const active=[{id:'playing',join:true,updatedAt:BigInt(now)*1000n}];
+  const rows=roster([player('idle'),player('playing')],live,[member],undefined,active);
+  assert.equal(rows[0].id,'playing');
+  assert.equal(rows[0].activity.join,true);
+  active[0].updatedAt=BigInt(now-30001)*1000n;
+  const expired=roster([player('idle'),player('playing')],live,[member],undefined,active);
+  assert.equal(expired[0].id,'idle');assert.equal(expired[0].activity,null);
 });

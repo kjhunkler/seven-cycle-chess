@@ -47,6 +47,13 @@ export const CommunityMap = __t.object("CommunityMap", {
 });
 export type CommunityMap = __Infer<typeof CommunityMap>;
 
+export const GameActivity = __t.object("GameActivity", {
+  id: __t.string(),
+  join: __t.bool(),
+  updatedAt: __t.u64(),
+});
+export type GameActivity = __Infer<typeof GameActivity>;
+
 export const GuestSeat = __t.object("GuestSeat", {
   room: __t.string(),
   seat: __t.u8(),
@@ -98,6 +105,36 @@ export const LiveProfile = __t.object("LiveProfile", {
   wins: __t.u32(),
 });
 export type LiveProfile = __Infer<typeof LiveProfile>;
+
+export const LobbyCleanup = __t.object("LobbyCleanup", {
+  id: __t.u64(),
+  scheduledAt: __t.scheduleAt(),
+});
+export type LobbyCleanup = __Infer<typeof LobbyCleanup>;
+
+export const LobbyMessage = __t.object("LobbyMessage", {
+  id: __t.u64(),
+  sender: __t.identity(),
+  recipient: __t.identity(),
+  from: __t.string(),
+  room: __t.string(),
+  kind: __t.string(),
+  iv: __t.string(),
+  payload: __t.string(),
+  expiresAt: __t.u64(),
+});
+export type LobbyMessage = __Infer<typeof LobbyMessage>;
+
+export const LobbyRoom = __t.object("LobbyRoom", {
+  room: __t.string(),
+  host: __t.identity(),
+  guest: __t.identity(),
+  hostId: __t.string(),
+  guestId: __t.string(),
+  accepted: __t.bool(),
+  expiresAt: __t.u64(),
+});
+export type LobbyRoom = __Infer<typeof LobbyRoom>;
 
 export const MapComment = __t.object("MapComment", {
   id: __t.u64(),
@@ -212,6 +249,9 @@ export type MyAccount = __Infer<typeof MyAccount>;
 
 export const MyHistoryProfile = __t.object("MyHistoryProfile", {});
 export type MyHistoryProfile = __Infer<typeof MyHistoryProfile>;
+
+export const MyLobbyMessages = __t.object("MyLobbyMessages", {});
+export type MyLobbyMessages = __Infer<typeof MyLobbyMessages>;
 
 export const MyMatches = __t.object("MyMatches", {});
 export type MyMatches = __Infer<typeof MyMatches>;

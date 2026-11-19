@@ -4,7 +4,8 @@ import { createProfileAuth } from './profile-auth.js';
 const historyCredentialKey = 'fruit-wars-history-profile';
 const pendingMatchPrefix = 'fruit-wars-pending-match:';
 
-export function directoryRoster(db, selfId, now = Date.now()) {
+export function directoryRoster(db, selfId, now = Date.now(), activities) {
+  activities ??= new Map([...db.gameActivity.iter()].filter(a=>now-Number(a.updatedAt/1000n)<=30000).map(a=>[a.id,{activity:{join:a.join}}]));
   const members = new Map([...db.member.iter()].map(m => [m.profile,m]));
   const self = db.liveProfile.id.find(selfId)?.member;
   const represented = new Set([self]);
@@ -12,6 +13,9 @@ export function directoryRoster(db, selfId, now = Date.now()) {
   // Only a recent server-stamped heartbeat establishes presence.
   const active = [...db.player.iter()].filter(player => player.lastSeen !== undefined &&
     now - Number(player.lastSeen / 1000n) <= 30000);
+  // An account can have several tabs. Represent it with its running game,
+  // rather than letting an earlier idle tab hide Spectate and Join game.
+  active.sort((a,b) => Number(!!activities.get(b.id)?.activity) - Number(!!activities.get(a.id)?.activity));
   for (const player of active) {
     if (player.id === selfId) continue;
     const live = db.liveProfile.id.find(player.id);
@@ -19,7 +23,7 @@ export function directoryRoster(db, selfId, now = Date.now()) {
     if (account && represented.has(account.profile)) continue;
     if (account) represented.add(account.profile);
     people.push({id:player.id,solo:db.soloStanding.id.find(player.id),name:account?.name ?? player.name,key:JSON.parse(player.key),online:true,
-      played:live?.played ?? 0,wins:live?.wins ?? 0});
+      activity:activities.get(player.id)?.activity??null,played:live?.played ?? 0,wins:live?.wins ?? 0});
   }
   for (const account of members.values()) if (!represented.has(account.profile)) {
     people.push({id:'member-'+account.profile,solo:db.soloStanding.id.find('member-'+account.profile),name:account.name,online:false,
@@ -35,6 +39,8 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
   let synced = false;
   let announcedName;
   let lastAnnounced = 0;
+  let lastActivity, lastActivityAt=0, messageReceiver, draining;
+  const deliveredMessages=new Set();
   let historyRegistered = false;
   let saving;
   let saveError;
@@ -64,11 +70,12 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
           table.onDelete(invalidate);
         }
         invalidate();
+        conn.db.myLobbyMessages.onInsert(()=>{void drainMessages().catch(()=>{})});
         conn.subscriptionBuilder()
-          .onApplied(() => { synced = true; })
+          .onApplied(() => { synced = true; void drainMessages().catch(()=>{}); })
           .onError(() => conn.disconnect())
           .subscribe([
-            tables.player, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.myTeamMatches, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
+            tables.player, tables.gameActivity, tables.myLobbyMessages, tables.soloStanding, tables.member, tables.liveProfile, tables.communityMap, tables.mapVersion, tables.mapVote, tables.mapComment, tables.myPlayedMaps, tables.myTeamMatches, tables.pendingInvitations, tables.myMatches, tables.myRivalries, tables.myHistoryProfile,
             ...(auth ? [tables.myAccount] : []),
           ]);
       })
@@ -82,6 +89,8 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         if (connection !== ctx) return;
         synced = false;
         announcedName = undefined;
+        lastActivity=undefined;
+        lastActivityAt=0;
         historyRegistered = false;
         accountSubject = undefined;
         if (nextAttempt === undefined) connection = undefined;
@@ -95,6 +104,37 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     connection ??= open();
     if (!synced) throw new Error('Connecting to the SpacetimeDB lobby.');
     return connection;
+  }
+
+  function drainMessages() {
+    if(!synced||!messageReceiver)return Promise.resolve();
+    if(draining)return draining;
+    const conn=connection;
+    let completed=false;
+    draining=(async()=>{
+      const rows=[...conn.db.myLobbyMessages.iter()].sort((a,b)=>a.id<b.id?-1:a.id>b.id?1:0);
+      for(let start=0;start<rows.length;start+=256){
+        const ids=[];
+        for(const row of rows.slice(start,start+256)){
+          if(connection!==conn||!synced)return;
+          if(!deliveredMessages.has(row.id)&&Number(row.expiresAt/1000n)>Date.now()){
+            const event=row.kind==='entry-request'?{kind:row.kind,from:row.from,...JSON.parse(row.payload)}:row;
+            await messageReceiver(event);
+            deliveredMessages.add(row.id);
+            if(deliveredMessages.size>2048)deliveredMessages.delete(deliveredMessages.values().next().value);
+          }
+          ids.push(row.id);
+        }
+        if(ids.length)await conn.reducers.acknowledgeLobbyMessages({ids});
+      }
+      completed=true;
+    })().finally(()=>{
+      draining=undefined;
+      // A subscription update can arrive while the previous batch is acknowledged.
+      if(completed&&synced&&connection===conn&&[...conn.db.myLobbyMessages.iter()].some(m=>!deliveredMessages.has(m.id)))
+        setTimeout(()=>{void drainMessages().catch(()=>{})},0);
+    });
+    return draining;
   }
 
   async function savePending(conn) {
@@ -167,7 +207,9 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
   }
 
   return {
-    async poll(profile, receive) {
+    disconnect() {connection?.disconnect()},
+    onMessage(receive) {messageReceiver=receive},
+    async poll(profile, receive, activity=null) {
       const conn = connected();
       selfId = profile.id;
       if (conn.db.communityMap.count()===0n) await conn.reducers.initializeCommunity();
@@ -177,6 +219,11 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
           announcedName = profile.name;
           lastAnnounced = Date.now();
         }
+      }
+      const activityKey=JSON.stringify(activity);
+      if(lastActivity!==activityKey||Date.now()-lastActivityAt>=5000){
+        await conn.reducers.setGameActivity({active:!!activity,join:!!activity?.join});
+        if(connection===conn&&synced){lastActivity=activityKey;lastActivityAt=Date.now()}
       }
       if (!historyRegistered && !guestLinked) {
         try {
@@ -209,11 +256,12 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
             name: row.name,
             key: JSON.parse(row.key),
             expiresAt,
-          }).catch(() => {});
+          });
         }
         await conn.reducers.acknowledgeInvitation({ room: row.room });
       }
 
+      await drainMessages();
       return directoryRoster(conn.db, profile.id);
     },
     community() {
@@ -235,8 +283,14 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     invite(to, room) {
       return connected().reducers.sendInvitation({ to, room });
     },
+    enter(to,mode) {return connected().reducers.requestGameEntry({to,mode})},
+    send(message) {return connected().reducers.sendLobbyMessage(message)},
+    close(room) {return connected().reducers.closeLobbyRoom({room})},
     async accept(room) {
-      if (historyRegistered) await connected().reducers.acceptHistoryInvite({ room });
+      const conn=connected();
+      await conn.reducers.acceptLobbyRoom({room});
+      // A missing history credential must not prevent joining the live game.
+      if (historyRegistered) await conn.reducers.acceptHistoryInvite({ room }).catch(()=>{});
     },
     record(result,solo=false) {
       const profile = connection && [...connection.db.myHistoryProfile.iter()][0]?.profile?.toString();

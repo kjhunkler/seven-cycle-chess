@@ -35,8 +35,11 @@ import {
 
 // Import all reducer arg schemas
 import AcceptHistoryInviteReducer from "./accept_history_invite_reducer";
+import AcceptLobbyRoomReducer from "./accept_lobby_room_reducer";
 import AcknowledgeInvitationReducer from "./acknowledge_invitation_reducer";
+import AcknowledgeLobbyMessagesReducer from "./acknowledge_lobby_messages_reducer";
 import AnnounceReducer from "./announce_reducer";
+import CloseLobbyRoomReducer from "./close_lobby_room_reducer";
 import CommentMapReducer from "./comment_map_reducer";
 import ConnectAccountReducer from "./connect_account_reducer";
 import FinishSoloMatchReducer from "./finish_solo_match_reducer";
@@ -47,8 +50,11 @@ import RecordTeamMatchReducer from "./record_team_match_reducer";
 import RegisterHistoryReducer from "./register_history_reducer";
 import RenameAccountReducer from "./rename_account_reducer";
 import RequestAccountLinkReducer from "./request_account_link_reducer";
+import RequestGameEntryReducer from "./request_game_entry_reducer";
 import SaveMapReducer from "./save_map_reducer";
 import SendInvitationReducer from "./send_invitation_reducer";
+import SendLobbyMessageReducer from "./send_lobby_message_reducer";
+import SetGameActivityReducer from "./set_game_activity_reducer";
 import SignOutAccountReducer from "./sign_out_account_reducer";
 import StartMapPlayReducer from "./start_map_play_reducer";
 import VoteMapReducer from "./vote_map_reducer";
@@ -57,6 +63,7 @@ import VoteMapReducer from "./vote_map_reducer";
 
 // Import all table schema definitions
 import CommunityMapRow from "./community_map_table";
+import GameActivityRow from "./game_activity_table";
 import LiveProfileRow from "./live_profile_table";
 import MapCommentRow from "./map_comment_table";
 import MapVersionRow from "./map_version_table";
@@ -64,6 +71,7 @@ import MapVoteRow from "./map_vote_table";
 import MemberRow from "./member_table";
 import MyAccountRow from "./my_account_table";
 import MyHistoryProfileRow from "./my_history_profile_table";
+import MyLobbyMessagesRow from "./my_lobby_messages_table";
 import MyMatchesRow from "./my_matches_table";
 import MyPlayedMapsRow from "./my_played_maps_table";
 import MyRivalriesRow from "./my_rivalries_table";
@@ -87,6 +95,17 @@ const tablesSchema = __schema({
       { name: 'community_map_id_key', constraint: 'unique', columns: ['id'] },
     ],
   }, CommunityMapRow),
+  gameActivity: __table({
+    name: 'game_activity',
+    indexes: [
+      { accessor: 'id', name: 'game_activity_id_idx_btree', algorithm: 'btree', columns: [
+        'id',
+      ] },
+    ],
+    constraints: [
+      { name: 'game_activity_id_key', constraint: 'unique', columns: ['id'] },
+    ],
+  }, GameActivityRow),
   liveProfile: __table({
     name: 'live_profile',
     indexes: [
@@ -178,6 +197,13 @@ const tablesSchema = __schema({
     constraints: [
     ],
   }, MyHistoryProfileRow),
+  myLobbyMessages: __table({
+    name: 'my_lobby_messages',
+    indexes: [
+    ],
+    constraints: [
+    ],
+  }, MyLobbyMessagesRow),
   myMatches: __table({
     name: 'my_matches',
     indexes: [
@@ -218,8 +244,11 @@ const tablesSchema = __schema({
 /** The schema information for all reducers in this module. This is defined the same way as the reducers would have been defined in the server, except the body of the reducer is omitted in code generation. */
 const reducersSchema = __reducers(
   __reducerSchema("accept_history_invite", AcceptHistoryInviteReducer),
+  __reducerSchema("accept_lobby_room", AcceptLobbyRoomReducer),
   __reducerSchema("acknowledge_invitation", AcknowledgeInvitationReducer),
+  __reducerSchema("acknowledge_lobby_messages", AcknowledgeLobbyMessagesReducer),
   __reducerSchema("announce", AnnounceReducer),
+  __reducerSchema("close_lobby_room", CloseLobbyRoomReducer),
   __reducerSchema("comment_map", CommentMapReducer),
   __reducerSchema("connect_account", ConnectAccountReducer),
   __reducerSchema("finish_solo_match", FinishSoloMatchReducer),
@@ -230,8 +259,11 @@ const reducersSchema = __reducers(
   __reducerSchema("register_history", RegisterHistoryReducer),
   __reducerSchema("rename_account", RenameAccountReducer),
   __reducerSchema("request_account_link", RequestAccountLinkReducer),
+  __reducerSchema("request_game_entry", RequestGameEntryReducer),
   __reducerSchema("save_map", SaveMapReducer),
   __reducerSchema("send_invitation", SendInvitationReducer),
+  __reducerSchema("send_lobby_message", SendLobbyMessageReducer),
+  __reducerSchema("set_game_activity", SetGameActivityReducer),
   __reducerSchema("sign_out_account", SignOutAccountReducer),
   __reducerSchema("start_map_play", StartMapPlayReducer),
   __reducerSchema("vote_map", VoteMapReducer),
