@@ -137,15 +137,24 @@ function statsLine({wins,played},solo) {
   return 'Multiplayer · '+wins+' wins · '+(played-wins)+' losses · '+played+' games · '+(played?Math.round(wins*100/played):0)+'% wins'+
     ' / Solo · '+(solo?.wins??0)+' wins in '+(solo?.played??0)+' games';
 }
+function lastOnlineLabel(lastOnline,now){
+  if(!Number.isFinite(lastOnline)||lastOnline<=0)return "Offline";
+  const minutes=Math.floor((now-lastOnline)/60_000);
+  if(minutes<1)return "Just now";
+  if(minutes<60)return minutes+"m ago";
+  if(minutes<1440)return Math.floor(minutes/60)+"h ago";
+  return Math.floor(minutes/1440)+"d ago";
+}
 function renderRoster(friends){
   lastFriends=friends;roster.replaceChildren();
+  const now=Date.now();
   const ordered=[...friends].sort((a,b)=>Number(a.online===false)-Number(b.online===false)||a.name.localeCompare(b.name));
   document.querySelector("#online-count").textContent=friends.filter(friend=>friend.online!==false).length+" online";
   for(const friend of ordered){const row=document.createElement("li");const dot=document.createElement("span");dot.className="presence-dot"+(friend.online===false?" offline":"");
     const identity=document.createElement("strong");identity.textContent=friend.name;
     const detail=document.createElement("small");
     detail.textContent=friend.online===false
-      ? (friend.lastOnline?"Last online "+new Date(friend.lastOnline).toLocaleString():"Offline")
+      ? lastOnlineLabel(friend.lastOnline,now)
       : (friend.activity?(friend.activity.join?"In game · Open to join":"In game"):"Online");
     const info=document.createElement("div");
     info.append(identity,detail);
