@@ -71,24 +71,20 @@ for(const page of ['index.html','match.html']){
     pointer('pointerup',4,399,200);
     pointer('pointerup',5,401,200);
   });
-  test(`${page}: full screen fits the board and still works when native full screen is rejected`,async()=>{
-    const game=viewport(page),{context,created,pointer}=game;
-    const shell=created.find(element=>element.className==='battle-shell');
-    const button=shell.querySelector('.battle-fullscreen-button');
-    const classes=new Set();
-    context.document.documentElement.classList.toggle=(name,on)=>on?classes.add(name):classes.delete(name);
-    context.document.documentElement.requestFullscreen=async()=>{throw Error('unsupported')};
-    pointer('pointerdown',1,150,300);
-    pointer('pointerdown',2,250,300);
-    pointer('pointermove',2,350,300);
-    pointer('pointerup',1,150,300);
-    pointer('pointerup',2,350,300);
-    await button.onclick();
-    assert.ok(classes.has('board-fullscreen'));
-    assert.ok(button.innerHTML.includes('Exit full screen'));
+  test(page+': desktop zoom and pan preserve routes and respect Fit',()=>{
+    const game=viewport(page),{map,run}=game;
+    const mouse=(type,x,y)=>map.listeners.get(type)({pointerType:'mouse',pointerId:1,button:0,clientX:x,clientY:y,target:{closest:()=>null},preventDefault(){}});
+    const wheel=deltaY=>map.listeners.get('wheel')({clientX:200,clientY:300,deltaY,preventDefault(){}});
+    run('N.P1.routes=["C1"]');
+    wheel(-400);
+    const zoomed=game.view();
+    assert.ok(zoomed[2]<110);
+    mouse('pointerdown',200,300);
+    mouse('pointermove',230,330);
+    assert.ok(game.view()[0]<zoomed[0]&&game.view()[1]<zoomed[1]);
+    mouse('pointerup',230,330);
+    assert.equal(run('JSON.stringify(N.P1.routes)'),'["C1"]');
+    wheel(5000);
     near(game.view()[2],110);
-    await button.onclick();
-    assert.ok(!classes.has('board-fullscreen'));
-    assert.ok(button.innerHTML.includes('Full screen'));
   });
 }

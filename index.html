@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8">
+<html lang="en" class="board-fullscreen"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Fruit Wars</title>
 <link rel="manifest" href="./manifest.webmanifest">
@@ -32,7 +32,7 @@ small{color:var(--mut)}
 .type-wheel{position:fixed;z-index:10;width:204px;height:204px;border-radius:50%;background:var(--card);border:2px solid var(--bd);box-shadow:0 8px 28px #0005;touch-action:none}
 .type-wheel button{position:absolute;transform:translate(-50%,-50%);width:44px;height:44px;padding:0;border-radius:50%}
 .type-wheel span{position:absolute;inset:0;display:grid;place-items:center;pointer-events:none;font-size:.75rem;font-weight:700;text-align:center}
-</style><link rel="stylesheet" href="./board-ui.css?v=36"></head><body><main>
+</style><link rel="stylesheet" href="./board-ui.css?v=37"></head><body><main>
 <h1>Fruit Wars</h1>
 <div id="production-cycle" class="production-cycle" role="group" aria-label="Production speed" hidden>
   <div class="production-pair"><strong>Active</strong><span id="production-active-buff" class="production-buff" role="img"></span><span id="production-active-debuff" class="production-debuff" role="img"></span></div>
@@ -338,4 +338,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=38"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=5"></script><script src="./lobby.js?v=3"></script></body></html>
+</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=29"></script><script src="./board-ui.js?v=39"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=5"></script><script src="./lobby.js?v=3"></script></body></html>

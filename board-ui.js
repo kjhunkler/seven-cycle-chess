@@ -44,8 +44,7 @@
   const actionPaths={
     replay:'<path d="M3 10a9 9 0 1 1 2 8M3 4v6h6"/>',
     settings:'<path d="m9 4 1-2h4l1 2 2 1 2-.1 2 3.4-1 1.7v4l1 1.7-2 3.4-2-.1-2 1-1 2h-4l-1-2-2-1-2 .1-2-3.4 1-1.7v-4L3 8.4 5 5l2 .1Z"/><circle cx="12" cy="12" r="3"/>',
-    expand:'<path d="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5"/>',
-    collapse:'<path d="M3 8h5V3m8 0v5h5M8 21v-5H3m18 0h-5v5"/>',
+    maps:'<path d="m2 5 6-2 8 3 6-2v15l-6 2-8-3-6 2ZM8 3v15m8-12v15"/>',
     play:'<path d="m8 4 12 8-12 8Z"/>',
     pause:'<path d="M8 4v16M16 4v16"/>'
   };
@@ -56,25 +55,10 @@
   };
   const shell = document.createElement('section');
   shell.className = 'battle-shell';
-  shell.innerHTML = '<div class="battle-tools"><div class="battle-menu"><button type="button" class="battle-menu-toggle" aria-label="Board options" title="Board options" aria-expanded="false" aria-controls="battle-menu-actions"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg></button><div id="battle-menu-actions" class="battle-menu-actions" hidden><button type="button" class="battle-settings-button">Battle settings</button><button type="button" class="battle-fullscreen-button" aria-pressed="false">Full screen</button></div></div></div>';
-  const boardMenu=shell.querySelector('.battle-menu');
-  const menuToggle=shell.querySelector('.battle-menu-toggle');
-  const menuActions=shell.querySelector('.battle-menu-actions');
-  const closeBoardMenu=(restoreFocus=false)=>{
-    menuActions.hidden=true;
-    menuToggle.setAttribute('aria-expanded','false');
-    if(restoreFocus)menuToggle.focus();
-  };
-  menuToggle.onclick=()=>{
-    if(menuActions.hidden&&typeof online==='undefined'&&window.botGame.active)window.botGame.pause();
-    menuActions.hidden=!menuActions.hidden;
-    menuToggle.setAttribute('aria-expanded',String(!menuActions.hidden));
-  };
-  menuActions.addEventListener('click',event=>{if(event.target.closest('button'))closeBoardMenu(!settingsDialog.open);});
-  document.addEventListener('pointerdown',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
-  document.addEventListener('focusin',event=>{if(!boardMenu.contains(event.target))closeBoardMenu();});
-  menuActions.hidden=true;
-  setAction(shell.querySelector('.battle-settings-button'),'settings','Battle settings');
+  shell.innerHTML = '<div class="battle-tools"><button type="button" class="battle-settings-button"></button></div>';
+  const tools=shell.querySelector('.battle-tools');
+  const settingsButton=shell.querySelector('.battle-settings-button');
+  setAction(settingsButton,'settings','Battle settings');
   board.before(shell);
   if(typeof botConfig!=='undefined')shell.append(document.getElementById('production-cycle'));
   shell.append(board);
@@ -92,27 +76,22 @@
     portionPercent=value;portionOutput.textContent=value+'%';portionSlider.setAttribute('aria-valuetext',value+'%');
   });
   shell.append(portionControl);
-  let soloToggle,soloReplay,toolbarDifficulty;
+  let soloToggle,soloReplay;
   const difficultyOptions='<option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>';
   if(typeof online==='undefined'){
     soloToggle=document.createElement('button');
     soloToggle.type='button';soloToggle.className='battle-solo-toggle';
     soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
-    const difficultyLabel=document.createElement('label');
-    difficultyLabel.className='battle-bot-difficulty';
-    difficultyLabel.innerHTML='Bot difficulty <select>'+difficultyOptions+'</select>';
-    toolbarDifficulty=difficultyLabel.querySelector('select');
-    toolbarDifficulty.value=botConfig.botDifficulty??'normal';
-    toolbarDifficulty.onchange=()=>{botConfig.botDifficulty=toolbarDifficulty.value;};
-    shell.querySelector('.battle-tools').append(soloToggle,difficultyLabel,boardMenu);
+    const maps=document.getElementById('open-maps');
+    setAction(maps,'maps','Map library');
+    tools.append(soloToggle,maps,settingsButton);
     soloReplay=document.createElement('button');
     soloReplay.type='button';soloReplay.className='battle-solo-replay';
     soloReplay.hidden=true;
     setAction(soloReplay,'replay','Play again');
-    soloReplay.onclick=()=>{closeBoardMenu(true);playAgain();};
-    menuActions.append(soloReplay);
+    soloReplay.onclick=()=>playAgain();
+    tools.append(soloReplay);
   }
-  const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
   const boardPreferences='<div class="option-fields board-preferences"><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div></div>';
   settingsDialog.innerHTML=`<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2>
@@ -133,58 +112,42 @@
   </form>`;
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
-  settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=botDifficulty]').value=botConfig.botDifficulty??'normal';settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=transformationPenalty]').checked=!!botConfig.transformationPenalty;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
+  settingsButton.onclick=()=>{if(typeof online==='undefined'){if(window.botGame.active)window.botGame.pause();showSoloPreview();settingsDialog.querySelector('[name=botDifficulty]').value=botConfig.botDifficulty??'normal';settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=transformationPenalty]').checked=!!botConfig.transformationPenalty;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
   board.setAttribute('viewBox','-5 -7 110 116');
-  const fullscreenButton=shell.querySelector('.battle-fullscreen-button');
-  setAction(fullscreenButton,'expand','Full screen');
-  let boardFullscreen=false,nativeFullscreen=false;
-  const setBoardFullscreen=active=>{
-    boardFullscreen=active;
-    document.documentElement.classList.toggle('board-fullscreen',active);
-    setAction(fullscreenButton,active?'collapse':'expand',active?'Exit full screen':'Full screen');
-    fullscreenButton.setAttribute('aria-pressed',String(active));
-    window.boardViewport.fit();
-  };
-  fullscreenButton.onclick=async()=>{
-    const active=!boardFullscreen;setBoardFullscreen(active);
-    try{
-      // Keep dialogs and the fruit wheel in the fullscreen tree too.
-      if(active&&!document.fullscreenElement&&document.documentElement.requestFullscreen){
-        await document.documentElement.requestFullscreen();
-        nativeFullscreen=true;
-        if(!boardFullscreen)await document.exitFullscreen();
-      }else if(!active&&nativeFullscreen&&document.fullscreenElement)await document.exitFullscreen();
-    }catch{/* The fixed viewport remains available when native fullscreen is unsupported or denied. */}
-  };
-  document.addEventListener('fullscreenchange',()=>{
-    if(document.fullscreenElement===document.documentElement)nativeFullscreen=true;
-    else if(nativeFullscreen){nativeFullscreen=false;setBoardFullscreen(false);}
-  });
-  document.addEventListener('keydown',e=>{
-    if(e.key==='Escape'&&!menuActions.hidden){
-      closeBoardMenu(true);
-      e.preventDefault();
-      return;
-    }
-    if(e.key==='Escape'&&boardFullscreen&&!document.querySelector('dialog[open]')){
-      setBoardFullscreen(false);
-      if(nativeFullscreen&&document.fullscreenElement)document.exitFullscreen().catch(()=>{});
-    }
-  });
   if(typeof ResizeObserver!=='undefined')new ResizeObserver(()=>window.boardViewport.resize()).observe(board);
   window.addEventListener('resize',()=>window.boardViewport.resize());
   window.boardViewport.fit();
   board.setAttribute('role','group');
-  board.setAttribute('aria-label','Battlefield. Use two fingers to zoom and pan. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
+  board.setAttribute('aria-label','Battlefield. Scroll to zoom and drag empty space or middle-drag to pan. On touchscreens, use two fingers. Focus a node and press Enter to select. Select a connected node and press Enter to send troops.');
   const footer = document.createElement('div');
-  footer.className = 'battle-footer';
-  footer.innerHTML = '<span><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span><span class="board-hint">Drag to route · Two fingers to zoom / pan</span>';
-  shell.append(footer);
-  // A separate desktop reference leaves the battlefield and mobile controls untouched.
+  footer.className='territory-legend';
+  footer.innerHTML='<h3>Territory colors</h3><span class="own-territory"><i class="key-dot ally"></i> Your territory</span><span class="rival-keys"></span><span><i class="key-dot neutral"></i> Unclaimed</span>';
   const combatHelper=document.createElement('aside');
+  combatHelper.id='field-guide';
   combatHelper.className='combat-helper card';
-  combatHelper.setAttribute('aria-label','Fruit counters and troop combat');
-  document.getElementById('panel').after(combatHelper);
+  combatHelper.hidden=true;
+  combatHelper.setAttribute('aria-label','Field guide');
+  const guideButton=document.createElement('button');
+  guideButton.type='button';
+  guideButton.className='guide-toggle';
+  guideButton.textContent='?';
+  guideButton.setAttribute('aria-label','Field guide');
+  guideButton.setAttribute('title','Field guide');
+  guideButton.setAttribute('aria-controls','field-guide');
+  const setGuide=open=>{
+    combatHelper.hidden=!open;
+    shell.classList.toggle('guide-open',open);
+    guideButton.setAttribute('aria-expanded',String(open));
+  };
+  setGuide(false);
+  guideButton.onclick=()=>setGuide(combatHelper.hidden);
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&!combatHelper.hidden&&!document.querySelector('dialog[open]')){
+      setGuide(false);
+      guideButton.focus();
+    }
+  });
+  shell.append(guideButton,combatHelper);
   const drawCombatHelper=selected=>{
     const point=i=>{const a=2*Math.PI*i/T.length-Math.PI/2;return {x:150+112*Math.cos(a),y:150+112*Math.sin(a)};};
     const name=i=>escape(T[i][1]);
@@ -209,13 +172,8 @@
       <div class="combat-legend"><span>━ Strong / hard</span><span>┄ Weak / soft</span></div>
       <ul class="combat-relations" aria-live="polite">${relations.map(r=>`<li class="combat-${r.direction}"><span>${r.label}</span><strong>${name(r.type)}</strong><small>${ratio(selected,r.type)}×</small></li>`).join('')}</ul>
       <p>Ratios compare both sides’ strength. Same fruit and fruits three or four steps apart are even (1×).</p>
-      <section class="combat-rules"><h3>How troop combat works</h3>
-      <p>Each side’s strength = troop count × its matchup multiplier. The stronger side survives with the strength difference ÷ its own multiplier. A tie removes both sides.</p>
-      <p>The same rule resolves enemy troops crossing on a path and attacks on a node. At nodes, attackers fight the largest defending fruit stack first. Surviving attackers capture an emptied node and round up to whole troops; defenders and traveling survivors keep fractional strength.</p>
-      <p>Current matchup multipliers, clockwise from the same fruit:</p>
-      <code class="combat-multipliers">${escape(JSON.stringify(CONFIG.mult))}</code>
-      <pre aria-label="Actual troop combat source code"><code>const mult = ${escape(mult.toString())};\n\n${escape(fight.toString())}</code></pre>
-      <small>at / dt = attacker / defender fruit index; an / dn = troop counts. Returns [winner, survivors]: 0 = tie, 1 = attacker, 2 = defender. Differences within ${CONFIG.strengthEpsilon} count as a tie.</small></section>`;
+      `;
+    combatHelper.append(footer);
     combatHelper.querySelectorAll('[data-fruit]').forEach(button=>{button.onclick=()=>{
       const type=Number(button.dataset.fruit);
       drawCombatHelper(type);
@@ -229,7 +187,6 @@
       const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,botDifficulty:botDifficulty?.value||"normal",speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,transformationPenalty:!!transformationPenalty?.checked,fullElimination:!!fullElimination?.checked};
       const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.transformationPenalty!==!!botConfig.transformationPenalty||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
-      toolbarDifficulty.value=next.botDifficulty;
       showSoloPreview();
       if(reset){
         act('restart');
@@ -324,13 +281,14 @@
     portionControl.hidden=!portionControlEnabled();
     const V=vis(), now=performance.now(), me=player();
     const N=Object.fromEntries(Object.entries(window.boardNodes()).map(([id,n])=>[id,{...n,...boardViewPoint(n,me)}]));
+    footer.querySelector('.own-territory').hidden=!me;
     footer.querySelector('.ally').style.background=ownerColor(me);
     const homes=Object.values(N).filter(n=>n.home).map(n=>n.home);
     const rivals=homes.filter(owner=>owner!==me);
     const playerCount=homes.length+Object.keys(eliminatedBy).length;
     compactBoard=compactPreference==='on'||(compactPreference!=='off'&&playerCount>4);
     const rivalKeys=footer.querySelector('.rival-keys');
-    const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> ${allies(owner,me)?'Teammate':transformationConfig().teams?'Opponent '+owner:'Rival'+(rivals.length>1?' '+(i+1):'')}</span>`).join('');
+    const legend=rivals.map((owner,i)=>`<span><i class="key-dot" style="background:${ownerColor(owner)}"></i> ${!me?'Player '+owner:allies(owner,me)?'Teammate':transformationConfig().teams?'Opponent '+owner:'Rival'+(rivals.length>1?' '+(i+1):'')}</span>`).join('');
     if(rivalKeys.innerHTML!==legend)rivalKeys.innerHTML=legend;
     const snapshot=Object.fromEntries(Object.values(N).map(n=>[n.id,{owner:n.owner,visible:V.has(n.id)}]));
     if(previousNodes)for(const n of Object.values(N)){const old=previousNodes[n.id];if(old&&old.owner!==n.owner&&old.visible&&V.has(n.id)){burst(n,ownerColor(n.owner));vibrate(n.owner===me?[22,40,35]:[45,35,45]);}}

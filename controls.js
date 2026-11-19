@@ -204,7 +204,7 @@ function bounceTroop(g,progress){
   const tapSlop=6;
   // Move the SVG camera, so rendering and screen-to-board hit testing share a transform.
   const touches=new Map(),bounds={x:-5,y:-7,width:110,height:116};
-  let camera={x:50,y:51,zoom:1},view={...bounds},gesture=null,navigating=false;
+  let camera={x:50,y:51,zoom:1},view={...bounds},gesture=null,navigating=false,mousePan=null;
   const clamp=(value,min,max)=>Math.max(min,Math.min(max,value));
   const cameraSize=()=>{
     const rect=map.getBoundingClientRect();
@@ -241,7 +241,22 @@ function bounceTroop(g,progress){
     fit(){cancelBoardInput();camera={x:50,y:51,zoom:1};paintCamera();beginGesture();},
     resize(){cancelBoardInput();paintCamera();beginGesture();}
   };
-  const resetInput=()=>{touches.clear();gesture=null;navigating=false;cancelBoardInput();};
+  map.addEventListener('wheel',e=>{
+    e.preventDefault();
+    const size=cameraSize();
+    if(!size||drag||navigating)return;
+    const {rect}=size;
+    const x=(e.clientX-rect.left)/rect.width-.5,y=(e.clientY-rect.top)/rect.height-.5;
+    const delta=e.deltaY*(e.deltaMode===1?16:e.deltaMode===2?rect.height:1);
+    const zoom=clamp(camera.zoom*Math.exp(-delta*.002),1,4);
+    const ratio=camera.zoom/zoom;
+    camera.x+=x*size.width*(1-ratio);
+    camera.y+=y*size.height*(1-ratio);
+    camera.zoom=zoom;
+    closeWheel();
+    paintCamera();
+  },{passive:false});
+  const resetInput=()=>{touches.clear();mousePan=null;gesture=null;navigating=false;cancelBoardInput();};
   window.addEventListener('blur',resetInput);
   document.addEventListener('visibilitychange',()=>{if(document.hidden)resetInput();});
   let wheelNode=null;
@@ -316,6 +331,14 @@ function bounceTroop(g,progress){
   typeWheel.addEventListener('dragstart',e=>e.preventDefault());
   map.addEventListener('contextmenu',e=>e.preventDefault());
   map.addEventListener('pointerdown',e=>{
+    if(e.pointerType==='mouse'&&!drag&&!navigating&&(e.button===1||(e.button===0&&!e.target.closest('[data-id]')))){
+      e.preventDefault();
+      closeWheel();
+      if(e.button===0)sel=null;
+      mousePan={id:e.pointerId,x:e.clientX,y:e.clientY};
+      map.setPointerCapture(e.pointerId);
+      return;
+    }
     if(e.pointerType==='touch'){
       touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
       map.setPointerCapture(e.pointerId);
@@ -333,6 +356,13 @@ function bounceTroop(g,progress){
     holdTimer=setTimeout(()=>{if(drag&&!drag.moved){if(!(N[id]?.cd>0))routeCommand({kind:'stop',node:id});openWheel(id,e.clientX,e.clientY);}},CONFIG.holdMs);
   });
   map.addEventListener('pointermove',e=>{
+    if(mousePan?.id===e.pointerId){
+      const size=cameraSize();if(!size)return;
+      camera.x-=(e.clientX-mousePan.x)*size.width/size.rect.width;
+      camera.y-=(e.clientY-mousePan.y)*size.height/size.rect.height;
+      mousePan.x=e.clientX;mousePan.y=e.clientY;
+      paintCamera();return;
+    }
     if(touches.has(e.pointerId))touches.set(e.pointerId,{x:e.clientX,y:e.clientY});
     if(navigating){
       e.preventDefault();const pair=touchPair();
@@ -354,6 +384,7 @@ function bounceTroop(g,progress){
     if(drag.moved){if(!N[drag.from]?.shop)select(drag.from);drag.x=e.clientX;drag.y=e.clientY;drag.to=routeTarget(drag.from,e.clientX,e.clientY);pl=0;}
   });
   map.addEventListener('pointerup',e=>{
+    if(mousePan?.id===e.pointerId){mousePan=null;return;}
     if(endTouch(e))return;
     if(drag?.id!==e.pointerId)return;e.preventDefault();clearTimeout(holdTimer);
     const d=drag;
@@ -363,7 +394,7 @@ function bounceTroop(g,progress){
     else {const selected=sel===d.from;routeCommand({kind:'stop',node:d.from});select(d.from);if(selected&&!d.wasOpen)openWheel(d.from,e.clientX,e.clientY);}
     drag=null;pl=0;
   });
-  const abort=e=>{endTouch(e);if(drag?.id===e.pointerId)cancelBoardInput();};
+  const abort=e=>{if(mousePan?.id===e.pointerId)mousePan=null;endTouch(e);if(drag?.id===e.pointerId)cancelBoardInput();};
   map.addEventListener('pointercancel',abort);map.addEventListener('lostpointercapture',abort);
   init();
 })();

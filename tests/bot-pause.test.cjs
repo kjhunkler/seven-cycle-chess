@@ -57,83 +57,23 @@ test('paused hosts reject stale friend joins and spectator upgrades, then become
 });
 
 
-test('board menu pauses solo play on opening and closing leaves it paused',()=>{
+test('solo toolbar keeps playback first and battle settings pause a running game',()=>{
   const h=createGame('index.html');
   const shell=h.created.find(e=>e.className==='battle-shell');
-  const toggle=shell.querySelector('.battle-menu-toggle');
-  const actions=shell.querySelector('.battle-menu-actions');
   const play=h.created.find(e=>e.className==='battle-solo-toggle');
-  assert.equal(actions.hidden,true);
-  toggle.onclick();
-  assert.equal(h.run('botGame.started'),false,'opening before Start does not start the game');
-  toggle.onclick();
+  const settings=shell.querySelector('.battle-settings-button');
+  assert.deepEqual(shell.querySelector('.battle-tools').children.slice(0,3),[play,h.elements.get('open-maps'),settings]);
+  settings.onclick();
+  assert.equal(h.run('botGame.started'),false);
   play.onclick();
-  assert.equal(h.run('botGame.active'),true);
-  toggle.onclick();
-  assert.equal(actions.hidden,false);
+  settings.onclick();
   assert.equal(h.run('botGame.paused'),true);
   assert.ok(play.innerHTML.includes('Resume bot game'));
-  toggle.onclick();
-  assert.equal(actions.hidden,true);
-  assert.equal(h.run('botGame.paused'),true);
-  play.onclick();
-  assert.equal(h.run('botGame.active'),true);
+  const replay=h.created.find(e=>e.className==='battle-solo-replay');
   h.run('over=1;render()');
-  assert.equal(play.hidden,true,'completed games have no play/pause action');
+  assert.equal(play.hidden,true);
+  assert.equal(replay.hidden,false);
+  replay.onclick();
+  assert.equal(h.run('over'),0);
+  assert.equal(play.hidden,false);
 });
-
-for(const page of ['index.html','match.html']){
-  test(page+': fullscreen keeps bot playback on the left and omits Fit board',async()=>{
-    const h=createGame(page);
-    const shell=h.created.find(e=>e.className==='battle-shell');
-    const tools=shell.querySelector('.battle-tools');
-    const menu=shell.querySelector('.battle-menu');
-    const actions=shell.querySelector('.battle-menu-actions');
-    const fullscreen=shell.querySelector('.battle-fullscreen-button');
-    const play=h.created.find(e=>e.className==='battle-solo-toggle');
-    assert.ok(!shell.innerHTML.includes('battle-fit-button'));
-    const difficulty=h.created.find(e=>e.className==="battle-bot-difficulty");
-    if(play)assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
-    else assert.equal(play,undefined);
-    await fullscreen.onclick();
-
-    assert.ok(fullscreen.innerHTML.includes('Exit full screen'));
-    if(play){
-      assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
-      assert.ok(!actions.children.includes(play));
-    }
-    await fullscreen.onclick();
-    assert.ok(!shell.innerHTML.includes('battle-fit-button'));
-    if(play)assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
-    let pauses=0;
-    h.context.botGame.pause=()=>pauses++;
-    shell.querySelector('.battle-menu-toggle').onclick();
-    assert.equal(pauses,0,'unstarted solo games and multiplayer never receive a pause command');
-    for(const selector of ['.battle-settings-button','.battle-fullscreen-button']){
-      assert.ok(shell.querySelector(selector).innerHTML.includes('aria-hidden="true"'),'each action has a decorative icon');
-    }
-  });
-}
-
-for(const fullscreen of [false,true]){
-  test('completed bot game offers Play again in '+(fullscreen?'fullscreen':'normal view'),async()=>{
-    const h=createGame('index.html');
-    const shell=h.created.find(e=>e.className==='battle-shell');
-    const replay=h.created.find(e=>e.className==='battle-solo-replay');
-    assert.equal(replay.hidden,true);
-    if(fullscreen)await shell.querySelector('.battle-fullscreen-button').onclick();
-    h.run('over=1;render()');
-    assert.equal(replay.hidden,false);
-    assert.ok(replay.innerHTML.includes('Play again'));
-    shell.querySelector('.battle-menu-toggle').onclick();
-    shell.querySelector('.battle-menu-toggle').focus=()=>{};
-    replay.onclick();
-    assert.equal(h.run('over'),0);
-    assert.equal(replay.hidden,true);
-    assert.equal(shell.querySelector('.battle-menu-actions').hidden,true);
-    const play=h.created.find(e=>e.className==='battle-solo-toggle');
-    assert.equal(play.hidden,false);
-    play.onclick();
-    assert.equal(h.run('botGame.active'),true);
-  });
-}
