@@ -21,7 +21,10 @@ export function createProfileAuth(clientId) {
     : run();
   const url = new URL(location.href);
   const callback = url.searchParams.has('state') && (url.searchParams.has('code') || url.searchParams.has('error'));
-  const initialized = callback ? manager.signinRedirectCallback(url.href).catch(() => {
+  if (callback) message = 'Completing email sign-in…';
+  const initialized = callback ? manager.signinRedirectCallback(url.href).then(() => {
+    message = 'Connecting your profile…';
+  }).catch(() => {
     message = 'This email sign-in could not be completed. Request a new link in this browser.';
   }).finally(() => {
     history.replaceState(history.state, '', home);
@@ -53,5 +56,8 @@ export function createProfileAuth(clientId) {
       message = '';
     },
     message: () => message,
+    profileConnected() {
+      message = '';
+    },
   };
 }

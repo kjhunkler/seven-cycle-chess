@@ -47,6 +47,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
   let saveError;
   let accountSubject;
   let accountSync;
+  let pendingAccount;
   let accountError = '';
   let nextAccountAttempt = 0;
   let guestLinked = false;
@@ -115,6 +116,8 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         lastActivityAt=0;
         historyRegistered = false;
         accountSubject = undefined;
+        pendingAccount = undefined;
+        nextAccountAttempt = 0;
         if (nextAttempt === undefined) connection = undefined;
       });
 
@@ -191,9 +194,11 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     const user = await auth.user();
     if (!synced || conn !== connection) return;
     if (!user) {
-      if (accountSubject) {
+      if (accountSubject || pendingAccount) {
         await conn.reducers.signOutAccount();
         accountSubject = undefined;
+        pendingAccount = undefined;
+        accountError = '';
         historyRegistered = false;
       }
       if (guestLinked) {
@@ -206,9 +211,25 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       }
       return;
     }
-    if (accountSubject === user.profile.sub || Date.now() < nextAccountAttempt) return;
+    const subject = user.profile.sub;
+    if (accountSubject === subject) return;
+    const account = [...conn.db.myAccount.iter()][0];
+    if (pendingAccount?.subject === subject && account) {
+      if (account.profile === pendingAccount.guestProfile) {
+        localStorage.setItem(credentialKey + ':linked', pendingAccount.credential);
+      }
+      accountSubject = subject;
+      pendingAccount = undefined;
+      accountError = '';
+      historyRegistered = true;
+      auth.profileConnected();
+      return;
+    }
+    if (Date.now() < nextAccountAttempt) return;
     nextAccountAttempt = Date.now() + 5000;
-    const previous = [...conn.db.myHistoryProfile.iter()][0]?.profile;
+    accountError = 'Connecting your profile…';
+    const guestProfile = [...conn.db.myHistoryProfile.iter()][0]?.profile;
+    const guestCredential = credential;
     const nonce = crypto.randomUUID();
     await conn.reducers.requestAccountLink({ nonce });
     const response = await fetch(new URL('/v1/database/' + encodeURIComponent(database) + '/call/connect_account', host), {
@@ -217,15 +238,9 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
       body: JSON.stringify([nonce]),
       signal: AbortSignal.timeout(7000),
     });
-    if (!response.ok) throw new Error('Could not reconnect your account. Retrying…');
+    if (!response.ok) throw new Error('Account connection failed');
     if (!synced || conn !== connection) return;
-    const account = [...conn.db.myAccount.iter()][0];
-    if (previous !== undefined && account?.profile === previous) {
-      localStorage.setItem(credentialKey + ':linked', credential);
-    }
-    accountSubject = user.profile.sub;
-    accountError = '';
-    historyRegistered = true;
+    pendingAccount = { subject, guestProfile, credential: guestCredential };
   }
 
   return {
@@ -325,6 +340,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
         const conn = connected();
         await conn.reducers.signOutAccount();
         accountSubject = undefined;
+        pendingAccount = undefined;
         historyRegistered = false;
         accountError = '';
         return;
@@ -334,7 +350,7 @@ export function createLobbyDirectory(database, host = 'https://maincloud.spaceti
     account() {
       if (!auth) return undefined;
       const row = synced && [...connection.db.myAccount.iter()][0];
-      return { solo:synced && connection.db.soloStanding.id.find(selfId), stats:synced && connection.db.liveProfile.id.find(selfId), profile: row?.profile, name: row?.name, message: auth.message() || accountError };
+      return { solo:synced && connection.db.soloStanding.id.find(selfId), stats:synced && connection.db.liveProfile.id.find(selfId), profile: row?.profile, name: row?.name, message: accountError || auth.message() };
     },
     history() {
       if (!synced || !historyRegistered) return undefined;
