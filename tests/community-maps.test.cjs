@@ -63,6 +63,8 @@ test('guests recover a lobby packet that arrived before its map subscription', (
 
 test('editor pinch zoom preserves the draft and guide changes preserve the zoom', () => {
   const game=createGame('index.html'),get=game.context.document.getElementById;
+  const library=get('map-library'),query=library.querySelector.bind(library);
+  library.querySelector=selector=>['.team-settings','[name="teams"]','[name="teamSize"]'].includes(selector)?null:query(selector);
   const area=get('editor-board');
   let view, guides;
   area.firstChild={

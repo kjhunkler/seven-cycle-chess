@@ -163,8 +163,10 @@ function matchMapChoice(mapId,teams){return selectionConfig(teams && !teamSizes(
 function teamSizes(players){return players===4?[2]:players===6?[3,2]:players===8?[4,2]:[]}
 function validTeams(config){return (config.teams===undefined||typeof config.teams==='boolean')&&(!config.teams||teamSizes(mapPlayerCount(config.map)).includes(config.teamSize??2))}
 function teamSetting(container,players,config){
+ const group=container.querySelector('.team-settings');
+ if(!group)return; // Browsing maps does not include team configuration controls.
  const sizes=teamSizes(players),field=container.querySelector('[name="teams"]'),size=container.querySelector('[name="teamSize"]');
- container.querySelector('.team-settings').hidden=!sizes.length;
+ group.hidden=!sizes.length;
  field.checked=!!config.teams&&sizes.includes(config.teamSize??2);
  size.replaceChildren(...sizes.map(n=>{const o=document.createElement('option');o.value=String(n);o.textContent=Array(players/n).fill(n).join(' v ');return o}));
  size.value=String(sizes.includes(config.teamSize??2)?config.teamSize??2:sizes[0]);
