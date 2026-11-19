@@ -108,7 +108,9 @@ const mapLibrary=(()=>{
     }
     get('editor-undo').disabled=!undo.length;
     const hints={node:'Place a neutral node. Its copies are added automatically.',path:first?'Choose the other end of the path.':'Choose the first node of a path.',difficulty:'Choose a neutral node to set its garrison and all matching copies.',erase:'Choose a node or path to remove it and its matching copies.'};
-    get('editor-help').textContent=hints[get('editor-tool').value]+' Use arrow keys and Enter on the board, or tap.';
+    const tool=get('editor-tool').value;
+    get('editor-garrison-field').hidden=tool!=='node'&&tool!=='difficulty';
+    get('editor-help').textContent=hints[tool]+' Use arrow keys and Enter on the board, or tap.';
   }
   function openEditor(m){
     editing=m?.id??0;baseRevision=m?.revision??0;undo=[];first=null;keyboard=false;

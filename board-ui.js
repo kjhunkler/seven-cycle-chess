@@ -107,7 +107,21 @@
   }
   const settingsButton=shell.querySelector('.battle-settings-button');
   const settingsDialog=document.createElement('dialog');settingsDialog.className='battle-settings-dialog';
-  settingsDialog.innerHTML='<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2><fieldset class="map-player-count"><legend>Players</legend></fieldset><div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div><label>Map <select name="map"></select></label><div class="map-navigation"></div><label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label><label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label><label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label><label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div></form>';
+  const boardPreferences='<div class="option-fields board-preferences"><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div></div>';
+  settingsDialog.innerHTML=`<form method="dialog" class="battle-settings-form"><h2>Battle settings</h2>
+    <fieldset class="map-player-count"><legend>Players</legend></fieldset>
+    <label>Map <select name="map"></select></label>
+    <div class="map-navigation"></div>
+    <label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label>
+    <details class="form-options"><summary>Match rules</summary><div class="option-fields">
+      <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
+      <label class="shop-setting"><input name="shops" type="checkbox"> Shop abilities</label>
+      <label class="shop-setting"><input name="productionRotation" type="checkbox"> Production rotation</label>
+      <label class="shop-setting"><input name="fullElimination" type="checkbox"> Full elimination</label>
+    </div></details>
+    <details class="form-options"><summary>Board preferences</summary>${boardPreferences}</details>
+    <div class="settings-actions"><button type="button" class="settings-restart">Restart game</button><button value="close">Close</button></div>
+  </form>`;
   document.body.append(settingsDialog);
   const showSoloPreview=typeof online==='undefined' && setupMapPicker(settingsDialog,()=>botConfig,{minimum:()=>2});
   settingsButton.onclick=()=>{if(typeof online==='undefined'){showSoloPreview();settingsDialog.querySelector('[name=teams]').checked=!!botConfig.teams;settingsDialog.querySelector('[name=speed]').value=String(botConfig.speed);settingsDialog.querySelector('[name=shops]').checked=botConfig.shops;settingsDialog.querySelector('[name=productionRotation]').checked=botConfig.productionRotation;settingsDialog.querySelector('[name=fullElimination]').checked=!!botConfig.fullElimination;}if(typeof settingsDialog.showModal==='function')settingsDialog.showModal();else settingsDialog.setAttribute('open','');};
@@ -174,11 +188,11 @@
     };
     settingsDialog.querySelector('.settings-restart').onclick=()=>{applySettings(true);settingsDialog.close();};
     settingsDialog.addEventListener('change',event=>{if(event?.target?.id!=='battle-compact-board')applySettings();});
-  }else settingsDialog.querySelector('.battle-settings-form').innerHTML='<h2>Battle settings</h2><p>Settings are chosen before an online match begins.</p><div class="feedback-settings"><button type="button" id="motion-toggle"></button><button type="button" id="haptic-toggle"></button></div><button value="close">Close</button>';
+  }else settingsDialog.querySelector('.battle-settings-form').innerHTML='<h2>Battle settings</h2><p>Settings are chosen before an online match begins.</p>'+boardPreferences+'<button value="close">Close</button>';
   const compactOptions='<option value="auto">Automatic (5+ players)</option><option value="on">On</option><option value="off">Off</option>';
   const battleCompactSetting=document.createElement('label');
   battleCompactSetting.innerHTML='Compact board <select id="battle-compact-board"></select>';
-  settingsDialog.querySelector('.battle-settings-form').append(battleCompactSetting);
+  settingsDialog.querySelector('.board-preferences').append(battleCompactSetting);
   const compactSettings=[document.getElementById('profile-compact-board'),battleCompactSetting.querySelector('select')].filter(Boolean);
   const syncCompactSettings=()=>{for(const setting of compactSettings)setting.value=compactPreference;};
   for(const setting of compactSettings){
