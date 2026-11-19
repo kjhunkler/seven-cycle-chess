@@ -30,6 +30,7 @@ const soloTotals = table({}, {profile:t.u64().primaryKey(), played:t.u32(), wins
 const soloStanding = table({public:true}, {id:t.string().primaryKey(), played:t.u32(), wins:t.u32()});
 const mapPlay = table({}, { id:t.string().primaryKey(), mapId:t.u32() });
 const teamMatch = table({}, {id:t.string().primaryKey()});
+const matchTeamSize = table({}, {id:t.string().primaryKey(), size:t.u8()});
 const playedMap = table({}, { id:t.string().primaryKey(), mapId:t.u32(), name:t.string() });
 const migration = table({}, { version:t.u8().primaryKey() });
 
@@ -37,7 +38,7 @@ const player = table({ public: true }, {
   id: t.string().primaryKey(),
   name: t.string(),
   key: t.string(),
-  lastSeen: t.option(t.u64()),
+  lastSeen: t.option(t.u64()).default(undefined),
 });
 
 const session = table({}, {
@@ -91,9 +92,9 @@ const historyGuest = table({}, {
   acceptedAt: t.u64(),
 });
 
-const matchRules = t.object('MatchRules', {
+// Preserve the stored layout so existing match history can migrate without data loss.
+const storedMatchRules = t.object('StoredMatchRules', {
   map: t.u8(),
-  teamSize: t.option(t.u8()),
   speed: t.f64(),
   shops: t.bool(),
   fullElimination: t.bool(),
@@ -101,6 +102,11 @@ const matchRules = t.object('MatchRules', {
   productionRotation: t.bool(),
   transformationWave: t.bool(),
   transformationTime: t.f64(),
+});
+const matchRules = t.object('MatchRules', {
+  map: t.u8(), teamSize: t.option(t.u8()), speed:t.f64(), shops:t.bool(),
+  fullElimination:t.bool(), portionControl:t.bool(), productionRotation:t.bool(),
+  transformationWave:t.bool(), transformationTime:t.f64(),
 });
 
 const matchPlayer = t.object('MatchPlayer', { profile: t.u64(), seat: t.u8(), name: t.string() });
@@ -111,7 +117,7 @@ const matchResult = table({}, {
   finishedAt: t.u64(),
   durationSeconds: t.u32(),
   winner: t.u8(),
-  rules: matchRules,
+  rules: storedMatchRules,
   players: t.array(matchPlayer),
 });
 
@@ -133,7 +139,7 @@ const rivalry = table({}, {
 
 const lobby = schema({
   player, session, invitation, historyProfile, historyIdentity, historyGuest, matchResult, matchEntry, rivalry,
-  account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, teamMatch, migration, soloRound, soloTotals, soloStanding,
+  account, accountSession, accountLink, totals, member, liveProfile, communityMap, mapVersion, mapVote, mapComment, mapPlay, playedMap, teamMatch, matchTeamSize, migration, soloRound, soloTotals, soloStanding,
 }, { env: { FRUIT_WARS_AUTH_CLIENT: t.option(t.string()), FRUIT_WARS_DEFAULT_MAP_OWNER:t.option(t.string()) } });
 export default lobby;
 
@@ -221,7 +227,7 @@ export const initializeCommunity = lobby.reducer(ctx=>{
   const lastPlayed=new Map<bigint,bigint>();
   for(const match of ctx.db.matchResult.iter()){
     for(const p of match.players)if(match.finishedAt>(lastPlayed.get(p.profile)??0n))lastPlayed.set(p.profile,match.finishedAt);
-    addResult(ctx,match.players,match.winner,ctx.db.teamMatch.id.find(match.id)?match.rules.teamSize??2:false);
+    addResult(ctx,match.players,match.winner,ctx.db.teamMatch.id.find(match.id)?ctx.db.matchTeamSize.id.find(match.id)?.size??2:false);
     countPlay(ctx,match.id,match.rules.map);
   }
   for(const user of ctx.db.account.iter())refreshProfile(ctx,user.profile,lastPlayed.get(user.profile));
@@ -377,12 +383,16 @@ export const acknowledgeInvitation = lobby.reducer({ room: t.string() }, (ctx, {
   }
 });
 
-export const myMatches = lobby.view({ public: true }, t.array(matchResult.rowType), ctx => {
+const matchSummary = t.object('MatchSummary', {
+  id:t.string(), host:t.u64(), finishedAt:t.u64(), durationSeconds:t.u32(),
+  winner:t.u8(), rules:matchRules, players:t.array(matchPlayer),
+});
+export const myMatches = lobby.view({ public: true }, t.array(matchSummary), ctx => {
   const identity = ctx.db.historyIdentity.identity.find(ctx.sender);
   if (!identity) return [];
   return [...ctx.db.matchEntry.profile.filter(identity.profile)].flatMap(entry => {
     const result = ctx.db.matchResult.id.find(entry.matchId);
-    return result ? [result] : [];
+    return result ? [{...result, rules:{...result.rules, teamSize:ctx.db.matchTeamSize.id.find(result.id)?.size}}] : [];
   });
 });
 
@@ -547,6 +557,7 @@ function storeResult(ctx:Context,{id,hostName,guests,winner,rules,durationSecond
   ctx.db.matchResult.insert({ id, host, finishedAt: now, durationSeconds, winner, rules, players });
 
   if(teams)ctx.db.teamMatch.insert({id});
+  if(teams)ctx.db.matchTeamSize.insert({id,size:Number(teams)});
   if(ctx.db.migration.version.find(1)){
     addResult(ctx,players,winner,teams);
     countPlay(ctx,id,mapId);

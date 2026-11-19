@@ -10,13 +10,13 @@ import {
   type Infer as __Infer,
 } from "spacetimedb";
 import {
-  MatchRules,
   MatchPlayer,
+  MatchRules,
 } from "./types";
 
 
 export default __t.row({
-  id: __t.string().primaryKey(),
+  id: __t.string(),
   host: __t.u64(),
   finishedAt: __t.u64().name("finished_at"),
   durationSeconds: __t.u32().name("duration_seconds"),

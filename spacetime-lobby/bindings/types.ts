@@ -151,7 +151,7 @@ export const MatchResult = __t.object("MatchResult", {
   durationSeconds: __t.u32(),
   winner: __t.u8(),
   get rules() {
-    return MatchRules;
+    return StoredMatchRules;
   },
   get players() {
     return __t.array(MatchPlayer);
@@ -160,8 +160,8 @@ export const MatchResult = __t.object("MatchResult", {
 export type MatchResult = __Infer<typeof MatchResult>;
 
 export const MatchRules = __t.object("MatchRules", {
-  teamSize: __t.option(__t.u8()),
   map: __t.u8(),
+  teamSize: __t.option(__t.u8()),
   speed: __t.f64(),
   shops: __t.bool(),
   fullElimination: __t.bool(),
@@ -171,6 +171,27 @@ export const MatchRules = __t.object("MatchRules", {
   transformationTime: __t.f64(),
 });
 export type MatchRules = __Infer<typeof MatchRules>;
+
+export const MatchSummary = __t.object("MatchSummary", {
+  id: __t.string(),
+  host: __t.u64(),
+  finishedAt: __t.u64(),
+  durationSeconds: __t.u32(),
+  winner: __t.u8(),
+  get rules() {
+    return MatchRules;
+  },
+  get players() {
+    return __t.array(MatchPlayer);
+  },
+});
+export type MatchSummary = __Infer<typeof MatchSummary>;
+
+export const MatchTeamSize = __t.object("MatchTeamSize", {
+  id: __t.string(),
+  size: __t.u8(),
+});
+export type MatchTeamSize = __Infer<typeof MatchTeamSize>;
 
 export const Member = __t.object("Member", {
   profile: __t.u64(),
@@ -261,6 +282,18 @@ export const SoloTotals = __t.object("SoloTotals", {
   wins: __t.u32(),
 });
 export type SoloTotals = __Infer<typeof SoloTotals>;
+
+export const StoredMatchRules = __t.object("StoredMatchRules", {
+  map: __t.u8(),
+  speed: __t.f64(),
+  shops: __t.bool(),
+  fullElimination: __t.bool(),
+  portionControl: __t.bool(),
+  productionRotation: __t.bool(),
+  transformationWave: __t.bool(),
+  transformationTime: __t.f64(),
+});
+export type StoredMatchRules = __Infer<typeof StoredMatchRules>;
 
 export const TeamMatch = __t.object("TeamMatch", {
   id: __t.string(),
