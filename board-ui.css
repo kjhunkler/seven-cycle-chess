@@ -105,6 +105,8 @@ input{-webkit-user-select:text;user-select:text;font-size:16px}
 .battle-menu-actions[hidden]{display:none}
 .battle-menu-actions button{display:flex;align-items:center;gap:10px;text-align:left;padding:0 12px;white-space:nowrap}
 .battle-tools button[hidden]{display:none}
+.battle-bot-difficulty{display:flex;align-items:center;gap:6px;padding-left:6px;border-radius:8px;background:var(--card);color:var(--fg);font-size:13px;pointer-events:auto}
+.battle-bot-difficulty select{min-height:44px;padding:0 6px;border:1px solid var(--bd);border-radius:8px;background:var(--card);color:inherit;font:inherit}
 .battle-action-icon{width:20px;height:20px;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .battle-tools>.battle-solo-toggle{display:grid;place-items:center;width:44px;height:44px;padding:0}
 .battle-tools>.battle-solo-toggle .battle-action-label{display:none}

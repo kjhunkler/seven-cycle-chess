@@ -92,18 +92,19 @@ for(const page of ['index.html','match.html']){
     const fullscreen=shell.querySelector('.battle-fullscreen-button');
     const play=h.created.find(e=>e.className==='battle-solo-toggle');
     assert.ok(!shell.innerHTML.includes('battle-fit-button'));
-    if(play)assert.deepEqual(tools.children.slice(-2),[play,menu]);
+    const difficulty=h.created.find(e=>e.className==="battle-bot-difficulty");
+    if(play)assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
     else assert.equal(play,undefined);
     await fullscreen.onclick();
 
     assert.ok(fullscreen.innerHTML.includes('Exit full screen'));
     if(play){
-      assert.deepEqual(tools.children.slice(-2),[play,menu]);
+      assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
       assert.ok(!actions.children.includes(play));
     }
     await fullscreen.onclick();
     assert.ok(!shell.innerHTML.includes('battle-fit-button'));
-    if(play)assert.deepEqual(tools.children.slice(-2),[play,menu]);
+    if(play)assert.deepEqual(tools.children.slice(-3),[play,difficulty,menu]);
     let pauses=0;
     h.context.botGame.pause=()=>pauses++;
     shell.querySelector('.battle-menu-toggle').onclick();

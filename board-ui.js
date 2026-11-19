@@ -92,12 +92,19 @@
     portionPercent=value;portionOutput.textContent=value+'%';portionSlider.setAttribute('aria-valuetext',value+'%');
   });
   shell.append(portionControl);
-  let soloToggle,soloReplay;
+  let soloToggle,soloReplay,toolbarDifficulty;
+  const difficultyOptions='<option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option>';
   if(typeof online==='undefined'){
     soloToggle=document.createElement('button');
     soloToggle.type='button';soloToggle.className='battle-solo-toggle';
     soloToggle.onclick=()=>{if(window.botGame.paused)window.botGame.start();else window.botGame.pause();};
-    shell.querySelector('.battle-tools').append(soloToggle,boardMenu);
+    const difficultyLabel=document.createElement('label');
+    difficultyLabel.className='battle-bot-difficulty';
+    difficultyLabel.innerHTML='Bot difficulty <select>'+difficultyOptions+'</select>';
+    toolbarDifficulty=difficultyLabel.querySelector('select');
+    toolbarDifficulty.value=botConfig.botDifficulty??'normal';
+    toolbarDifficulty.onchange=()=>{botConfig.botDifficulty=toolbarDifficulty.value;};
+    shell.querySelector('.battle-tools').append(soloToggle,difficultyLabel,boardMenu);
     soloReplay=document.createElement('button');
     soloReplay.type='button';soloReplay.className='battle-solo-replay';
     soloReplay.hidden=true;
@@ -112,7 +119,7 @@
     <fieldset class="map-player-count"><legend>Players</legend></fieldset>
     <label>Map <select name="map"></select></label>
     <div class="map-navigation"></div>
-    <label>Bot difficulty <select name="botDifficulty"><option value="easy">Easy</option><option value="normal" selected>Normal</option><option value="hard">Hard</option></select></label>
+    <label>Bot difficulty <select name="botDifficulty">${difficultyOptions}</select></label>
     <label>Game speed <select name="speed"><option value="0.5">Relaxed</option><option value="1">Standard</option><option value="1.5">Fast</option></select></label>
     <details class="form-options"><summary>Match rules</summary><div class="option-fields">
       <div class="team-settings"><label><input name="teams" type="checkbox"> Team play</label><label>Team format <select name="teamSize"></select></label></div>
@@ -222,6 +229,7 @@
       const next={...matchMapChoice(Number(map.value),teams?.checked),teams:!!teams?.checked,teamSize:Number(teamSize?.value)||2,botDifficulty:botDifficulty?.value||"normal",speed:Number(speed.value),shops:shops.checked,productionRotation:productionRotation.checked,transformationPenalty:!!transformationPenalty?.checked,fullElimination:!!fullElimination?.checked};
       const reset=restart||next.teams!==!!botConfig.teams||next.teamSize!==(botConfig.teamSize??2)||next.fullElimination!==!!botConfig.fullElimination||next.transformationPenalty!==!!botConfig.transformationPenalty||next.map!==botConfig.map||next.mapRevision!==botConfig.mapRevision||next.shops!==botConfig.shops||next.productionRotation!==botConfig.productionRotation;
       botConfig=next;
+      toolbarDifficulty.value=next.botDifficulty;
       showSoloPreview();
       if(reset){
         act('restart');
