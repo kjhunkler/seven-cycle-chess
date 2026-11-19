@@ -26,13 +26,13 @@ function boardViewPoint(p,owner,inverse=false){
  return {x:p.x,y:owner===2?100-p.y:p.y};
 }
 function survivingOwner(owner){while(eliminatedBy[owner])owner=eliminatedBy[owner];return owner}
-function botShopTurn(owner){
+function botShopTurn(owner,reserve=2){
   const homeNode=playerHome(owner);if(!homeNode)return;
   for(const shop of Object.values(N).filter(n=>n.shop&&n.owner===owner)){
     if(shop.abilityReady){const ability={kind:'ability',from:shop.id,to:homeNode.id};if(typeof applyCommand==='function')applyCommand(owner,ability);else applyRouteCommand(owner,ability);continue}
     if(shop.abilityCd>0)continue;
     const incoming=G.filter(g=>g.to===shop.id&&g.owner===owner).reduce((sum,g)=>sum+g.n,0)+Object.values(N).flatMap(n=>n.orders).filter(o=>o.to===shop.id&&o.owner===owner).reduce((sum,o)=>sum+o.count,0);
-    const type=big(homeNode),count=Math.min(10-shop.charge-incoming,type<0?0:homeNode.stock[type]-2);
+    const type=big(homeNode),count=Math.min(10-shop.charge-incoming,type<0?0:homeNode.stock[type]-reserve);
     if(count>0)dispatch(homeNode,shop.id,type,count);
   }
 }

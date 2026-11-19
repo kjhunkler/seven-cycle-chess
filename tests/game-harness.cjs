@@ -12,7 +12,7 @@ function createGame(page='match.html'){
  context.window=context;const root=path.join(__dirname,'..');
  for(const file of ['production-cycle.js','duel-maps.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
  const html=fs.readFileSync(path.join(root,page),'utf8');for(const script of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g))if(script[1].trim())vm.runInContext(script[1],context);
- for(const file of ['controls.js','board-ui.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
+ for(const file of ['bot-ai.js','controls.js','board-ui.js'])vm.runInContext(fs.readFileSync(path.join(root,file),'utf8'),context);
  return {context,elements,frames,sent,created,run:code=>vm.runInContext(code,context)};
 }
 module.exports={createGame,Element};

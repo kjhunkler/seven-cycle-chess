@@ -95,13 +95,13 @@ small{color:var(--mut)}
   <div class="map-actions editor-footer"><button id="editor-undo">Undo</button><button id="publish-map">Publish map</button></div><p role="status" id="editor-status"></p>
 </dialog><div id="invite-toasts" aria-live="assertive"></div></main>
 <script src="./production-cycle.js?v=22"></script><script src="./duel-maps.js?v=5"></script><script>
-const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,aiInterval:3,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
+const CONFIG={timeScale:1,outpostRate:3,cooldown:5,travel:2,holdMs:420,strengthEpsilon:1e-8,departureInterval:0.25,neutralGarrison:5,startingPopulation:6,cap:99,mult:[1,2,1.5,1,1,0.67,0.5]};
 const T=[["🍎","apple"],["🍊","orange"],["🍌","banana"],["🥑","avocado"],["🫐","blueberry"],["🍇","plum"],["🥥","coconut"]];
 let productionCycle;
 let N,G,drag,sel,sendType,half,msg,over,aiT;
 const $=id=>document.getElementById(id);
 let botStarted=false,botPaused=true;
-let botConfig={map:1,speed:1,shops:false,productionRotation:false,fullElimination:false,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10};
+let botConfig={botDifficulty:"normal",map:1,speed:1,shops:false,productionRotation:false,fullElimination:false,portionControl:false,transformationPenalty:false,transformationWave:false,transformationTime:10};
 function init(){
   botStarted=false;botPaused=true;
   transformationClock=0;
@@ -202,26 +202,9 @@ function step(dt){
   G=G.filter(g=>!g.dead);
   const done=G.filter(g=>g.t>=1);G=G.filter(g=>g.t<1);for(const g of done){arrive(g);if(over)return}
   for(const n of Object.values(N))depart(n,dt);
-  aiT-=dt;if(aiT<=0){aiT=CONFIG.aiInterval;ai()}
+  aiT-=dt;if(aiT<=0){aiT=botInterval();ai()}
 }
-function ai(){
-  for(const owner of Object.values(N).map(n=>n.home).filter(seat=>seat>1)){
-  const homeNode=playerHome(owner);if(!homeNode)continue;botShopTurn(owner);
-  const mine=Object.values(N).filter(n=>n.owner===owner&&big(n)>=0).sort(()=>Math.random()-.5).slice(0,2);
-  for(const n of mine){
-    const ty=big(n),c=n.stock[ty],amt=c;
-    if(amt<3)continue;
-    let best=null,bs=0;
-    for(const id of n.adj){
-      const t=N[id];let s;
-      if(allies(t.owner,owner)||t.shop){if(t.shop||t.ut!==ty)continue;s=Math.random()<.3?1.1:0}
-      else{const d=big(t);s=d<0?99:amt*mult(ty,d)/(t.stock[d]*mult(d,ty));s*=1+Math.random()*.4}
-      if(s>bs){bs=s;best=id}
-    }
-    if(best&&bs>1)dispatch(n,best,ty,amt);
-  }
-  }
-}
+function ai(){runBotTurns([1])}
 function select(id){
   if(sel===id)return;
   sel=id;
@@ -355,4 +338,4 @@ function openWheel(id,x,y){
 }
 init();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("./sw.js").catch(console.error);
-</script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=36"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=5"></script><script src="./lobby.js?v=3"></script></body></html>
+</script><script src="./bot-ai.js?v=1"></script><script src="./controls.js?v=28"></script><script src="./board-ui.js?v=37"></script><script>requestAnimationFrame(loop);</script><script src="./lobby-config.js"></script><script src="./public-lobby.js?v=3"></script><script src="./map-library.js?v=5"></script><script src="./lobby.js?v=3"></script></body></html>

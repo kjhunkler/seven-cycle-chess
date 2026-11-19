@@ -42,6 +42,7 @@ for (const page of ['index.html', 'match.html']) {
     for (const match of html.matchAll(/<script(?:\s[^>]*)?>([\s\S]*?)<\/script>/g)) {
       if (match[1].trim()) vm.runInContext(match[1], context, { filename: page });
     }
+    vm.runInContext(fs.readFileSync(path.join(root, 'bot-ai.js'), 'utf8'), context);
     vm.runInContext(fs.readFileSync(path.join(root, 'controls.js'), 'utf8'), context, { filename: 'controls.js' });
     vm.runInContext(fs.readFileSync(path.join(root, 'board-ui.js'), 'utf8'), context, { filename: 'board-ui.js' });
     if (page === 'index.html') {
